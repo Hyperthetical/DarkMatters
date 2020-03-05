@@ -1380,11 +1380,15 @@ except IndexError:
     tools.fatal_error("No script file supplied")
 except IOError:
     tools.fatal_error("Invalid script file path supplied")
-    
-phys = physical_env()
-cosm = cosmology_env()
-sim = simulation_env()
-loop = loop_env(zn=20,zmin=1.0e-5,zmax=1.0,nloop=40,mmin=1.1e-6,mmax=1e15)
-loop_sim = simulation_env()
-halo = halo_env()    
-process_file(in_file,phys,sim,halo,cosm,loop)
+
+
+#===============================================================
+#Code execution
+#===============================================================
+phys = physical_env() #set up default physical environment
+cosm = cosmology_env() #set up default cosmology environment
+sim = simulation_env() #set up default simulation environment
+loop = loop_env(zn=20,zmin=1.0e-5,zmax=1.0,nloop=40,mmin=1.1e-6,mmax=1e15) #loop env - old code
+loop_sim = simulation_env() #sets the common values for the loop
+halo = halo_env()  #set up default halo environment
+process_file(in_file,phys,sim,halo,cosm,loop) #execute all commands in the input file
