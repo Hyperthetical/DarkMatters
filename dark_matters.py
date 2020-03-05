@@ -1,6 +1,5 @@
 import sys,getopt,time,os
 from numpy import *
-sys.path.append("/home/geoff/Dropbox/Pylibs")
 from wimp_tools import tools,cosmology_env,simulation_env,physical_env,loop_env,halo_env #wimp handling package
 from emm_tools import electron,radio,high_e,neutrino #emmisivity package
 from multiprocessing import Pool
