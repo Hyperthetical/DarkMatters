@@ -160,12 +160,19 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         ---------------------------
         None - evaluates script commands
     """
+    calc_dict = {"rflux":"Radio flux","hflux":"High-frequency flux","flux":"All flux","jflux":"Gamma-ray flux from Jfactor","gflux":"Gamma-ray flux","nuflux":"Neutrino flux","nu_jflux":"Neutrino flux from J-factor","sb":"Radio surface brightness","gamma_sb":"gamma-ray surface brightness","emm":"Emmissivity","loop":"Radio loop","hloop":"High energy loop","electrons":"Electron distributions"}
     if "#" in command.strip() and not command.strip().startswith("#"):
         s = command.split("#")[0].split()
     elif not command.strip() == "":
         s = command.split()
     if command.strip().startswith("#") or command.strip() == "":
         pass
+    elif command.strip().lower() == "calc help":
+        print("The calc command is used as follows: calc mode region")
+        print("region -> full, theta, r_integrate")
+        print("mode can take the values")
+        for c in calc_dict:
+            print(c+" calculates "+calc_dict[c])
     elif s[0] in ["batch","b","c","calc"]:
         try:
             calc_str = s[1]
@@ -185,7 +192,6 @@ def process_command(command,phys,sim,halo,cos_env,loop):
             print("=========================================================")
             print("Beginning new Dark Matters calculation")
             print("=========================================================")
-            calc_dict = {"rflux":"Radio flux","hflux":"High-frequency flux","flux":"All flux","jflux":"Gamma-ray flux from Jfactor","gflux":"Gamma-ray flux","nuflux":"Neutrino flux","nu_jflux":"Neutrino flux from J-factor","sb":"Radio surface brightness","gamma_sb":"gamma-ray surface brightness","emm":"Emmissivity","loop":"Radio loop","hloop":"High energy loop","electrons":"Electron distributions"}
             try:
                 print("Calculation Task Given: "+calc_dict[s[1]])
             except IndexError:
@@ -638,7 +644,7 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         try:
             tools.help_menu(s[1])
         except IndexError:
-            tools.help_menu(None)
+            tools.help_menu()
     elif(s[0] == "load" or s[0] == "l"):
         try:
             open(s[1],"r")
@@ -680,18 +686,22 @@ def process_set(line,phys,sim,halo,cos_env,loop):
 
     loop_commands = {"nloop":[loop,"int","mn","(number of mass samples in loop)"]}
 
-    hsp2_commands = {"diffusion_constant":[phys,"float","d0","diffusion constant (cm^2 s^-1)"],"isrf":[phys,"int","ISRF","inter-sellar radiation field flag (1 or 0)"],"output_directory":[sim,"string","out_dir","output directory"],"nfw_index":[halo,"float","gnfw_gamma","gnfw gamma index"]}
+    hsp2_commands = {"diffusion_constant":[phys,"float","d0","(diffusion constant (cm^2 s^-1))"],"isrf":[phys,"int","ISRF","(inter-sellar radiation field flag (1 or 0))"],"output_directory":[sim,"string","out_dir","(output directory)"],"nfw_index":[halo,"float","gnfw_gamma","(gnfw gamma index)"]}
 
     commands = {**hsp_commands,**cosmo_commands}
     commands = {**commands,**loop_commands,**hsp2_commands}
+
+    
 
     sline = line.rstrip().split("#")[0]
     s = sline.rstrip().split()
     if len(s) < 2:
         tools.fatal_error("Command error: "+line+"\nYou need to set something")
-    if not s[1] in commands:
+    if not s[1] in commands and s[1] != "help":
         tools.fatal_error("Command error: "+s[1]+" does not exist")
-    if s[1] == "electrons_from_c":
+    if line.strip().lower() == "set help":
+        enumerate_set_commands(commands)
+    elif s[1] == "electrons_from_c":
         try:
             yl = s[2]
             if "T" in yl or "t" in yl:
@@ -745,6 +755,13 @@ def process_set(line,phys,sim,halo,cos_env,loop):
             tools.fatal_error(s[1]+" requires a"+commands[s[1]][1]+" value "+commands[s[1]][3])
     
 
+def enumerate_set_commands(commands):
+    print("Enumerating all possible set commands")
+    for c in commands:
+        if c not in ["electrons_from_c","radio_emm_from_c"]:
+            print("set "+c+" "+commands[c][1]+" "+commands[c][3])
+    print("set electrons_from_c boolean file_path (electrons_from_c requires true or false as first argument and the path to the c executable as the second)")
+    print("set radio_emm_from_c boolean file_path (radio_emm_from_c requires true or false as first argument and the path to the c executable as the second)")
         
                 
 
@@ -1370,14 +1387,23 @@ def neutrino_spectrum(spec_dir,phys,sim,flavour,mode="ann"):
             phys.nu_spectrum[1] += Q_set*br
     phys.nu_flavour = flavour
 
+def console_mode(phys,sim,halo,cosmo,loop):
+    print("Dark matters is now in console mode")
+    print("Enter a command: ")
+    command_line = ""
+    while not "exit" in command_line: 
+        command_line = input("> ")
+        process_command(command_line,phys,sim,halo,cosmo,loop)
+
 
 try:
     args = sys.argv[1:]
     in_file = args[0]
     test = open(in_file,"r")
+    console_flag = False
     test.close()
 except IndexError:
-    tools.fatal_error("No script file supplied")
+    console_flag = True
 except IOError:
     tools.fatal_error("Invalid script file path supplied")
 
@@ -1391,4 +1417,7 @@ sim = simulation_env() #set up default simulation environment
 loop = loop_env(zn=20,zmin=1.0e-5,zmax=1.0,nloop=40,mmin=1.1e-6,mmax=1e15) #loop env - old code
 loop_sim = simulation_env() #sets the common values for the loop
 halo = halo_env()  #set up default halo environment
-process_file(in_file,phys,sim,halo,cosm,loop) #execute all commands in the input file
+if not console_flag:
+    process_file(in_file,phys,sim,halo,cosm,loop) #execute all commands in the input file
+else:
+    console_mode(phys,sim,halo,cosm,loop)
