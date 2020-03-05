@@ -1391,7 +1391,7 @@ def console_mode(phys,sim,halo,cosmo,loop):
     print("Dark matters is now in console mode")
     print("Enter a command: ")
     command_line = ""
-    while not "exit" in command_line: 
+    while not command_line.strip().lower == "exit": 
         command_line = input("> ")
         process_command(command_line,phys,sim,halo,cosmo,loop)
 
