@@ -1,0 +1,6 @@
+[submodule "wimp_tools"]
+	path = wimp_tools
+	url = https://github.com/Hyperthetical/wimp_tools.git
+[submodule "emm_tools"]
+	path = emm_tools
+	url = https://github.com/Hyperthetical/emm_tools.git
