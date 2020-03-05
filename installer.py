@@ -47,7 +47,7 @@ print("Please indicate installation directory")
 print("Do not include the dark_matters directory in the path")
 print("i.e > /home/user  will install in /home/user/dark_matters")
 baseDir = input("> ")
-folderList = ["wimp_tools","files","emm_tools"]
+folderList = ["wimp_tools","emm_tools"]
 fileList = ["dark_matters.py"]
 scriptList = ["dark_matters"]
 
