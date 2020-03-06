@@ -1368,7 +1368,7 @@ def neutrino_spectrum(spec_dir,phys,sim,flavour,mode="ann"):
             Q_set = zeros(len(s),dtype=float)  #electron generation function dn/dE
             for i in range(0,len(s)):
                 #me factors convert this to gamma and dn/dgamma
-                #gamma is the Lorenz factor
+                #gamma is the Lorenz factor for an electron
                 E_set[i] = float(s[i][0])/me
                 Q_set[i] = float(s[i][1])*me
             spec.close()
