@@ -1202,8 +1202,8 @@ def get_electrons(halo,phys,sim):
         c_file = "temp_electrons_c.in"
         wd = os.getcwd()
         halo.electrons = electron.electrons_from_c(join(wd,py_file),join(wd,c_file),halo,phys,sim)
-        #os.remove(join(wd,py_file))
-        #os.remove(join(wd,c_file))
+        os.remove(join(wd,py_file))
+        os.remove(join(wd,c_file))
         if halo.electrons is None:
             tools.fatal_error("The electron executable is not compiled/location not specified")
     print("Process Complete")
