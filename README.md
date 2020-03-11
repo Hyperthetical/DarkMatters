@@ -1,6 +1,7 @@
-# Dark Matters
+= # Dark Matters
 Multi-frequency calculations for dark matter annihilation/decay
 
+== The set command
 | Set | Target variable | Value|
 |--- | --- | --- |
 |name | halo.name | halo name output label |
@@ -24,7 +25,6 @@ Multi-frequency calculations for dark matter annihilation/decay
 |ucmh | halo.ucmh | UCMH flag (0 or 1) [0] |
 |jflag | halo.jflag | Normalise DM density to jfactor [0],1|
 |nfw_index | halo.gfnw_gamma | $\gamma$ for gnfw profile [1]|
-|--- | --- | --- |
 |input_spectra_directory | sim.specdir |  directory with dN/dE input spectra|
 |nu_flavour | sim.nu_flavour | [all],mu,tau,e|
 |mx_set | sim.mx_set | WIMP masses in GeV separated by spaces [\#]|	
@@ -32,30 +32,25 @@ Multi-frequency calculations for dark matter annihilation/decay
 |particle_model | phys.particle_model | label for output [c]|
 |channel | phys.channel | Annihilation channels separated by spaces [bb]|
 |branching | phys.branching | Branching ratios for channels above [1.0]|
-|--- | --- | --- |
 |qb | phys.qb | Magnetic field variable [**] default[0.0] |
 |b_model | sim.b_flag | exp,follow_ne,[flat],powerlaw|
 |B | phys.b0 | magnetic field normalisation in micro Gauss [0.0]|
 |d | phys.lc | coherence length for B field in kpc [0.0]|
 |delta | phys.delta | Turbulence index [1.666] |
-|--- | --- | --- |
 |ne_model | sim.ne_model | exp,king,powerlaw,[flat]|
 |ne | phys.ne0 | Gas density normalisation cm$^{-3}$ [0.0]|
 |qe | phys.qe | Gas variable  [***] default[0.0]|
 |ne_scale | phys.lb | gas scale radius in Mpc|
-|--- | --- | --- |
 |theta | sim.theta | angular radius for flux integration in arcmin|
 |r_integrate | sim.rintegrate | Flux integration radius in Mpc|
 |flim | sim.flim | min and max frequencies in MHz [1e1 1e5] |
 |diff | phys.diff | diffusion flag, 1 or [0] |
 |output_directory | sim.out_dir | output directory [./]|
-|--- | --- | --- |
 |f_num | sim.num | number of frequency samples [40]|
 |r_num | sim.n | radial samples, recommend more than 51 (odd) [100]|
 |e_bins |  sim.e_bins | bins for dN/dE spectra recommend 71 (odd)|
 |gr_num | sim.ngr | radial samples for diffusion, recommend 201 (odd) [300]|
 |electrons_from_c | - | [****]|
-|--- | --- | --- |
 |omega_m | cosmo.w_m | Matter fraction [0.3089]|
 |omega_l | cosmo.w_l | Lambda fraction [0.6911]|
 |h | cosmo.h | Hubble constant [0.6774] |
@@ -64,3 +59,6 @@ Multi-frequency calculations for dark matter annihilation/decay
 |ps_index | cosmo.n | Structure power-spectrum index [0.968] |
 |curvature | cosmo.universe | flat or curved [flat]|
 |sigma_8 | cosmo.sigma_8 | Power-spctrum normalisation [0.8159]|
+
+=== Special cases of set
+The variables marked with [*] are all inter-dependent, in practical terms you need to specify as many of these as possible, others will be calculated. Mvir or rvir can be specified alone and others will be found if you do this. Variables marked with [c] will have their values decided in the code if not specified. Those with [opt] are only needed in special cases. The [**] variable has several roles depending on the chosen magnetic field model. For powerlaw it is power-law index in product with [***], for follow_ne it is scaling exponent, in exp it is the field scale length, in m31 it is the scale $r_1$. For [***] it varies with gas model: in exp it plays no role, in king or powerlaw it is the scaling exponent. In the case of [****] its argument is either ``t c_file_path" or ``f". In the first case the c executable will be used to calculate electron distributions, in the second python will do it itself. The [#] has default value: 10 20 40 70 100 200 300 500 700 1000 1300 1500 2000 2500 3000 5000 10000.
