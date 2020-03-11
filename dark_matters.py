@@ -212,6 +212,7 @@ def process_command(command,phys,sim,halo,cos_env,loop):
                 neutrino_spectrum(sim.specdir,phys,sim,sim.nu_flavour,mode=halo.mode)
             if(not phys.check_particles()):
                 tools.fatal_error("particle data underspecified")
+
             gather_spectrum(sim.specdir,phys,sim,mode=halo.mode)
             process_command("setup halo",phys,sim,halo,cos_env,loop)
             #print("c "+calc_str+" "+t_st)
@@ -467,8 +468,10 @@ def process_command(command,phys,sim,halo,cos_env,loop):
                 nu_str = "_nu_"
             if halo.mode == "ann":
                 fluxout = halo.name+"_"+short_id(sim,phys,halo)+nu_str+"jflux.out"
-            else:
+            elif halo.mode == "decay":
                 fluxout = halo.name+"_decay_"+short_id(sim,phys,halo)+nu_str+"jflux.out"
+            else:
+                fluxout = halo.name+"_"+phys.particle_model+nu_str+"jflux.out"
             erg = halo.nu_virflux*sim.f_sample*1e-17*4.14e-24*1.6e20 #cm^-2 s^-1 * Jy -> erg cm^-2 s^-1 * h {GeV s} * GeV cm^-2 -> Jy * 
             write = [];write.append(sim.f_sample*MHzToGeV);write.append(halo.nu_virflux);write.append(erg)
             tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
@@ -814,10 +817,12 @@ def get_file_id(sim,phys,cos_env,halo,nameFirst,noBfield=False,noGas=False):
             diff_str = "d1_"
     else:
         diff_str = ""
-    
-    wimp_str = phys.particle_model+"_mx"+str(int(phys.mx))
-    if halo.mode_exp == 1.0:
-        wimp_str += "_"+"decay"
+    if halo.mode == "special":
+        wimp_str = phys.particle_model
+    elif halo.mode in ["ann","decay"]:
+        wimp_str = phys.particle_model+"_mx"+str(int(phys.mx))
+        if halo.mode == "decay":
+            wimp_str += "_"+"decay"
     wimp_str += "_"
     
     if halo.name != None:
@@ -1308,13 +1313,19 @@ def gather_spectrum(spec_dir,phys,sim,mode="ann"):
         ---------------------------
         None - executes read_spectrum
     """
+    print(mode)
     if mode == "ann":
         for ch,br in zip(phys.channel,phys.branching):
             pos = join(spec_dir,"pos_"+ch+"_"+str(int(phys.mx))+"GeV.data")
             gamma = join(spec_dir,"gamma_"+ch+"_"+str(int(phys.mx))+"GeV.data")
             read_spectrum(pos,0,br,phys,sim)
             read_spectrum(gamma,1,br,phys,sim)
-    else:
+    elif mode == "special":
+        pos = join(spec_dir,"pos_"+phys.particle_model+".data")
+        gamma = join(spec_dir,"gamma_"+phys.particle_model+".data")
+        read_spectrum(pos,0,1.0,phys,sim)
+        read_spectrum(gamma,1,1.0,phys,sim)
+    elif mode == "decay":
         for ch,br in zip(phys.channel,phys.branching):
             pos = join(spec_dir,"pos_"+ch+"_"+str(int(phys.mx*0.5))+"GeV.data")
             gamma = join(spec_dir,"gamma_"+ch+"_"+str(int(phys.mx*0.5))+"GeV.data")
