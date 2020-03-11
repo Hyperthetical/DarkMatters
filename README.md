@@ -1,7 +1,8 @@
-= # Dark Matters
+
+# Dark Matters
 Multi-frequency calculations for dark matter annihilation/decay
 
-== The set command
+## The set command
 | Set | Target variable | Value|
 |--- | --- | --- |
 |name | halo.name | halo name output label |
@@ -60,5 +61,5 @@ Multi-frequency calculations for dark matter annihilation/decay
 |curvature | cosmo.universe | flat or curved [flat]|
 |sigma_8 | cosmo.sigma_8 | Power-spctrum normalisation [0.8159]|
 
-=== Special cases of set
+### Special cases of set
 The variables marked with [*] are all inter-dependent, in practical terms you need to specify as many of these as possible, others will be calculated. Mvir or rvir can be specified alone and others will be found if you do this. Variables marked with [c] will have their values decided in the code if not specified. Those with [opt] are only needed in special cases. The [**] variable has several roles depending on the chosen magnetic field model. For powerlaw it is power-law index in product with [***], for follow_ne it is scaling exponent, in exp it is the field scale length, in m31 it is the scale $r_1$. For [***] it varies with gas model: in exp it plays no role, in king or powerlaw it is the scaling exponent. In the case of [****] its argument is either ``t c_file_path" or ``f". In the first case the c executable will be used to calculate electron distributions, in the second python will do it itself. The [#] has default value: 10 20 40 70 100 200 300 500 700 1000 1300 1500 2000 2500 3000 5000 10000.
