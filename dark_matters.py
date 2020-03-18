@@ -246,15 +246,21 @@ def process_command(command,phys,sim,halo,cos_env,loop):
             print("=========================================================")
             hfmax = phys.mx/(1e6*4.136e-15*1e-9) #MHz
             hsim = simulation_env(n=sim.n,ngr=sim.ngr,num=20,fmin=1e-3*hfmax,fmax=0.1*hfmax,theta=sim.theta,nu_sb=sim.nu_sb)
+            jhalo = halo_env()
+            attSet = [att for att in dir(halo) if (not att.startswith("__")) and (not att in ["physical_averages","setup_halo","setup","setup_ucmh","check_self","make_spectrum"])]
+            for att in attSet:
+                if not att in ["mode","mode_exp","rho_dm_sample"]:
+                    setattr(jhalo,att,getattr(halo,att))
+            jcheck = jhalo.setup(sim,phys,cos_env)
             hsim.sample_f()
             theta_flag = set_theta_flag(s)
-            get_h_flux(halo,hsim,0,theta_flag,suppress_output=True)
+            get_h_flux(jhalo,hsim,0,theta_flag,suppress_output=True)
             if theta_flag == "full":
-                gflux = halo.he_virflux
+                gflux = jhalo.he_virflux
             else:
-                gflux = halo.he_arcflux
-            jflux = high_e.gamma_from_j(halo,phys,hsim)*4.14e-24*1.6e20
-            fRatio = sum(jflux/gflux)/len(jflux)
+                gflux = jhalo.he_arcflux
+            jflux = high_e.gamma_from_j(jhalo,phys,hsim)*4.14e-24*1.6e20
+            fRatio = (sum(jflux/gflux)/len(jflux))**(0.5*halo.mode_exp)
             sim.jnormed = True
             print("Normalisation factor: "+str(fRatio))
             halo.he_arcflux = None;halo.he_virflux=None
@@ -334,7 +340,7 @@ def process_command(command,phys,sim,halo,cos_env,loop):
             get_flux(halo,sim,theta_flag)
             get_multi_flux(halo)
             if theta_flag == "theta":
-                fluxout = get_file_id(sim,phys,cos_env,halo,nameFirst)+"_multi_"+str(int(sim.theta))+"arcminflux.out"
+                fluxout = get_file_id(sim,phys,cos_env,halo,nameFirst)+"_multi_"+str(sim.theta)+"arcminflux.out"
                 tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
                 erg = halo.multi_arcflux*sim.f_sample*1e-17*fRatio
                 write = [];write.append(sim.f_sample);write.append(halo.multi_arcflux);write.append(erg)
