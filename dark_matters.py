@@ -160,7 +160,7 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         ---------------------------
         None - evaluates script commands
     """
-    calc_dict = {"rflux":"Radio flux","hflux":"High-frequency flux","flux":"All flux","jflux":"Gamma-ray flux from Jfactor","gflux":"Gamma-ray flux","nuflux":"Neutrino flux","nu_jflux":"Neutrino flux from J-factor","sb":"Radio surface brightness","gamma_sb":"gamma-ray surface brightness","emm":"Emmissivity","loop":"Radio loop","hloop":"High energy loop","electrons":"Electron distributions"}
+    calc_dict = {"dflux":"Gamma-ray flux from D-factor","rflux":"Radio flux","hflux":"High-frequency flux","flux":"All flux","jflux":"Gamma-ray flux from Jfactor","gflux":"Gamma-ray flux","nuflux":"Neutrino flux","nu_jflux":"Neutrino flux from J-factor","sb":"Radio surface brightness","gamma_sb":"gamma-ray surface brightness","emm":"Emmissivity","loop":"Radio loop","hloop":"High energy loop","electrons":"Electron distributions"}
     if "#" in command.strip() and not command.strip().startswith("#"):
         s = command.split("#")[0].split()
     elif not command.strip() == "":
@@ -220,7 +220,7 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         print("Batch Time: "+str(time.time()-batch_time)+" s")
         print("Batch Time per Calculation: "+str((time.time()-batch_time)/batch_calc)+" s")
     elif(s[0] == "internal_calc" or s[0] == "internal_c"):
-        calc_set = ["rflux","hflux","flux","jflux","gflux","nuflux","nu_jflux","sb","gamma_sb","emm","loop","hloop","electrons"]
+        calc_set = ["rflux","hflux","flux","jflux","dflux","gflux","nuflux","nu_jflux","sb","gamma_sb","emm","loop","hloop","electrons"]
         diff_calc_set = ["rflux","hflux","flux","sb","emm","loop","hloop","electrons"]
         try:
             str(s[1])
@@ -450,10 +450,16 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         elif(s[1] == "jflux"):
             halo.he_virflux = None
             halo.he_virflux = high_e.gamma_from_j(halo,phys,sim)
-            if halo.mode == "ann":
-                fluxout = halo.name+"_"+short_id(sim,phys,halo)+"_he_jflux.out"
-            else:
-                fluxout = halo.name+"_decay_"+short_id(sim,phys,halo)+"_he_jflux.out"
+            fluxout = halo.name+"_"+short_id(sim,phys,halo)+"_he_jflux.out"
+            erg = halo.he_virflux*sim.f_sample*1e-17*4.14e-24*1.6e20
+            write = [];write.append(sim.f_sample);write.append(halo.he_virflux);write.append(erg)
+            tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
+            tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
+            fluxout = None;write = None
+        elif s[1] == "dflux":
+            halo.he_virflux = None
+            halo.he_virflux = high_e.gamma_from_d(halo,phys,sim)
+            fluxout = halo.name+"_"+short_id(sim,phys,halo)+"_he_dflux.out"
             erg = halo.he_virflux*sim.f_sample*1e-17*4.14e-24*1.6e20
             write = [];write.append(sim.f_sample);write.append(halo.he_virflux);write.append(erg)
             tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
@@ -695,7 +701,7 @@ def process_set(line,phys,sim,halo,cos_env,loop):
 
     loop_commands = {"nloop":[loop,"int","mn","(number of mass samples in loop)"]}
 
-    hsp2_commands = {"diffusion_constant":[phys,"float","d0","(diffusion constant (cm^2 s^-1))"],"isrf":[phys,"int","ISRF","(inter-sellar radiation field flag (1 or 0))"],"output_directory":[sim,"string","out_dir","(output directory)"],"nfw_index":[halo,"float","gnfw_gamma","(gnfw gamma index)"]}
+    hsp2_commands = {"model_independent":[phys,"boolean","model_independent","(1 or 0 flag for model independent approach)"],"diffusion_constant":[phys,"float","d0","(diffusion constant (cm^2 s^-1))"],"isrf":[phys,"int","ISRF","(inter-sellar radiation field flag (1 or 0))"],"output_directory":[sim,"string","out_dir","(output directory)"],"nfw_index":[halo,"float","gnfw_gamma","(gnfw gamma index)"]}
 
     commands = {**hsp_commands,**cosmo_commands}
     commands = {**commands,**loop_commands,**hsp2_commands}
@@ -750,6 +756,8 @@ def process_set(line,phys,sim,halo,cos_env,loop):
                 setattr(commands[s[1]][0],commands[s[1]][2],float(s[2])) 
             elif commands[s[1]][1] == "int":
                 setattr(commands[s[1]][0],commands[s[1]][2],int(s[2])) 
+            elif commands[s[1]][1] == "boolean":
+                setattr(commands[s[1]][0],commands[s[1]][2],bool(int(s[2]))) 
             elif commands[s[1]][1].startswith("intarray"):
                 setattr(commands[s[1]][0],commands[s[1]][2],array(s[2:],dtype=int)) 
             elif commands[s[1]][1].startswith("floatarray"):
@@ -823,12 +831,10 @@ def get_file_id(sim,phys,cos_env,halo,nameFirst,noBfield=False,noGas=False):
             diff_str = "d1_"
     else:
         diff_str = ""
-    if halo.mode == "special":
-        wimp_str = phys.particle_model
-    elif halo.mode in ["ann","decay"]:
-        wimp_str = phys.particle_model+"_mx"+str(int(phys.mx))
-        if halo.mode == "decay":
-            wimp_str += "_"+"decay"
+
+    wimp_str = phys.particle_model+"_mx"+str(phys.mx)+"GeV"
+    if halo.mode == "decay":
+        wimp_str += "_decay"
     wimp_str += "_"
     
     if halo.name != None:
@@ -875,7 +881,9 @@ def short_id(sim,phys,halo):
         ---------------------------
         Returns a string of the form 'bb_mx300' for a particle physics model 'bb' and 300 GeV WIMP mass
     """
-    wimp_str = phys.particle_model+"_mx"+str(int(phys.mx))
+    wimp_str = phys.particle_model+"_mx"+str(phys.mx)+"GeV"
+    if halo.mode == "decay":
+        wimp_str += "_decay"
     return wimp_str
 
 #===========================================================================================
@@ -1319,24 +1327,24 @@ def gather_spectrum(spec_dir,phys,sim,mode="ann"):
         ---------------------------
         None - executes read_spectrum
     """
-    print(mode)
-    if mode == "ann":
-        for ch,br in zip(phys.channel,phys.branching):
-            pos = join(spec_dir,"pos_"+ch+"_"+str(int(phys.mx))+"GeV.data")
-            gamma = join(spec_dir,"gamma_"+ch+"_"+str(int(phys.mx))+"GeV.data")
-            read_spectrum(pos,0,br,phys,sim)
-            read_spectrum(gamma,1,br,phys,sim)
-    elif mode == "special":
-        pos = join(spec_dir,"pos_"+phys.particle_model+".data")
-        gamma = join(spec_dir,"gamma_"+phys.particle_model+".data")
+    if phys.model_independent:
+        if mode == "ann":
+            for ch,br in zip(phys.channel,phys.branching):
+                pos = join(spec_dir,"pos_"+ch+"_"+str(int(phys.mx))+"GeV.data")
+                gamma = join(spec_dir,"gamma_"+ch+"_"+str(int(phys.mx))+"GeV.data")
+                read_spectrum(pos,0,br,phys,sim)
+                read_spectrum(gamma,1,br,phys,sim)
+        elif mode == "decay":
+            for ch,br in zip(phys.channel,phys.branching):
+                pos = join(spec_dir,"pos_"+ch+"_"+str(int(phys.mx*0.5))+"GeV.data")
+                gamma = join(spec_dir,"gamma_"+ch+"_"+str(int(phys.mx*0.5))+"GeV.data")
+                read_spectrum(pos,0,br,phys,sim)
+                read_spectrum(gamma,1,br,phys,sim)
+    else:
+        pos = join(spec_dir,"pos_"+phys.particle_model+"_"+str(phys.mx)+"GeV.data")
+        gamma = join(spec_dir,"gamma_"+phys.particle_model+"_"+str(phys.mx)+"GeV.data")
         read_spectrum(pos,0,1.0,phys,sim)
         read_spectrum(gamma,1,1.0,phys,sim)
-    elif mode == "decay":
-        for ch,br in zip(phys.channel,phys.branching):
-            pos = join(spec_dir,"pos_"+ch+"_"+str(int(phys.mx*0.5))+"GeV.data")
-            gamma = join(spec_dir,"gamma_"+ch+"_"+str(int(phys.mx*0.5))+"GeV.data")
-            read_spectrum(pos,0,br,phys,sim)
-            read_spectrum(gamma,1,br,phys,sim)
 
 def neutrino_spectrum(spec_dir,phys,sim,flavour,mode="ann"):
     """
