@@ -1,7 +1,21 @@
 import sys,getopt,time,os
 from numpy import *
-from wimp_tools import tools,cosmology_env,simulation_env,physical_env,loop_env,halo_env #wimp handling package
-from emm_tools import electron,radio,high_e,neutrino #emmisivity package
+try:
+    from wimp_tools import tools,cosmology_env,simulation_env,physical_env,loop_env,halo_env #wimp handling package
+except:
+    import wimp_tools.cosmology_env as cosmology_env
+    import wimp_tools.tools as tools
+    import wimp_tools.simulation_env as simulation_env
+    import wimp_tools.physical_env as physical_env
+    import wimp_tools.loop_env as loop_env
+    import wimp_tools.halo_env as halo_env
+try:
+    from emm_tools import electron,radio,high_e,neutrino #emmisivity package
+except:
+    import emm_tools.electron as electron
+    import emm_tools.radio as radio
+    import emm_tools.high_e as high_e
+    import emm_tools.neutrino as neutrino
 from multiprocessing import Pool
 from os.path import join,isfile,isdir
 from scipy.interpolate import interp1d
@@ -1363,15 +1377,58 @@ def neutrino_spectrum(spec_dir,phys,sim,flavour,mode="ann"):
         None - assigned to phys.nu_spectrum 
     """
     me = 0.511e-3
-    for ch,br in zip(phys.channel,phys.branching):
-        if mode == "ann":
-            nu_e = join(spec_dir,"nu_e_"+ch+"_"+str(int(phys.mx))+"GeV.data")
-            nu_mu = join(spec_dir,"nu_mu_"+ch+"_"+str(int(phys.mx))+"GeV.data")
-            nu_tau = join(spec_dir,"nu_tau_"+ch+"_"+str(int(phys.mx))+"GeV.data")
-        else:
-            nu_e = join(spec_dir,"nu_e_"+ch+"_"+str(int(phys.mx*0.5))+"GeV.data")
-            nu_mu = join(spec_dir,"nu_mu_"+ch+"_"+str(int(phys.mx*0.5))+"GeV.data")
-            nu_tau = join(spec_dir,"nu_tau_"+ch+"_"+str(int(phys.mx*0.5))+"GeV.data")
+    if phys.model_independent:
+        for ch,br in zip(phys.channel,phys.branching):
+            if mode == "ann":
+                nu_e = join(spec_dir,"nu_e_"+ch+"_"+str(int(phys.mx))+"GeV.data")
+                nu_mu = join(spec_dir,"nu_mu_"+ch+"_"+str(int(phys.mx))+"GeV.data")
+                nu_tau = join(spec_dir,"nu_tau_"+ch+"_"+str(int(phys.mx))+"GeV.data")
+            else:
+                nu_e = join(spec_dir,"nu_e_"+ch+"_"+str(int(phys.mx*0.5))+"GeV.data")
+                nu_mu = join(spec_dir,"nu_mu_"+ch+"_"+str(int(phys.mx*0.5))+"GeV.data")
+                nu_tau = join(spec_dir,"nu_tau_"+ch+"_"+str(int(phys.mx*0.5))+"GeV.data")
+            if flavour == "mu":
+                nu_set = [nu_mu]
+            elif flavour == "e":
+                nu_set = [nu_e]
+            elif flavour == "tau":
+                nu_set = [nu_tau]
+            else:
+                nu_set = [nu_e,nu_mu,nu_tau]
+            for nu in nu_set:
+                try:
+                    spec = open(nu,"r")
+                except IOError:
+                    tools.fatal_error("Input file: "+nu+" could not be found")
+                s = []
+                for line in spec:
+                    if not line.startswith("#"):
+                        s.append(line.strip().split())
+                E_set = zeros(len(s),dtype=float)  #Energies set
+                Q_set = zeros(len(s),dtype=float)  #electron generation function dn/dE
+                for i in range(0,len(s)):
+                    #me factors convert this to gamma and dn/dgamma
+                    #gamma is the Lorenz factor for an electron
+                    E_set[i] = float(s[i][0])/me
+                    Q_set[i] = float(s[i][1])*me
+                spec.close()
+                if phys.nu_spectrum[0] is None and phys.nu_spectrum[1] is None:
+                    phys.nu_specMin = E_set[0]
+                    phys.nu_specMax = E_set[-1]
+                    if sim.e_bins == None:
+                        sim.e_bins = len(E_set)
+                    nu_spec = [None,zeros(sim.e_bins)]
+                    nu_spec[0] = logspace(log10(phys.nu_specMin*1.00001),log10(phys.nu_specMax*0.99999),num=sim.e_bins)
+                    phys.nu_spectrum[0] = nu_spec[0]
+                    phys.nu_spectrum[1] = zeros(len(phys.nu_spectrum[0]))
+                intSpec = interp1d(E_set,Q_set)
+                newE = phys.nu_spectrum[0]
+                Q_set = intSpec(newE)
+                phys.nu_spectrum[1] += Q_set*br
+    else:
+        nu_e = join(spec_dir,"nu_e_"+phys.particle_model+"_"+str(phys.mx)+"GeV.data")
+        nu_mu = join(spec_dir,"nu_mu_"+phys.particle_model+"_"+str(phys.mx)+"GeV.data")
+        nu_tau = join(spec_dir,"nu_tau_"+phys.particle_model+"_"+str(phys.mx)+"GeV.data")
         if flavour == "mu":
             nu_set = [nu_mu]
         elif flavour == "e":
@@ -1409,7 +1466,7 @@ def neutrino_spectrum(spec_dir,phys,sim,flavour,mode="ann"):
             intSpec = interp1d(E_set,Q_set)
             newE = phys.nu_spectrum[0]
             Q_set = intSpec(newE)
-            phys.nu_spectrum[1] += Q_set*br
+            phys.nu_spectrum[1] += Q_set
     phys.nu_flavour = flavour
 
 def console_mode(phys,sim,halo,cosmo,loop):
