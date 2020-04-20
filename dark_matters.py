@@ -1,5 +1,9 @@
 import sys,getopt,time,os
-from numpy import *
+try:
+    from numpy import *
+except:
+    print("Fatal Error: the numpy package is missing")
+    sys.exit(2)
 try:
     from wimp_tools import tools,cosmology_env,simulation_env,physical_env,loop_env,halo_env #wimp handling package
 except:
@@ -16,9 +20,18 @@ except:
     import emm_tools.radio as radio
     import emm_tools.high_e as high_e
     import emm_tools.neutrino as neutrino
+try:
+    import output
+except:
+    print("Fatal Error: file output.py is missing!")
+    sys.exit(2)
 from multiprocessing import Pool
 from os.path import join,isfile,isdir
-from scipy.interpolate import interp1d
+try:
+    from scipy.interpolate import interp1d
+except:
+    print("Fatal Error: the scipy package is missing")
+    sys.exit(2)
 #==========================================
             #Preliminaries
 #==========================================
@@ -103,6 +116,7 @@ from scipy.interpolate import interp1d
 #NB - no output includes the cross section - you must multiply by sig_v where appropriate when plotting
 
 MHzToGeV = 1e6*4.136e-15*1e-9  #conversion factor
+calculations = []
 #specdir = "/home/geoff/Coding/Wimps/data_input/susy/"
 
 def process_file(command_file,phys,sim,halo,cos_env,loop):
@@ -122,6 +136,7 @@ def process_file(command_file,phys,sim,halo,cos_env,loop):
         ---------------------------
         None
     """
+    global calculations
     try:
         infile = open(command_file,"r")
     except:
@@ -174,7 +189,9 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         ---------------------------
         None - evaluates script commands
     """
+    global calculations
     calc_dict = {"dflux":"Gamma-ray flux from D-factor","rflux":"Radio flux","hflux":"High-frequency flux","flux":"All flux","jflux":"Gamma-ray flux from Jfactor","gflux":"Gamma-ray flux","nuflux":"Neutrino flux","nu_jflux":"Neutrino flux from J-factor","sb":"Radio surface brightness","gamma_sb":"gamma-ray surface brightness","emm":"Emmissivity","loop":"Radio loop","hloop":"High energy loop","electrons":"Electron distributions"}
+    diff_calc_set = ["rflux","hflux","flux","sb","emm","loop","hloop","electrons"]
     if "#" in command.strip() and not command.strip().startswith("#"):
         s = command.split("#")[0].split()
     elif not command.strip() == "":
@@ -187,7 +204,115 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         print("mode can take the values")
         for c in calc_dict:
             print(c+" calculates "+calc_dict[c])
-    elif s[0] in ["batch","b","c","calc"]:
+    elif s[0].lower() in ["out","o","output"]:
+        print("=========================================================")
+        print("Preparing to output flux data")
+        print("=========================================================")
+        if calculations == []:
+            tools.fatal_error("no calculations have been produced to output yet!")
+        try:
+            if not s[1].lower() in calc_dict:
+                tools.fatal_error("command "+s[0].lower()+" must be supplied with a fluxmode from: "+calc_dict.keys)
+            else:
+                calc_mode = s[1].lower()
+        except:
+            tools.fatal_error("command "+s[0].lower()+" must be supplied with a fluxmode from: "+calc_dict.keys)
+        try:
+            theta_flag = s[2].lower()
+        except:
+            print("Warning: no region flag supplied with command \'"+s[0].lower()+"\' defaulting to \'full\'")
+            theta_flag = "full"
+        try:
+            indices = s[3:].lower()
+        except:
+            try:
+                indices = [s[3].lower()]
+            except:
+                print("Warning: no set of calculations to output supplied with command \'"+s[0].lower()+"\' defaulting to \'all\'")
+                indices = ["all"]
+        print("Region: "+theta_flag)
+        print("Flux command: "+calc_dict[s[1]])
+        if indices == ["all"]:
+            indices = arange(0,len(calculations))
+        elif indices == ["-1"] or indices == ["last"]:
+            indices = [len(calculations)-1]
+        else:
+            try:
+                indices = array(indices,dtype=int)
+            except ValueError:
+                tools.fatal_error("The indices for output supplied as "+indices+" are not valid")
+        full_id = True
+        if "jflux" or "gflux" in calc_mode:
+            full_id = False
+        for i in indices:
+            calculations[i].calcFlux(calc_mode,regionFlag=theta_flag,full_id=full_id,suppress_output=False)
+    elif s[0].lower() in ["c+o","calc+out","calc+output"]:
+        try:
+            print("Calculation Task Given: "+calc_dict[s[1]])
+        except IndexError:
+            tools.fatal_error("calc+out must be supplied with an option: "+str(calc_dict.keys))
+        except KeyError:
+            tools.fatal_error("calc+out must be supplied with a valid option from: "+str(calc_dict.keys))
+        try:
+            calc_str = s[1]
+            try:
+                t_str = s[2]
+            except:
+                t_str = "full"
+        except:
+            calc_str = "flux"
+            t_str = "full"
+        batch_calc = 0
+        batch_time = time.time()
+        print("=========================================================")
+        print("Initialising calculations data")
+        print("=========================================================")
+        calculations = []
+        for m in sim.mx_set:
+            phys.clear_spectra()
+            batch_calc += 1
+            process_command("set wimp_mass "+str(m),phys,sim,halo,cos_env,loop)
+            if sim.specdir is None:
+                tools.fatal_error("Please specify a directory for input spectra with 'set input_spectra_directory #' command")
+            if(not halo.check_self()):
+                tools.fatal_error("halo data underspecified")
+            if(not phys.check_self()):
+                tools.fatal_error("physical environment data underspecified")
+            if(not sim.check_self()):
+                tools.fatal_error("simulation data underspecified")
+            if "nu" in calc_str:
+                neutrino_spectrum(sim.specdir,phys,sim,sim.nu_flavour,mode=halo.mode)
+            if(not phys.check_particles()):
+                tools.fatal_error("particle data underspecified")
+            gather_spectrum(sim.specdir,phys,sim,mode=halo.mode)
+            if(not halo.setup(sim,phys,cos_env)):
+                tools.fatal_error("halo setup error")
+            calculations.append(output.calculation(halo,phys,sim,cos_env))
+            #print("c "+calc_str+" "+t_st)
+        print("All input data consistency checks complete")
+        for c_run in calculations:
+            print("=========================================================")
+            print("Beginning new Dark Matters calculation")
+            print("=========================================================")
+            c_run.calcWrite()
+            if calc_str in diff_calc_set:
+                if t_str == "full":
+                    rmax = c_run.halo.rvir
+                elif t_str == "theta":
+                    rmax = c_run.halo.da*tan(c_run.sim.theta*2.90888e-4)
+                elif t_str == "r_integrate":
+                    rmax = c_run.sim.rintegrate
+                else:
+                    rmax = halo.rvir
+                    print("Warning: region flag "+t_str+" in command "+command+" not recognised, defaulting to \'full\'")
+            c_run.halo.physical_averages(rmax)
+            full_id = True
+            if "jflux" or "gflux" in calc_str:
+                full_id = False
+            c_run.calcFlux(calc_str,regionFlag=t_str,full_id=full_id,suppress_output=False)
+        print("Batch Time: "+str(time.time()-batch_time)+" s")
+        print("Batch Time per Calculation: "+str((time.time()-batch_time)/batch_calc)+" s")
+    elif s[0].lower() in ["batch","b","c","calc"]:
         try:
             calc_str = s[1]
             try:
@@ -345,9 +470,9 @@ def process_command(command,phys,sim,halo,cos_env,loop):
                 get_emm(halo,phys,sim)
                 print("Time taken: "+str(time.time()-time_start)+" s")
             if halo.he_emm == None:
-                    time_start = time.time()
-                    get_h_emm(halo,phys,sim)
-                    print("Time taken: "+str(time.time()-time_start)+" s")
+                time_start = time.time()
+                get_h_emm(halo,phys,sim)
+                print("Time taken: "+str(time.time()-time_start)+" s")
             ##cosmology.jfactor(halo)
             theta_flag = set_theta_flag(s)
             get_h_flux(halo,sim,1,theta_flag)
@@ -1499,6 +1624,7 @@ sim = simulation_env() #set up default simulation environment
 loop = loop_env(zn=20,zmin=1.0e-5,zmax=1.0,nloop=40,mmin=1.1e-6,mmax=1e15) #loop env - old code
 loop_sim = simulation_env() #sets the common values for the loop
 halo = halo_env()  #set up default halo environment
+calculations = []
 if not console_flag:
     process_file(in_file,phys,sim,halo,cosm,loop) #execute all commands in the input file
 else:
