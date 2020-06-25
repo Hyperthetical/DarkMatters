@@ -1,4 +1,5 @@
 import sys,getopt,time,os
+from copy import deepcopy
 try:
     from numpy import *
 except:
@@ -117,6 +118,7 @@ except:
 
 MHzToGeV = 1e6*4.136e-15*1e-9  #conversion factor
 calculations = []
+last_set = []
 #specdir = "/home/geoff/Coding/Wimps/data_input/susy/"
 
 def process_file(command_file,phys,sim,halo,cos_env,loop):
@@ -137,6 +139,7 @@ def process_file(command_file,phys,sim,halo,cos_env,loop):
         None
     """
     global calculations
+    global last_set
     try:
         infile = open(command_file,"r")
     except:
@@ -190,6 +193,7 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         None - evaluates script commands
     """
     global calculations
+    global last_set
     calc_dict = {"dflux":"Gamma-ray flux from D-factor","rflux":"Radio flux","hflux":"High-frequency flux","flux":"All flux","jflux":"Gamma-ray flux from Jfactor","gflux":"Gamma-ray flux","nuflux":"Neutrino flux","nu_jflux":"Neutrino flux from J-factor","sb":"Radio surface brightness","gamma_sb":"gamma-ray surface brightness","emm":"Emmissivity","loop":"Radio loop","hloop":"High energy loop","electrons":"Electron distributions"}
     diff_calc_set = ["rflux","hflux","flux","sb","emm","loop","hloop","electrons"]
     if "#" in command.strip() and not command.strip().startswith("#"):
@@ -198,6 +202,8 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         s = command.split()
     if command.strip().startswith("#") or command.strip() == "":
         pass
+    elif command.strip() in ["clear calc","clear c","clear calculation","clear calculations"]:
+        calculations = []
     elif command.strip().lower() == "calc help":
         print("The calc command is used as follows: calc mode region")
         print("region -> full, theta, r_integrate")
@@ -220,31 +226,23 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         try:
             theta_flag = s[2].lower()
         except:
-            print("Warning: no region flag supplied with command \'"+s[0].lower()+"\' defaulting to \'full\'")
+            if not "jflux" in calc_mode: 
+                print("Warning: no region flag supplied with command \'"+s[0].lower()+"\' defaulting to \'full\'")
             theta_flag = "full"
-        try:
-            indices = s[3:].lower()
-        except:
-            try:
-                indices = [s[3].lower()]
-            except:
-                print("Warning: no set of calculations to output supplied with command \'"+s[0].lower()+"\' defaulting to \'all\'")
-                indices = ["all"]
-        print("Region: "+theta_flag)
-        print("Flux command: "+calc_dict[s[1]])
-        if indices == ["all"]:
-            indices = arange(0,len(calculations))
-        elif indices == ["-1"] or indices == ["last"]:
-            indices = [len(calculations)-1]
+        indices = getIndex(s)
+        if not "jflux" in calc_mode:
+            print("Region: "+theta_flag)
         else:
-            try:
-                indices = array(indices,dtype=int)
-            except ValueError:
-                tools.fatal_error("The indices for output supplied as "+indices+" are not valid")
+            print("Region: from Jfactor")
+        print("Flux command: "+calc_dict[s[1]])
         full_id = True
         if "jflux" or "gflux" in calc_mode:
             full_id = False
         for i in indices:
+            if calc_mode in diff_calc_set:
+                rmax = getRmax(theta_flag,calculations[i],command)
+                calculations[i].halo.physical_averages(rmax)
+            print("Calculation ID: "+output.getCalcID(calculations[i].sim,calculations[i].phys,calculations[i].cosmo,calculations[i].halo,short_id=(not full_id)))
             calculations[i].calcFlux(calc_mode,regionFlag=theta_flag,full_id=full_id,suppress_output=False)
     elif s[0].lower() in ["c+o","calc+out","calc+output"]:
         try:
@@ -262,12 +260,12 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         except:
             calc_str = "flux"
             t_str = "full"
+        last_set = []
         batch_calc = 0
         batch_time = time.time()
         print("=========================================================")
         print("Initialising calculations data")
         print("=========================================================")
-        calculations = []
         for m in sim.mx_set:
             phys.clear_spectra()
             batch_calc += 1
@@ -285,34 +283,34 @@ def process_command(command,phys,sim,halo,cos_env,loop):
             if(not phys.check_particles()):
                 tools.fatal_error("particle data underspecified")
             gather_spectrum(sim.specdir,phys,sim,mode=halo.mode)
+            halo.reset_avgs()
             if(not halo.setup(sim,phys,cos_env)):
                 tools.fatal_error("halo setup error")
-            calculations.append(output.calculation(halo,phys,sim,cos_env))
+            last_set.append(output.calculation(deepcopy(halo),deepcopy(phys),deepcopy(sim),deepcopy(cos_env)))
             #print("c "+calc_str+" "+t_st)
         print("All input data consistency checks complete")
-        for c_run in calculations:
+        for c_run in last_set:
             print("=========================================================")
             print("Beginning new Dark Matters calculation")
             print("=========================================================")
-            c_run.calcWrite()
+            c_run.calcWrite(fluxMode=calc_str)
             if calc_str in diff_calc_set:
-                if t_str == "full":
-                    rmax = c_run.halo.rvir
-                elif t_str == "theta":
-                    rmax = c_run.halo.da*tan(c_run.sim.theta*2.90888e-4)
-                elif t_str == "r_integrate":
-                    rmax = c_run.sim.rintegrate
-                else:
-                    rmax = halo.rvir
-                    print("Warning: region flag "+t_str+" in command "+command+" not recognised, defaulting to \'full\'")
-            c_run.halo.physical_averages(rmax)
+                rmax = getRmax(t_str,c_run,command)
+                c_run.halo.physical_averages(rmax)
             full_id = True
             if "jflux" or "gflux" in calc_str:
                 full_id = False
             c_run.calcFlux(calc_str,regionFlag=t_str,full_id=full_id,suppress_output=False)
+            calculations.append(deepcopy(c_run))
         print("Batch Time: "+str(time.time()-batch_time)+" s")
         print("Batch Time per Calculation: "+str((time.time()-batch_time)/batch_calc)+" s")
     elif s[0].lower() in ["batch","b","c","calc"]:
+        try:
+            print("Calculation Task Given: "+calc_dict[s[1]])
+        except IndexError:
+            tools.fatal_error("calc must be supplied with an option: "+str(calc_dict.keys))
+        except KeyError:
+            tools.fatal_error("calc must be supplied with a valid option from: "+str(calc_dict.keys))
         try:
             calc_str = s[1]
             try:
@@ -322,21 +320,15 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         except:
             calc_str = "flux"
             t_str = "full"
-        #print(calc_str)
+        last_set = []
         batch_calc = 0
         batch_time = time.time()
+        print("=========================================================")
+        print("Initialising calculations data")
+        print("=========================================================")
         for m in sim.mx_set:
             phys.clear_spectra()
             batch_calc += 1
-            print("=========================================================")
-            print("Beginning new Dark Matters calculation")
-            print("=========================================================")
-            try:
-                print("Calculation Task Given: "+calc_dict[s[1]])
-            except IndexError:
-                tools.fatal_error("calc must be supplied with an option: "+str(calc_set))
-            except KeyError:
-                tools.fatal_error("calc must be supplied with a valid option from: "+str(calc_set))
             process_command("set wimp_mass "+str(m),phys,sim,halo,cos_env,loop)
             if sim.specdir is None:
                 tools.fatal_error("Please specify a directory for input spectra with 'set input_spectra_directory #' command")
@@ -346,457 +338,34 @@ def process_command(command,phys,sim,halo,cos_env,loop):
                 tools.fatal_error("physical environment data underspecified")
             if(not sim.check_self()):
                 tools.fatal_error("simulation data underspecified")
-            print("All input data consistency checks complete")
             if "nu" in calc_str:
                 neutrino_spectrum(sim.specdir,phys,sim,sim.nu_flavour,mode=halo.mode)
             if(not phys.check_particles()):
                 tools.fatal_error("particle data underspecified")
-
             gather_spectrum(sim.specdir,phys,sim,mode=halo.mode)
-            process_command("setup halo",phys,sim,halo,cos_env,loop)
+            halo.reset_avgs()
+            if(not halo.setup(sim,phys,cos_env)):
+                tools.fatal_error("halo setup error")
+            last_set.append(output.calculation(deepcopy(halo),deepcopy(phys),deepcopy(sim),deepcopy(cos_env)))
             #print("c "+calc_str+" "+t_st)
-            process_command("internal_c "+calc_str+" "+t_str,phys,sim,halo,cos_env,loop)
+        print("All input data consistency checks complete")
+        for c_run in last_set:
+            print("=========================================================")
+            print("Beginning new Dark Matters calculation")
+            print("=========================================================")
+            c_run.calcWrite(fluxMode=calc_str)
+            if calc_str in diff_calc_set:
+                rmax = getRmax(t_str,c_run,command)
+                c_run.halo.physical_averages(rmax)
+            c_run.calcEmm(calc_str)
+            calculations.append(deepcopy(c_run))
         print("Batch Time: "+str(time.time()-batch_time)+" s")
         print("Batch Time per Calculation: "+str((time.time()-batch_time)/batch_calc)+" s")
-    elif(s[0] == "internal_calc" or s[0] == "internal_c"):
-        calc_set = ["rflux","hflux","flux","jflux","dflux","gflux","nuflux","nu_jflux","sb","gamma_sb","emm","loop","hloop","electrons"]
-        diff_calc_set = ["rflux","hflux","flux","sb","emm","loop","hloop","electrons"]
-        try:
-            str(s[1])
-        except IndexError:    
-            tools.fatal_error("calc must be supplied with an option: "+str(calc_set))
-        if not str(s[1]) in calc_set:
-            tools.fatal_error("calc must be supplied with a valid option: "+str(calc_set))
-        if(not halo.check_self()):
-            tools.fatal_error("halo data underspecified")
-        if(not phys.check_self()):
-            tools.fatal_error("physical environment data underspecified")
-        if(not sim.check_self()):
-            tools.fatal_error("simulation data underspecified")
-        if not halo.name is None:
-            nameFirst = True
-        else:
-            nameFirst = False
-        #if "nu" in s[1]:
-        #    neutrino_spectrum(sim.specdir,phys,sim.nu_flavour,mode=halo.mode)
-        if halo.J_flag != 0 and not "jflux" in s[1]:
-            print("=========================================================")
-            print("Calculating Flux Normalisation to Match Given J-Factor")
-            print("=========================================================")
-            hfmax = phys.mx/(1e6*4.136e-15*1e-9) #MHz
-            hsim = simulation_env(n=sim.n,ngr=sim.ngr,num=20,fmin=1e-3*hfmax,fmax=0.1*hfmax,theta=sim.theta,nu_sb=sim.nu_sb)
-            jhalo = halo_env()
-            attSet = [att for att in dir(halo) if (not att.startswith("__")) and (not att in ["physical_averages","setup_halo","setup","setup_ucmh","check_self","make_spectrum"])]
-            for att in attSet:
-                if not att in ["mode","mode_exp","rho_dm_sample"]:
-                    setattr(jhalo,att,getattr(halo,att))
-            jcheck = jhalo.setup(sim,phys,cos_env)
-            hsim.sample_f()
-            theta_flag = set_theta_flag(s)
-            get_h_flux(jhalo,hsim,0,theta_flag,suppress_output=True)
-            if theta_flag == "full":
-                gflux = jhalo.he_virflux
-            else:
-                gflux = jhalo.he_arcflux
-            jflux = high_e.gamma_from_j(jhalo,phys,hsim)*4.14e-24*1.6e20
-            fRatio = (sum(jflux/gflux)/len(jflux))**(0.5*halo.mode_exp)
-            sim.jnormed = True
-            print("Normalisation factor: "+str(fRatio))
-            halo.he_arcflux = None;halo.he_virflux=None
-        else:
-            fRatio = 1.0
-        if s[1] in diff_calc_set:
-            theta_flag = set_theta_flag(s)
-            if theta_flag == "full":
-                rmax = halo.rvir
-            elif theta_flag == "theta":
-                rmax = halo.da*tan(sim.theta*2.90888e-4)
-            elif theta_flag == "r_integrate":
-                rmax = sim.rintegrate
-            else:
-                rmax = halo.rvir
-                print("Warning: region flag "+s[2]+" in command "+command+" not recognised, defaulting to \'full\'")
-            halo.physical_averages(rmax)
-        #print("fRatio",fRatio)
-        if(s[1] == "rflux"):
-            if(halo.radio_emm == None):
-                if(halo.electrons == None):
-                    time_start = time.time()
-                    get_electrons(halo,phys,sim)
-                    print("Time taken: "+str(time.time()-time_start)+" s")
-                    time_start = time.time()
-                    get_emm(halo,phys,sim)
-                    print("Time taken: "+str(time.time()-time_start)+" s")
-                else:
-                    time_start = time.time()
-                    get_emm(halo,phys,sim)
-                    print("Time taken: "+str(time.time()-time_start)+" s")
-            theta_flag = set_theta_flag(s)
-            if not halo.name is None:
-                nameFirst = True
-            else:
-                nameFirst = False
-            get_flux(halo,sim,theta_flag)
-            if theta_flag == "theta":
-                fluxout = get_file_id(sim,phys,cos_env,halo,nameFirst)+"_radio_"+str(sim.theta)+"arcminflux.out"
-                tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-                erg = halo.radio_arcflux*sim.f_sample*1e-17
-                write = [];write.append(sim.f_sample);write.append(halo.radio_arcflux);write.append(erg)
-                tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-            elif theta_flag == "r_integrate":
-                fluxout = get_file_id(sim,phys,cos_env,halo,nameFirst)+"_radio_"+str(sim.rintegrate)+"mpcflux.out"
-                tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-                erg = halo.radio_arcflux*sim.f_sample*1e-17
-                write = [];write.append(sim.f_sample);write.append(halo.radio_arcflux);write.append(erg)
-                tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-            elif theta_flag == "full":
-                fluxout = get_file_id(sim,phys,cos_env,halo,nameFirst)+"_radio_virflux.out"
-                tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-                erg = halo.radio_virflux*sim.f_sample*1e-17
-                cm21 = 1.4e3
-                if sim.num > 1:
-                    fluxint = interp1d(sim.f_sample,erg)
-                    print("Flux at 1.4 GHz: "+str(fluxint(cm21)))
-                write = [];write.append(sim.f_sample);write.append(halo.radio_virflux);write.append(erg)
-                tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-        elif(s[1] == "flux"):
-            if halo.electrons == None:
-                time_start = time.time()
-                get_electrons(halo,phys,sim)
-                print("Time taken: "+str(time.time()-time_start)+" s")
-            #tools.write_electrons("test",halo.electrons,halo.r_sample[0],phys.spectrum[0],0.511e-3)
-            if halo.radio_emm == None:
-                time_start = time.time()
-                get_emm(halo,phys,sim)
-                print("Time taken: "+str(time.time()-time_start)+" s")
-            if halo.he_emm == None:
-                time_start = time.time()
-                get_h_emm(halo,phys,sim)
-                print("Time taken: "+str(time.time()-time_start)+" s")
-            ##cosmology.jfactor(halo)
-            theta_flag = set_theta_flag(s)
-            get_h_flux(halo,sim,1,theta_flag)
-            get_flux(halo,sim,theta_flag)
-            get_multi_flux(halo)
-            if theta_flag == "theta":
-                fluxout = get_file_id(sim,phys,cos_env,halo,nameFirst)+"_multi_"+str(sim.theta)+"arcminflux.out"
-                tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-                erg = halo.multi_arcflux*sim.f_sample*1e-17*fRatio
-                write = [];write.append(sim.f_sample);write.append(halo.multi_arcflux);write.append(erg)
-                tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-            elif theta_flag == "r_integrate":
-                fluxout = get_file_id(sim,phys,cos_env,halo,nameFirst)+"_multi_"+str(sim.rintegrate)+"mpcflux.out"
-                tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-                erg = halo.multi_arcflux*sim.f_sample*1e-17*fRatio
-                write = [];write.append(sim.f_sample);write.append(halo.multi_arcflux);write.append(erg)
-                tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-            elif theta_flag == "full":
-                fluxout = get_file_id(sim,phys,cos_env,halo,nameFirst)+"_multi_virflux.out"
-                tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-                erg = halo.multi_virflux*sim.f_sample*1e-17*fRatio
-                write = [];write.append(sim.f_sample);write.append(halo.multi_virflux);write.append(erg)
-                tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-        elif(s[1] == "hflux"):
-            #tools.write(None,"flux",sim,phys,cos_env,halo)
-            if(halo.he_emm == None):
-                if(halo.electrons == None):
-                    time_start = time.time()
-                    get_electrons(halo,phys,sim)
-                    print("Time taken: "+str(time.time()-time_start)+" s")
-                    time_start = time.time()
-                    get_h_emm(halo,phys,sim)
-                    print("Time taken: "+str(time.time()-time_start)+" s")
-                else:
-                    time_start = time.time()
-                    get_h_emm(halo,phys,sim)
-                    print("Time taken: "+str(time.time()-time_start)+" s")
-            #cosmology.jfactor(halo)
-            theta_flag = set_theta_flag(s)
-            get_h_flux(halo,sim,1,theta_flag)
-            if theta_flag == "theta":
-                fluxout = get_file_id(sim,phys,cos_env,halo,nameFirst)+"_he_"+str(sim.theta)+"arcminflux.out"
-                tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-                erg = halo.he_arcflux*sim.f_sample*1e-17*fRatio
-                write = [];write.append(sim.f_sample);write.append(halo.he_arcflux);write.append(erg)
-                tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-            elif theta_flag == "r_integrate":
-                fluxout = get_file_id(sim,phys,cos_env,halo,nameFirst)+"_he_"+str(sim.rintegrate)+"mpcflux.out"
-                tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-                erg = halo.he_arcflux*sim.f_sample*1e-17*fRatio
-                write = [];write.append(sim.f_sample);write.append(halo.he_arcflux);write.append(erg)
-                tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-            elif theta_flag == "full":
-                fluxout = get_file_id(sim,phys,cos_env,halo,nameFirst)+"_he_virflux.out"
-                tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-                erg = halo.he_virflux*sim.f_sample*1e-17*fRatio
-                write = [];write.append(sim.f_sample);write.append(halo.he_virflux);write.append(erg)
-                tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-        elif(s[1] == "gflux"):
-            #tools.write(None,"flux",sim,phys,cos_env,halo)
-            high_e.gamma_source(halo,phys,sim)
-            #cosmology.jfactor(halo)
-            theta_flag = set_theta_flag(s)
-            get_h_flux(halo,sim,0,theta_flag)
-            if theta_flag == "theta":
-                fluxout = halo.name+"_"+short_id(sim,phys,halo)+"_"+halo.profile+"_gamma_"+str(sim.theta)+"arcminflux.out"
-                erg = halo.he_arcflux*sim.f_sample*1e-17
-                write = [];write.append(sim.f_sample);write.append(halo.he_arcflux);write.append(erg)
-                tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-                tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-            elif theta_flag == "r_integrate":
-                fluxout = halo.name+"_"+short_id(sim,phys,halo)+"_"+halo.profile+"_gamma_"+str(sim.rintegrate)+"mpcflux.out"
-                erg = halo.he_arcflux*sim.f_sample*1e-17
-                write = [];write.append(sim.f_sample);write.append(halo.he_arcflux);write.append(erg)
-                tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-                tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-            elif theta_flag == "full":
-                fluxout = halo.name+"_"+short_id(sim,phys,halo)+"_"+halo.profile+"_gamma_virflux.out"
-                erg = halo.he_virflux*sim.f_sample*1e-17
-                write = [];write.append(sim.f_sample);write.append(halo.he_virflux);write.append(erg)
-                tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-                tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-        elif(s[1] == "nuflux"):
-            #tools.write(None,"flux",sim,phys,cos_env,halo)
-            get_nu_emm(halo,phys,sim)
-            if phys.nu_flavour == "mu":
-                nu_str = "_nu_mu_"
-            elif phys.nu_flavour == "e":
-                nu_str = "_nu_e_"
-            elif phys.nu_flavour == "tau":
-                nu_str = "_nu_tau_"
-            else:
-                nu_str = "_nu_"
-            theta_flag = set_theta_flag(s)
-            get_nu_flux(halo,sim,0,theta_flag)
-            if theta_flag == "theta":
-                fluxout = halo.name+"_"+short_id(sim,phys,halo)+"_"+halo.profile+nu_str+str(sim.theta)+"arcminflux.out"
-                tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-                erg = halo.nu_arcflux*sim.f_sample*1e-17
-                write = [];write.append(sim.f_sample*MHzToGeV);write.append(halo.nu_arcflux/1.6e20/4.14e-24);write.append(erg)
-                tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-            elif theta_flag == "r_integrate":
-                fluxout = halo.name+"_"+short_id(sim,phys,halo)+"_"+halo.profile+nu_str+str(sim.rintegrate)+"mpcflux.out"
-                tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-                erg = halo.nu_arcflux*sim.f_sample*1e-17
-                write = [];write.append(sim.f_sample*MHzToGeV);write.append(halo.nu_arcflux/1.6e20/4.14e-24);write.append(erg)
-                tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-            if theta_flag == "full":
-                fluxout = halo.name+""+short_id(sim,phys,halo)+"_"+halo.profile+nu_str+"virflux.out"
-                tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-                erg = halo.nu_virflux*sim.f_sample*1e-17
-                write = [];write.append(sim.f_sample*MHzToGeV);write.append(halo.nu_virflux/1.6e20/4.14e-24);write.append(erg)
-                tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-        elif(s[1] == "jflux"):
-            halo.he_virflux = None
-            halo.he_virflux = high_e.gamma_from_j(halo,phys,sim)
-            fluxout = halo.name+"_"+short_id(sim,phys,halo)+"_he_jflux.out"
-            erg = halo.he_virflux*sim.f_sample*1e-17*4.14e-24*1.6e20
-            write = [];write.append(sim.f_sample);write.append(halo.he_virflux);write.append(erg)
-            tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-            tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-            fluxout = None;write = None
-        elif s[1] == "dflux":
-            halo.he_virflux = None
-            halo.he_virflux = high_e.gamma_from_d(halo,phys,sim)
-            fluxout = halo.name+"_"+short_id(sim,phys,halo)+"_he_dflux.out"
-            erg = halo.he_virflux*sim.f_sample*1e-17*4.14e-24*1.6e20
-            write = [];write.append(sim.f_sample);write.append(halo.he_virflux);write.append(erg)
-            tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-            tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-            fluxout = None;write = None
-        elif(s[1] == "nu_jflux"):
-            #tools.write(None,"flux",sim,phys,cos_env,halo)
-            halo.he_virflux = None
-            print("J-Factor: "+str(halo.J))
-            halo.nu_virflux = neutrino.nu_from_j(halo,phys,sim)
-            if phys.nu_flavour == "mu":
-                nu_str = "_nu_mu_"
-            elif phys.nu_flavour == "e":
-                nu_str = "_nu_e_"
-            elif phys.nu_flavour == "tau":
-                nu_str = "_nu_tau_"
-            else:
-                nu_str = "_nu_"
-            if halo.mode == "ann":
-                fluxout = halo.name+"_"+short_id(sim,phys,halo)+nu_str+"jflux.out"
-            elif halo.mode == "decay":
-                fluxout = halo.name+"_decay_"+short_id(sim,phys,halo)+nu_str+"jflux.out"
-            else:
-                fluxout = halo.name+"_"+phys.particle_model+nu_str+"jflux.out"
-            erg = halo.nu_virflux*sim.f_sample*1e-17*4.14e-24*1.6e20 #cm^-2 s^-1 * Jy -> erg cm^-2 s^-1 * h {GeV s} * GeV cm^-2 -> Jy * 
-            write = [];write.append(sim.f_sample*MHzToGeV);write.append(halo.nu_virflux);write.append(erg)
-            tools.write(join(sim.out_dir,fluxout),"flux",sim,phys,cos_env,halo)
-            tools.write_file(join(sim.out_dir,fluxout),write,3,append=True)
-            fluxout = None;write = None
-        elif(s[1] == "sb"):
-            if(halo.electrons == None):
-                time_start = time.time()
-                get_electrons(halo,phys,sim)
-                print("Time taken: "+str(time.time()-time_start)+" s")
-            if(halo.radio_emm_nu == None or halo.gamma_emm_nu == None or halo.he_emm_nu == None):
-                time_start = time.time()
-                get_emm_nu(halo,phys,sim)
-                print("Time taken: "+str(time.time()-time_start)+" s")
-            time_start = time.time()
-            sync_sb = get_sync_sb(halo,sim)
-            print("Process Complete")
-            xray_sb = get_xray_sb(halo,sim)
-            print("Process Complete")
-            gamma_sb = get_gamma_sb(halo,sim)
-            print("Process Complete")
-            print("Time taken for 3 Surface-Brightnesses: "+str(time.time()-time_start)+" s")
-            sbout = get_file_id(sim,phys,cos_env,halo,nameFirst)+"_sb.out"
-            radians_per_arcmin = 2.909e-4 #conversion factor
-            theta_sample = arctan(halo.r_sample[0]/halo.da)/radians_per_arcmin
-            write = [];write.append(theta_sample);write.append(sync_sb);write.append(xray_sb);write.append(gamma_sb)
-            tools.write(sbout,"flux",sim,phys,cos_env,halo)
-            tools.write_file(sbout,write,len(write),append=True)
-        elif(s[1] == "gamma_sb"):
-            if(halo.gamma_emm_nu == None):
-                time_start = time.time()
-                get_gamma_emm_nu(halo,phys,sim)
-                print("Time taken: "+str(time.time()-time_start)+" s")
-            if not halo.name is None:
-                nameFirst = True
-            else:
-                nameFirst = False
-            time_start = time.time()
-            gamma_sb = get_gamma_sb(halo,sim)
-            print("Process Complete")
-            print("Time taken for Surface-Brightness: "+str(time.time()-time_start)+" s")
-            print(halo.J_flag,halo.da)
-            if halo.J_flag == 1: 
-                sbout = halo.tag+"_"+short_id(sim,phys,halo)+"_gsb.out"
-            else:
-                sbout = get_file_id(sim,phys,cos_env,halo,nameFirst)+"_gsb.out"
-            radians_per_arcmin = 2.909e-4 #conversion factor
-            theta_sample = arctan(halo.r_sample[0]/halo.da)/radians_per_arcmin
-            write = [];write.append(theta_sample);write.append(gamma_sb)
-            tools.write(sbout,"flux",sim,phys,cos_env,halo)
-            tools.write_file(sbout,write,len(write),append=True)
-        elif(s[1] == "emm"):
-            if(halo.electrons == None):
-                time_start = time.time()
-                get_electrons(halo,phys,sim)
-                print("Time taken: "+str(time.time()-time_start)+" s")
-            else:
-                time_start = time.time()
-                get_emm(halo,phys,sim)
-                print("Time taken: "+str(time.time()-time_start)+" s")
-        elif(s[1] == "electrons"):
-            time_start = time.time()
-            get_electrons(halo,phys,sim)
-            print("Time taken: "+str(time.time()-time_start)+" s")
-        elif(s[1] == "loop"):
-            tools.write(None,"loop",sim,phys,cos_env,halo)
-            loop_sim = sim
-            loop.sim = loop_sim;loop.cosm = cos_env;loop.phys = phys
-            loop.sub_frac = halo.sub_frac;loop.alpha = halo.alpha
-            loop.dm = halo.dm
-            wimp_str = loop.phys.channel+str(int(loop.phys.mx))
-            field_str = "b"+str(int(loop.phys.b0))+"q"+str(loop.phys.qb)
-            if(loop.dm == 1):
-                dm_str = "nfw"
-            elif(loop.dm == -1):
-                dm_str = "ein"+str(loop.alpha)
-            else:
-                dm_str = "dm"+str(loop.dm)
-            loopout = "loop"+"_"+wimp_str+"_"+field_str+"_"+"d"+str(loop.phys.diff)+"_"+dm_str+"_"+"fs"+str(loop.sub_frac)+".out"
-            outf = open(loopout,"w")
-            zsample = logspace(log10(loop.zmin),log10(loop.zmax),num=loop.zn)
-            
-            for j in range(0,loop.zn):
-                print("Preparing Loop: "+str(j+1)+"/"+str(loop.zn)+", z: "+str(zsample[j]))
-                time_start = time.time()
-                loop.setup(z_index=j)
-                argset = []
-                for i in range(0,loop.mn):
-                    argset.append([loop.halos[i],loop.sim,loop.phys_set[i]])
-                pool = Pool(processes=4)
-                pool.map(loop_mass,argset)
-                #for i in range(0,loop.mn):
-                #    print "Executing Sub-Loop: "+str(i+1)+"/"+str(loop.mn)+", mass: "+str(loop.halos[i].mvir)+", z: "+str(loop.halos[i].z)
-                #    get_electrons(loop.halos[i],loop.sim)
-                #    get_emm(loop.halos[i],loop.phys_set[i],loop.sim)
-                #    get_flux(loop.halos[i],loop.sim,"full")
-                for i in range(0,loop.mn):
-                    fstr = ""
-                    for k in range(0,sim.num):
-                        fstr += " "+str(loop.halos[i].virflux[k])    
-                    outf.write(str(loop.z_sample[j])+" "+str(loop.m_sample[i])+fstr+"\n")
-                #fw.append(zf)
-                print("Time Taken: "+str(time.time()-time_start))
-            #write=[];write.append(loop.m_sample);write.append(fw)
-            #tools.write_file(loopout[0],write,2)
-            #for i in range(0,loop.zn):
-            #    for j in range(0,loop.mn):
-            #        fstr = ""
-            #        for k in range(0,sim.num):
-            #            fstr += " "+str(fw[i][j][k])    
-                    #outf.write(str(loop.z_sample[i])+" "+str(loop.m_sample[j])+fstr+"\n")
-            outf.close()
-        elif(s[1] == "hloop"):
-            tools.write(None,"loop",sim,phys,cos_env,halo)
-            loop_sim = sim
-            loop.sim = loop_sim;loop.cosm = cos_env;loop.phys = phys
-            loop.sub_frac = halo.sub_frac;loop.alpha = halo.alpha
-            loop.dm = halo.dm
-            wimp_str = loop.phys.channel+str(int(loop.phys.mx))
-            field_str = "b"+str(int(loop.phys.b0))+"q"+str(loop.phys.qb)
-            if(loop.dm == 1):
-                dm_str = "nfw"
-            elif(loop.dm == -1):
-                dm_str = "ein"+str(loop.alpha)
-            else:
-                dm_str = "dm"+str(loop.dm)
-            loopout = "hloop"+"_"+wimp_str+"_"+field_str+"_"+"d"+str(loop.phys.diff)+"_"+dm_str+"_"+"fs"+str(loop.sub_frac)+".out"
-            outf = open(loopout,"w")
-            for j in range(0,loop.zn):
-                print("Preparing Loop: "+str(j)+"/"+str(loop.zn))
-                time_start = time.time()
-                loop.setup(z_index=j)
-                gamma = 1 #gamma only flag 
-                for i in range(0,loop.mn):
-                    print("Executing Sub-Loop: "+str(i)+"/"+str(loop.mn))
-                    if(gamma == 1):
-                        get_electrons(loop.halos[i],loop.phys_set[i],loop.sim)
-                        get_h_emm(loop.halos[i],loop.phys_set[i],loop.sim)
-                    get_h_flux(loop.halos[i],loop.sim,gamma,"full")
-                    #zf.append(loop.halos[i].he_virflux)
-                    fstr = ""
-                    for k in range(0,sim.num):
-                        fstr += " "+str(loop.halos[i].he_virflux[k])    
-                    print(fstr)
-                    outf.write(str(loop.z_sample[j])+" "+str(loop.m_sample[i])+fstr+"\n")
-                #fw.append(zf)
-                print("Time Taken: "+str(time.time()-time_start))
-            #write=[];write.append(loop.m_sample);write.append(fw)
-            #tools.write_file(loopout[0],write,2)
-            #for i in range(0,loop.zn):
-            #    for j in range(0,loop.mn):
-            #        fstr = ""
-            #        for k in range(0,sim.num):
-            #            fstr += " "+str(fw[i][j][k])    
-                    #outf.write(str(loop.z_sample[i])+" "+str(loop.m_sample[j])+fstr+"\n")
-            outf.close()
-        else:
-            tools.fatal_error("unrecognised calculation option: "+s[1])
-    elif(s[0] == "setup"):
-        try:
-            if(s[1] == "halo"):
-                if(not halo.setup(sim,phys,cos_env)):
-                    tools.fatal_error("halo setup error")
-                log = get_file_id(sim,phys,cos_env,halo,False)+".log"
-                if sim.log_mode == 1:
-                    tools.write(log,"flux",sim,phys,cos_env,halo)
-                tools.write(None,"flux",sim,phys,cos_env,halo)
-        except IndexError:
-            tools.fatal_error("setup must be followed by a valid command")
     elif(s[0] == "set"):
         process_set(command,phys,sim,halo,cos_env,loop)
     elif(s[0] == "help" or s[0] == "h"):
         try:
-            tools.help_menu(s[1])
+            tools.help_menu()
         except IndexError:
             tools.help_menu()
     elif(s[0] == "load" or s[0] == "l"):
@@ -810,12 +379,55 @@ def process_command(command,phys,sim,halo,cos_env,loop):
     elif(s[0] == "show"):
         try:
             if(s[1] == "log"):
-                log = get_file_id(sim,phys,cos_env,halo,False)+".log"
+                log = output.getCalcID(sim,phys,cos_env,halo,False)+".log"
                 tools.write(log,"flux",sim,phys,cos_env,halo)
         except IndexError:
             tools.fatal_error("show must be followed by a valid command")
     else:
         print("Invalid Command: "+command)
+
+def getIndex(s):
+    try:
+        indices = s[3:].lower()
+    except:
+        try:
+            if ":" in s[3]:
+                imax = int(s[3].split(":")[1])
+                imin = int(s[3].split(":")[0])
+                if imax == -1:
+                    imax = len(calculations)-1
+                indices = arange(imin,imax+1)
+            else:
+                indices = [s[3].lower()]
+        except:
+            print("Warning: no set of calculations to output supplied with command \'"+s[0].lower()+"\' defaulting to \'all\'")
+            indices = ["all"]
+    if indices == ["all"]:
+        indices = arange(0,len(calculations))
+    elif indices == ["-1"]:
+        indices = [len(calculations)-1]
+    elif indices == ["last"]:
+        imin = len(calculations)-len(last_set)
+        imax = len(calculations)-1
+        indices = arange(imin,imax+1)
+    else:
+        try:
+            indices = array(indices,dtype=int)
+        except ValueError:
+            tools.fatal_error("The indices for output supplied as "+indices+" are not valid")
+    return indices
+
+def getRmax(t_str,c_run,command):
+    if t_str == "full":
+        rmax = c_run.halo.rvir
+    elif t_str == "theta":
+        rmax = c_run.halo.da*tan(c_run.sim.theta*2.90888e-4)
+    elif t_str == "r_integrate":
+        rmax = c_run.sim.rintegrate
+    else:
+        rmax = c_run.halo.rvir
+        print("Warning: region flag "+t_str+" in command "+command+" not recognised, defaulting to \'full\'")
+    return rmax
 
 def process_set(line,phys,sim,halo,cos_env,loop):
     """
@@ -918,471 +530,6 @@ def enumerate_set_commands(commands):
             print("set "+c+" "+commands[c][1]+" "+commands[c][3])
     print("set electrons_from_c boolean file_path (electrons_from_c requires true or false as first argument and the path to the c executable as the second)")
     print("set radio_emm_from_c boolean file_path (radio_emm_from_c requires true or false as first argument and the path to the c executable as the second)")
-        
-                
-
-def get_file_id(sim,phys,cos_env,halo,nameFirst,noBfield=False,noGas=False):
-    """
-    Builds an output file id code
-        ---------------------------
-        Parameters
-        ---------------------------
-        sim       - Required : simulation environment (simulation_env)
-        phys      - Required : physical environment (phys_env)
-        cos_env   - Required : cosmology environment (cosmology_env)
-        halo      - Required : halo environment(halo_env)
-        nameFirst - Required : a flag that sets halo.name as the first element of the file id
-        noBfield  - Optional : if True leave out the B field model details
-        noGas     - Optional : if True leave out the gas model details
-        ---------------------------
-        Output
-        ---------------------------
-        Unique file ID excluding extension (string)
-    """
-    if halo.profile == "nfw":
-        dm_str = "nfw"
-    elif halo.profile == "einasto":
-        dm_str = "ein"+str(halo.alpha)
-    elif halo.profile == "burkert":
-        dm_str = "burkert"
-    elif halo.profile == "isothermal":
-        dm_str = "isothermal"
-    elif halo.profile == "moore":
-        dm_str = "moore"
-    else:
-        dm_str = "gnfw"+str(halo.dm)
-    dm_str += "_"
-
-    if(sim.sub_mode == "sc2006"):
-        sub_str = "sc2006_fs"+str(halo.sub_frac) #sub halo mass fraction to append to file names
-    elif(sim.sub_mode == "prada"):
-        sub_str = "prada"
-    else:
-        sub_str = "none"
-    sub_str += "_"
-
-    z_str = "z"+str(halo.z)+"_"  #redshift value to append to file names
-
-    if not noBfield:
-        if(phys.diff == 0):
-            diff_str = "d0_"
-        else:
-            diff_str = "d1_"
-    else:
-        diff_str = ""
-
-    wimp_str = phys.particle_model+"_mx"+str(phys.mx)+"GeV"
-    if halo.mode == "decay":
-        wimp_str += "_decay"
-    wimp_str += "_"
-    
-    if halo.name != None:
-        halo_str = halo.name
-    else:
-        halo_str = "m"+str(int(log10(halo.mvir)))
-    halo_str += "_"
-
-    if not noBfield:
-        if phys.btag is None:
-            if(phys.b0 >= 1.0):
-                field_str = "b"+str(int(phys.b0))+"q"+str(phys.qb)
-            else:
-                field_str = "b"+str(phys.b0)+"q"+str(phys.qb)
-        else:
-            field_str = phys.btag
-        field_str += "_"
-    else:
-        field_str = ""
-
-    if nameFirst:
-        if halo.ucmh == 0:
-            file_id = halo_str+wimp_str+z_str+field_str+diff_str+dm_str+sub_str[:-1]
-        else:
-            file_id = halo_str+wimp_str+z_str+field_str+diff_str[:-1]
-    else:
-        if halo.ucmh == 0:
-            file_id = wimp_str+halo_str+z_str+field_str+diff_str+dm_str+sub_str[:-1]
-        else:
-            file_id = wimp_str+halo_str+"dL"+str(halo.dl)+"_"+field_str+diff_str[:-1]
-    return file_id
-
-def short_id(sim,phys,halo):
-    """
-    Short file ID using just particle model details
-        ---------------------------
-        Parameters
-        ---------------------------
-        sim       - Required : simulation environment (simulation_env)
-        phys      - Required : physical environment (phys_env)
-        halo      - Required : halo environment(halo_env)
-        ---------------------------
-        Output
-        ---------------------------
-        Returns a string of the form 'bb_mx300' for a particle physics model 'bb' and 300 GeV WIMP mass
-    """
-    wimp_str = phys.particle_model+"_mx"+str(phys.mx)+"GeV"
-    if halo.mode == "decay":
-        wimp_str += "_decay"
-    return wimp_str
-
-#===========================================================================================
-def get_emm_nu(halo,phys,sim):
-    """
-    Calculate and store multi-frequency emissivities at a single frequency
-        ---------------------------
-        Parameters
-        ---------------------------
-        halo      - Required : halo environment(halo_env)
-        phys      - Required : physical environment (phys_env)
-        sim       - Required : simulation environment (simulation_env)
-        ---------------------------
-        Output
-        ---------------------------
-        None - assigned to halo.he_emm_nu
-    """ 
-    print("=========================================================")
-    print("Calculating Emissivity Functions")
-    print("=========================================================")
-    freq = sim.f_sample
-    num = sim.num
-    nu = array([sim.nu_sb])
-    sim.num = 1
-    fnu = [1.4e3,1e12,1e17]
-    sim.f_sample = array([fnu[0]])
-    halo.radio_emm_nu = radio.radio_emm(halo,phys,sim)[0]
-    print("Radio Emissivity at "+str(fnu[0]*1e-3)+" GHz Complete")
-    sim.f_sample = array([fnu[1]])
-    halo.he_emm_nu = high_e.high_E_emm(halo,phys,sim)[0]
-    print("X-ray Emissivity at "+str(fnu[1]*1e-3)+" GHz Complete")
-    sim.f_sample = array([fnu[2]])
-    halo.gamma_emm_nu = high_e.gamma_source(halo,phys,sim)[0]
-    print("Gamma-ray Emissivity at "+str(fnu[2]*1e-3)+" GHz Complete")
-    sim.f_sample = freq
-    sim.num = num
-
-def get_gamma_emm_nu(halo,phys,sim):
-    """
-    Calculate and store gamma-ray emissivity at single frequency
-        ---------------------------
-        Parameters
-        ---------------------------
-        halo      - Required : halo environment(halo_env)
-        phys      - Required : physical environment (phys_env)
-        sim       - Required : simulation environment (simulation_env)
-        ---------------------------
-        Output
-        ---------------------------
-        None - assigned to halo.gamma_emm_nu
-    """ 
-    print("=========================================================")
-    print("Calculating Emissivity Functions")
-    print("=========================================================")
-    freq = sim.f_sample
-    num = sim.num
-    nu = array([sim.nu_sb])
-    sim.num = 1
-    sim.f_sample = nu
-    halo.gamma_emm_nu = high_e.gamma_source(halo,phys,sim)[0]
-    print("Gamma-ray Emissivity at "+str(sim.nu_sb*1e-3)+" GHz Complete")
-    sim.f_sample = freq
-    sim.num = num
-
-def get_emm(halo,phys,sim):
-    """
-    Calculate and store multi-frequency emissivity at all frequencies
-        ---------------------------
-        Parameters
-        ---------------------------
-        halo      - Required : halo environment(halo_env)
-        phys      - Required : physical environment (phys_env)
-        sim       - Required : simulation environment (simulation_env)
-        ---------------------------
-        Output
-        ---------------------------
-        None - assigned to halo.radio_emm
-    """ 
-    if not sim.radio_emm_from_c:
-        print("=========================================================")
-        print("Calculating Radio Emissivity Functions with Python")
-        print("=========================================================")
-        halo.radio_emm = radio.radio_emm(halo,phys,sim)
-    else:
-        print("=========================================================")
-        print("Calculating Radio Emissivity Functions with C")
-        print("=========================================================")
-        py_file = "temp_radio_emm_py.out"
-        c_file = "temp_radio_emm_c.in"
-        wd = os.getcwd()
-        halo.radio_emm = radio.emm_from_c(join(wd,py_file),join(wd,c_file),halo,phys,sim)
-        os.remove(join(wd,py_file))
-        os.remove(join(wd,c_file))
-        if halo.radio_emm is None:
-            tools.fatal_error("The radio_emm executable is not compiled/has no specified location")
-    print("Process Complete")
-
-def get_nu_emm(halo,phys,sim):
-    """
-    Calculate and store neutrino emissivity at all frequencies
-        ---------------------------
-        Parameters
-        ---------------------------
-        halo      - Required : halo environment(halo_env)
-        phys      - Required : physical environment (phys_env)
-        sim       - Required : simulation environment (simulation_env)
-        ---------------------------
-        Output
-        ---------------------------
-        None - assigned to halo.nu_emm
-    """ 
-    print("=========================================================")
-    print("Calculating Neutrino Emissivity Functions")
-    print("=========================================================")
-    halo.nu_emm = neutrino.nu_emm(halo,phys,sim)
-    print("Process Complete")
-
-def get_h_emm(halo,phys,sim):
-    """
-    Calculate and store high-frequency (X-ray and up) emissivity at all frequencies
-        ---------------------------
-        Parameters
-        ---------------------------
-        halo      - Required : halo environment(halo_env)
-        phys      - Required : physical environment (phys_env)
-        sim       - Required : simulation environment (simulation_env)
-        ---------------------------
-        Output
-        ---------------------------
-        None - assigned to halo.he_emm
-    """ 
-    print("=========================================================")
-    print("Calculating High-Energy Emissivity Functions")
-    print("=========================================================")
-    halo.he_emm = high_e.high_E_emm(halo,phys,sim)
-    print("Process Complete")
-
-def get_flux(halo,sim,theta_flag):
-    """
-    Calculate and store multi-frequency flux at all frequencies
-        ---------------------------
-        Parameters
-        ---------------------------
-        halo       - Required : halo environment(halo_env)
-        sim        - Required : simulation environment (simulation_env)
-        theta_flag - Required : integration region flag 
-        ---------------------------
-        Output
-        ---------------------------
-        None - assigned to halo.radio_arcflux or halo.radio_arcflux
-    """ 
-    print("=========================================================")
-    print("Calculating Synchrotron Flux")
-    print("=========================================================")
-    if theta_flag == "theta" or theta_flag == "angular" or theta_flag == "ang":
-        print("Finding Flux Within angular radius of: "+str(sim.theta)+" arcmin")
-        halo.radio_arcflux = radio.radio_flux(halo.da*tan(sim.theta*2.90888e-4),halo,sim)
-    elif theta_flag == "r_integrate" and not sim.rintegrate is None:
-        print("Finding Flux Within radius of: "+str(sim.rintegrate)+" Mpc")
-        halo.radio_arcflux = radio.radio_flux(sim.rintegrate,halo,sim)
-    else:
-        print("Finding Flux within Virial Radius")
-        halo.radio_virflux = radio.radio_flux(halo.rvir,halo,sim)
-    print('Magnetic Field Average Strength: '+str(halo.bav)+" micro Gauss")
-    print('Gas Average Density: '+str(halo.neav)+' cm^-3')
-    print("Process Complete")
-
-def get_h_flux(halo,sim,gamma_only,theta_flag,suppress_output=False):
-    """
-    Calculate and store high-energy mechanism flux at all frequencies
-        ---------------------------
-        Parameters
-        ---------------------------
-        halo            - Required : halo environment(halo_env)
-        sim             - Required : simulation environment (simulation_env)
-        gamma_only      - Required : flag to choose all high-energy or just gamma-ray
-        theta_flag      - Required : integration region flag 
-        suppress_output - Required : hide output lines
-        ---------------------------
-        Output
-        ---------------------------
-        None - assigned to halo.he_arcflux or halo.he_virflux
-    """ 
-    if not suppress_output:
-        print("=========================================================")
-        print("Calculating IC and Bremsstrahlung Flux")
-        print("=========================================================")
-    high_e.gamma_source(halo,phys,sim)
-    if theta_flag == "theta" or theta_flag == "angular" or theta_flag == "ang":
-        if not suppress_output:
-            print("Finding Flux Within angular radius of: "+str(sim.theta)+" arcmin")
-        halo.he_arcflux = high_e.high_E_flux(halo.da*tan(sim.theta*2.90888e-4),halo,sim,gamma_only)
-    elif theta_flag == "r_integrate" and not sim.rintegrate is None:
-        if not suppress_output:
-            print("Finding Flux Within radius of: "+str(sim.rintegrate)+" Mpc")
-        halo.he_arcflux = high_e.high_E_flux(sim.rintegrate,halo,sim,gamma_only)
-    else:
-        if not suppress_output:
-            print("Finding Flux within Virial Radius")
-        halo.he_virflux = high_e.high_E_flux(halo.rvir,halo,sim,gamma_only)
-    if not suppress_output:
-        print('Magnetic Field Average Strength: '+str(halo.bav)+" micro Gauss")
-        print('Gas Average Density: '+str(halo.neav)+' cm^-3')
-        print("Process Complete")
-
-def get_nu_flux(halo,sim,gamma_only,theta_flag):
-    """
-    Calculate and store neutrino flux at all frequencies
-        ---------------------------
-        Parameters
-        ---------------------------
-        halo            - Required : halo environment(halo_env)
-        sim             - Required : simulation environment (simulation_env)
-        gamma_only      - Required : flag to choose all high-energy or just gamma-ray (int)
-        theta_flag      - Required : integration region flag (string)
-        ---------------------------
-        Output
-        ---------------------------
-        None - halo.nu_arcflux or halo.nu_virflux assigned instead
-    """ 
-    print("=========================================================")
-    print("Calculating Neutrino Flux")
-    print("=========================================================")
-    if theta_flag == "theta" or theta_flag == "angular" or theta_flag == "ang":
-        print("Finding Flux Within angular radius of: "+str(sim.theta)+" arcmin")
-        halo.nu_arcflux = neutrino.nu_flux(halo.da*tan(sim.theta*2.90888e-4),halo,sim,gamma_only)
-    elif theta_flag == "r_integrate" and not sim.rintegrate is None:
-        print("Finding Flux Within radius of: "+str(sim.rintegrate)+" Mpc")
-        halo.nu_arcflux = neutrino.nu_flux(sim.rintegrate,halo,sim,gamma_only)
-    else:
-        print("Finding Flux within Virial Radius")
-        halo.nu_virflux = neutrino.nu_flux(halo.rvir,halo,sim,gamma_only)
-    print("Process Complete")
-
-def get_multi_flux(halo):
-    """
-    Compose multi-frequency flux by adding up all mechanisms
-        ---------------------------
-        Parameters
-        ---------------------------
-        halo            - Required : halo environment(halo_env)
-        ---------------------------
-        Output
-        ---------------------------
-        None - operations performed on halo
-    """ 
-    halo.make_spectrum()
-
-def get_sync_sb(halo,sim):
-    """
-    Calculate and store synchrotron surface brightness
-        ---------------------------
-        Parameters
-        ---------------------------
-        halo            - Required : halo environment(halo_env)
-        sim             - Required : simulation environment (simulation_env)
-        ---------------------------
-        Output
-        ---------------------------
-        Synchrotron surface brightness as a function of angular radius, array-like (float)
-    """ 
-    print("=========================================================")
-    print("Calculating Synchrotron Surface Brightness")
-    print("=========================================================")
-    print('Magnetic Field Average Strength: '+str(halo.bav)+" micro Gauss")
-    print('Gas Average Density: '+str(halo.neav)+' cm^-3')
-    return radio.radio_sb(halo,sim)
-
-def get_xray_sb(halo,sim):
-    """
-    Calculate and store X-ray surface brightness
-        ---------------------------
-        Parameters
-        ---------------------------
-        halo            - Required : halo environment(halo_env)
-        sim             - Required : simulation environment (simulation_env)
-        ---------------------------
-        Output
-        ---------------------------
-        X-ray surface brightness as a function of angular radius, array-like (float)
-    """ 
-    print("=========================================================")
-    print("Calculating X-ray Surface Brightness")
-    print("=========================================================")
-    print('Magnetic Field Average Strength: '+str(halo.bav)+" micro Gauss")
-    print('Gas Average Density: '+str(halo.neav)+' cm^-3')
-    return high_e.xray_sb(halo,sim)
-
-def get_gamma_sb(halo,sim):
-    """
-    Calculate and store gamma-ray surface brightness
-        ---------------------------
-        Parameters
-        ---------------------------
-        halo            - Required : halo environment(halo_env)
-        sim             - Required : simulation environment (simulation_env)
-        ---------------------------
-        Output
-        ---------------------------
-        Gamma-ray surface brightness as a function of angular radius, array-like (float)
-    """ 
-    print("=========================================================")
-    print("Calculating Gamma-ray Surface Brightness")
-    print("=========================================================")
-    return high_e.gamma_sb(halo,sim)
-
-def get_electrons(halo,phys,sim):
-    """
-    Calculate electron equilibrium distributions
-        ---------------------------
-        Parameters
-        ---------------------------
-        halo            - Required : halo environment (halo_env)
-        phys            - Required : physical environment (phys_env)
-        sim             - Required : simulation environment (simulation_env)
-        ---------------------------
-        Output
-        ---------------------------
-        None - assigned to halo.electrons
-    """ 
-    if not sim.electrons_from_c:
-        print("=========================================================")
-        print("Calculating Electron Equilibriumn Distributions with Python")
-        print("=========================================================")
-        print('Magnetic Field Average Strength: '+str(halo.bav)+" micro Gauss")
-        print('Gas Average Density: '+str(halo.neav)+' cm^-3')
-        halo.electrons = electron.equilibrium_p(halo,phys)
-    else:
-        print("=========================================================")
-        print("Calculating Electron Equilibriumn Distributions with C")
-        print("=========================================================")
-        print('Magnetic Field Average Strength: '+str(halo.bav)+" micro Gauss")
-        print('Gas Average Density: '+str(halo.neav)+' cm^-3')
-        py_file = "temp_electrons_py.out"
-        c_file = "temp_electrons_c.in"
-        wd = os.getcwd()
-        halo.electrons = electron.electrons_from_c(join(wd,py_file),join(wd,c_file),halo,phys,sim)
-        os.remove(join(wd,py_file))
-        os.remove(join(wd,c_file))
-        if halo.electrons is None:
-            tools.fatal_error("The electron executable is not compiled/location not specified")
-    print("Process Complete")
-
-def loop_mass(argset):
-    """
-    This calculates the emissions from a halo - used for pooling tasks in a loop over halos
-        ---------------------------
-        Parameters
-        ---------------------------
-        argset - Required : [halo,sim,phys]
-        ---------------------------
-        Output
-        ---------------------------
-        None - assigned to halo variables
-    """
-    halo = argset[0]; sim = argset[1]; phys = argset[2]
-    get_electrons(halo,phys,sim)
-    get_emm(halo,phys,sim)
-    get_flux(halo,sim,"full")
-
 
 def read_spectrum(spec_file,gamma,branching,phys,sim):
     """
@@ -1624,7 +771,6 @@ sim = simulation_env() #set up default simulation environment
 loop = loop_env(zn=20,zmin=1.0e-5,zmax=1.0,nloop=40,mmin=1.1e-6,mmax=1e15) #loop env - old code
 loop_sim = simulation_env() #sets the common values for the loop
 halo = halo_env()  #set up default halo environment
-calculations = []
 if not console_flag:
     process_file(in_file,phys,sim,halo,cosm,loop) #execute all commands in the input file
 else:

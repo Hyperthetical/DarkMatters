@@ -37,6 +37,20 @@ class calculation:
         self.outLabel = {"gflux":"gamma","hflux":"he","rflux":"radio","flux":"multi","jflux":"he_jflux","nuflux":"nu_"+flavourStr,"nu_jflux":"nu_"+flavourStr+"_jflux"}
 
     def calcFlux(self,calcMode,regionFlag="full",full_id=True,suppress_output=False):
+        """
+        Calculate and store flux from selected mechanism(s)
+            ---------------------------
+            Parameters
+            ---------------------------
+            calcMode        - Required : calculation type
+            regionFlag      - Optional : integration region flag
+            full_id         - Optional : if True don't use shortened file ID 
+            suppress_output - Optional : hide output for high-energy case (for use with self.jNormSelf)
+            ---------------------------
+            Output
+            ---------------------------
+            Flux data stored in file
+        """ 
         halo_id = getCalcID(self.sim,self.phys,self.cosmo,self.halo,short_id=(not full_id))
         fluxFile = halo_id+"_"+self.outLabel[calcMode]
         if regionFlag == "theta":
@@ -48,22 +62,22 @@ class calculation:
         fluxData = self.__calcFlux(calcMode,regionFlag,suppress_output=suppress_output)
         erg = fluxData*self.sim.f_sample*1e-17
         write = [];write.append(self.sim.f_sample);write.append(fluxData);write.append(erg)
-        self.calcWrite(log=join(self.sim.out_dir,fluxFile))
+        self.calcWrite(log=join(self.sim.out_dir,fluxFile),fluxMode=calcMode)
         writeFile(join(self.sim.out_dir,fluxFile),write,3,append=True)
 
     def __calcFlux(self,fluxMode,regionFlag,suppress_output=False):
         """
-        Calculate and store multi-frequency flux at all frequencies
+        Calculate flux from specified mechanism(s)
             ---------------------------
             Parameters
             ---------------------------
-            halo       - Required : halo environment(halo_env)
-            sim        - Required : simulation environment (simulation_env)
-            regionFlag - Required : integration region flag 
+            fluxMode        - Required : calculation type
+            regionFlag      - Required : integration region flag 
+            suppress_output - Optional : hide output for high-energy case (for use with self.jNormSelf)
             ---------------------------
             Output
             ---------------------------
-            None - assigned to halo.radio_arcflux or halo.radio_arcflux
+            Flux data returned as array-like float
         """ 
         fRatio = self.__jNormSelf(fluxMode,regionFlag)
         if fluxMode == "rflux" or fluxMode == "flux":
@@ -93,6 +107,12 @@ class calculation:
                     print("Calculating Pion-decay Flux from J-Factor")
                     print("=========================================================")
                 return high_e.gamma_from_j(self.halo,self.phys,self.sim)**4.14e-24*1.6e20
+            if fluxMode == "dflux":
+                if not suppress_output:
+                    print("=========================================================")
+                    print("Calculating Pion-decay Flux from D-Factor")
+                    print("=========================================================")
+                return high_e.gamma_from_d(self.halo,self.phys,self.sim)**4.14e-24*1.6e20
             if self.halo.he_emm is None:
                 self.__calcEmm(fluxMode)
             if fluxMode == "gflux":
@@ -147,19 +167,31 @@ class calculation:
             return nuFlux*fRatio
         return hFlux*fRatio + radioFlux*fRatio
 
+    def calcEmm(self,fluxMode):
+        """
+        Calculate and store multi-frequency emissivity at all frequencies
+            ---------------------------
+            Parameters
+            ---------------------------
+            fluxMode - Required : determines if emm needs to be found
+            ---------------------------
+            Output
+            ---------------------------
+            None - assigned to self.halo.radio_emm etc
+        """ 
+        self.__calcEmm(fluxMode)
+
     def __calcEmm(self,fluxMode):
         """
         Calculate and store multi-frequency emissivity at all frequencies
             ---------------------------
             Parameters
             ---------------------------
-            halo      - Required : halo environment(halo_env)
-            phys      - Required : physical environment (phys_env)
-            sim       - Required : simulation environment (simulation_env)
+            fluxMode - Required : determines if emm needs to be found
             ---------------------------
             Output
             ---------------------------
-            None - assigned to halo.radio_emm
+            None - assigned to self.halo.radio_emm etc
         """ 
         if fluxMode in ["rflux","flux"]:
             if self.halo.electrons is None:
@@ -202,15 +234,9 @@ class calculation:
         """
         Calculate electron equilibrium distributions
             ---------------------------
-            Parameters
-            ---------------------------
-            halo            - Required : halo environment (halo_env)
-            phys            - Required : physical environment (phys_env)
-            sim             - Required : simulation environment (simulation_env)
-            ---------------------------
             Output
             ---------------------------
-            None - assigned to halo.electrons
+            None - assigned to self.halo.electrons
         """ 
         if not self.sim.electrons_from_c:
             print("=========================================================")
@@ -236,6 +262,18 @@ class calculation:
         print("Process Complete")
 
     def __jNormSelf(self,fluxMode,regionFlag):
+        """
+        Determine normalisation factor to get the halo density to match jfactor from input
+            ---------------------------
+            Parameters
+            ---------------------------
+            fluxMode   - Required : returns 1 if this contains jflux (String)
+            regionFlag - Required : theta,r_integrate,full (String)
+            ---------------------------
+            Output
+            ---------------------------
+            Writes to a file or stdout
+        """
         if self.halo.J_flag != 0 and (not "jflux" in fluxMode):
             hfmax = self.phys.mx/(1e6*4.136e-15*1e-9) #MHz
             hsim = simulation_env(n=self.sim.n,ngr=self.sim.ngr,num=20,fmin=1e-3*hfmax,fmax=0.1*hfmax,theta=self.sim.theta,nu_sb=self.sim.nu_sb)
@@ -255,17 +293,15 @@ class calculation:
         else:
             return 1.0
 
-    def calcWrite(self,writeMode="flux",log=None):
+    def calcWrite(self,writeMode="flux",log=None,fluxMode=""):
         """
         Write calculation data to a target output
             ---------------------------
             Parameters
             ---------------------------
-            log        - Required : log file name (if None uses stdout) (String or None)
-            writeMode - Required : 'flux' displays all information (String)
-            sim        - Required : simulation environment (simulation_env)
-            phys       - Required : physical environment (physical_env)
-            cosm       - Required : cosmology environment (cosmology_env)
+            log       - Optional : log file name (if None uses stdout) (String or None)
+            writeMode - Optional : 'flux' displays all information (String)
+            fluxMode  - Optional : can be used to exclude irrelevant Bfield and gas info (jflux,gflux,nuflux,nu_jflux) (String)
             ---------------------------
             Output
             ---------------------------
@@ -345,37 +381,38 @@ class calculation:
         outstream.write(prefix+'Angular Observation Radius Per Arcmin: '+str(self.halo.rfarc)+' Mpc arcmin^-1'+end)
         if self.sim.theta > 0.0 and not self.sim.theta is None:  
             outstream.write(prefix+'Observation Radius for '+str(self.sim.theta)+' arcmin is '+str(self.halo.da*np.tan(self.sim.theta*2.90888e-4))+" Mpc"+end)
-        if not self.sim.rintegrate is None:  
+        if not self.sim.rintegrate is None and not "jflux" in fluxMode:  
             outstream.write(prefix+'Observation Radius r_integrate '+str(self.sim.rintegrate)+" Mpc"+end)
-        outstream.write(prefix+'======================================================'+end)
-        outstream.write(prefix+'Gas Parameters: '+end)
-        outstream.write(prefix+'======================================================'+end)
-        if self.phys.ne_model == "flat":
-            outstream.write(prefix+'Gas Distribution: '+"Flat Profile"+end)
-            outstream.write(prefix+'Gas Central Density: '+str(self.phys.ne0)+' cm^-3'+end)
-        elif(self.phys.ne_model == "powerlaw" or self.phys.ne_model == "pl"):
-            outstream.write(prefix+'Gas Distribution: '+"Power-law profile"+end)
-            outstream.write(prefix+'Gas Central Density: '+str(self.phys.ne0)+' cm^-3'+end)
-            if self.phys.lb is None:
-                outstream.write(prefix+'Scale radius: '+str(self.halo.rcore*1e3)+" kpc"+end)
-            else:
-                outstream.write(prefix+'Scale radius: '+str(self.phys.lb*1e3)+" kpc"+end)
-            outstream.write(prefix+'PL Index: '+str(-1*self.phys.qe)+end)
-        elif(self.phys.ne_model == "king"):
-            outstream.write(prefix+'Gas Distribution: '+"King-type profile"+end)
-            outstream.write(prefix+'Gas Central Density: '+str(self.phys.ne0)+' cm^-3'+end)
-            if self.phys.lb is None:
-                outstream.write(prefix+'Scale radius: '+str(self.halo.rcore*1e3)+" kpc"+end)
-            else:
-                outstream.write(prefix+'Scale radius: '+str(self.phys.lb*1e3)+" kpc"+end)
-            outstream.write(prefix+'PL Index: '+str(-1*self.phys.qe)+end)
-        elif(self.phys.ne_model == "exp"):
-            outstream.write(prefix+'Gas Distribution: '+"Exponential"+end)
-            outstream.write(prefix+'Gas Central Density: '+str(self.phys.ne0)+' cm^-3'+end)
-            outstream.write(prefix+'Scale radius: '+str(self.halo.r_stellar_half_light*1e3)+" kpc"+end)
+        if not ("jflux" in fluxMode or "gflux" in fluxMode or "nu" in fluxMode):
+            outstream.write(prefix+'======================================================'+end)
+            outstream.write(prefix+'Gas Parameters: '+end)
+            outstream.write(prefix+'======================================================'+end)
+            if self.phys.ne_model == "flat":
+                outstream.write(prefix+'Gas Distribution: '+"Flat Profile"+end)
+                outstream.write(prefix+'Gas Central Density: '+str(self.phys.ne0)+' cm^-3'+end)
+            elif(self.phys.ne_model == "powerlaw" or self.phys.ne_model == "pl"):
+                outstream.write(prefix+'Gas Distribution: '+"Power-law profile"+end)
+                outstream.write(prefix+'Gas Central Density: '+str(self.phys.ne0)+' cm^-3'+end)
+                if self.phys.lb is None:
+                    outstream.write(prefix+'Scale radius: '+str(self.halo.rcore*1e3)+" kpc"+end)
+                else:
+                    outstream.write(prefix+'Scale radius: '+str(self.phys.lb*1e3)+" kpc"+end)
+                outstream.write(prefix+'PL Index: '+str(-1*self.phys.qe)+end)
+            elif(self.phys.ne_model == "king"):
+                outstream.write(prefix+'Gas Distribution: '+"King-type profile"+end)
+                outstream.write(prefix+'Gas Central Density: '+str(self.phys.ne0)+' cm^-3'+end)
+                if self.phys.lb is None:
+                    outstream.write(prefix+'Scale radius: '+str(self.halo.rcore*1e3)+" kpc"+end)
+                else:
+                    outstream.write(prefix+'Scale radius: '+str(self.phys.lb*1e3)+" kpc"+end)
+                outstream.write(prefix+'PL Index: '+str(-1*self.phys.qe)+end)
+            elif(self.phys.ne_model == "exp"):
+                outstream.write(prefix+'Gas Distribution: '+"Exponential"+end)
+                outstream.write(prefix+'Gas Central Density: '+str(self.phys.ne0)+' cm^-3'+end)
+                outstream.write(prefix+'Scale radius: '+str(self.halo.r_stellar_half_light*1e3)+" kpc"+end)
 
-        if(writeMode == "flux"):
-            outstream.write(prefix+'Gas Average Density (rvir): '+str(self.halo.neav)+' cm^-3'+end)
+            if(writeMode == "flux"):
+                outstream.write(prefix+'Gas Average Density (rvir): '+str(self.halo.neav)+' cm^-3'+end)
         outstream.write(prefix+'======================================================'+end)
         outstream.write(prefix+'Halo Substructure Parameters: '+end)
         outstream.write(prefix+'======================================================'+end)
@@ -388,43 +425,44 @@ class calculation:
             outstream.write(prefix+"Substructure Mode: Sanchez-Conde & Prada 2013"+end)
             outstream.write(prefix+"Boost Factor: "+str(self.halo.boost)+end)
             outstream.write(prefix+"Synchrotron Boost Factor: "+str(self.halo.radio_boost)+end)
-        outstream.write(prefix+'======================================================'+end)
-        outstream.write(prefix+'Magnetic Field Parameters: '+end)
-        outstream.write(prefix+'======================================================'+end)
-        if(self.phys.b_flag == "flat"):
-            outstream.write(prefix+'Magnetic Field Model: '+"Flat Profile"+end)
-        elif(self.phys.b_flag == "powerlaw" or self.phys.b_flag == "pl"):
-            outstream.write(prefix+'Magnetic Field Model: '+"Power-law profile"+end)
-            outstream.write(prefix+'PL Index: '+str(-1*self.phys.qb*self.phys.qe)+end)
-        elif(self.phys.b_flag == "follow_ne"):
-            outstream.write(prefix+'Magnetic Field Model: '+"Following Gas Profile"+end)
-            outstream.write(prefix+'PL Index on n_e: '+str(self.phys.qb)+end)
-        elif(self.phys.b_flag == "equipartition"):
-            outstream.write(prefix+'Magnetic Field Model: '+"Energy Equipartition with Gas"+end)
-        elif(self.phys.b_flag == "sc2006"):
-            outstream.write(prefix+'Magnetic Field Model: '+"Two-Parameter Coma Profile"+end)
-            outstream.write(prefix+'Magnetic Field Scaling Radii: '+str(self.halo.rb1)+" Mpc "+str(self.halo.rb2)+" Mpc"+end)
-        elif(self.phys.b_flag == "exp"):
-            outstream.write(prefix+'Magnetic Field Model: '+"Exponential"+end)
-            if self.phys.qb == 0.0:
-                outstream.write(prefix+'Scale radius: '+str(self.halo.r_stellar_half_light*1e3)+" kpc"+end)
+        if not ("jflux" in fluxMode or "gflux" in fluxMode or "nu" in fluxMode):
+            outstream.write(prefix+'======================================================'+end)
+            outstream.write(prefix+'Magnetic Field Parameters: '+end)
+            outstream.write(prefix+'======================================================'+end)
+            if(self.phys.b_flag == "flat"):
+                outstream.write(prefix+'Magnetic Field Model: '+"Flat Profile"+end)
+            elif(self.phys.b_flag == "powerlaw" or self.phys.b_flag == "pl"):
+                outstream.write(prefix+'Magnetic Field Model: '+"Power-law profile"+end)
+                outstream.write(prefix+'PL Index: '+str(-1*self.phys.qb*self.phys.qe)+end)
+            elif(self.phys.b_flag == "follow_ne"):
+                outstream.write(prefix+'Magnetic Field Model: '+"Following Gas Profile"+end)
+                outstream.write(prefix+'PL Index on n_e: '+str(self.phys.qb)+end)
+            elif(self.phys.b_flag == "equipartition"):
+                outstream.write(prefix+'Magnetic Field Model: '+"Energy Equipartition with Gas"+end)
+            elif(self.phys.b_flag == "sc2006"):
+                outstream.write(prefix+'Magnetic Field Model: '+"Two-Parameter Coma Profile"+end)
+                outstream.write(prefix+'Magnetic Field Scaling Radii: '+str(self.halo.rb1)+" Mpc "+str(self.halo.rb2)+" Mpc"+end)
+            elif(self.phys.b_flag == "exp"):
+                outstream.write(prefix+'Magnetic Field Model: '+"Exponential"+end)
+                if self.phys.qb == 0.0:
+                    outstream.write(prefix+'Scale radius: '+str(self.halo.r_stellar_half_light*1e3)+" kpc"+end)
+                else:
+                    outstream.write(prefix+'Scale radius: '+str(self.phys.qb*1e3)+" kpc"+end)
+            elif(self.phys.b_flag == "m31"):
+                outstream.write(prefix+'Magnetic Field Model: '+"M31"+end)
+                outstream.write(prefix+'Scale radius r1: '+str(self.phys.qb*1e3)+" kpc"+end)
+            elif(self.phys.b_flag == "m31exp"):
+                outstream.write(prefix+'Magnetic Field Model: '+"M31 + Exponential after 14 kpc"+end)
+                outstream.write(prefix+'Scale radius r1: '+str(self.phys.qb*1e3)+" kpc"+end)
+            outstream.write(prefix+'Magnetic Field Strength Parameter: '+str(self.phys.b0)+' micro Gauss'+end)
+            outstream.write(prefix+'Magnetic Field Average Strength (rvir): '+str(self.halo.bav)+" micro Gauss"+end)
+            if(self.phys.diff == 0):
+                outstream.write(prefix+'No Diffusion'+end)
             else:
-                outstream.write(prefix+'Scale radius: '+str(self.phys.qb*1e3)+" kpc"+end)
-        elif(self.phys.b_flag == "m31"):
-            outstream.write(prefix+'Magnetic Field Model: '+"M31"+end)
-            outstream.write(prefix+'Scale radius r1: '+str(self.phys.qb*1e3)+" kpc"+end)
-        elif(self.phys.b_flag == "m31exp"):
-            outstream.write(prefix+'Magnetic Field Model: '+"M31 + Exponential after 14 kpc"+end)
-            outstream.write(prefix+'Scale radius r1: '+str(self.phys.qb*1e3)+" kpc"+end)
-        outstream.write(prefix+'Magnetic Field Strength Parameter: '+str(self.phys.b0)+' micro Gauss'+end)
-        outstream.write(prefix+'Magnetic Field Average Strength (rvir): '+str(self.halo.bav)+" micro Gauss"+end)
-        if(self.phys.diff == 0):
-            outstream.write(prefix+'No Diffusion'+end)
-        else:
-            outstream.write(prefix+'Spatial Diffusion'+end)
-            outstream.write(prefix+'Turbulence scale: '+str(self.phys.lc)+' kpc'+end)
-            outstream.write(prefix+'Turbulence Index: '+str(self.phys.delta)+end)
-            outstream.write(prefix+'Diffusion constant: '+str(self.phys.d0)+" cm^2 s^-1"+end)
+                outstream.write(prefix+'Spatial Diffusion'+end)
+                outstream.write(prefix+'Turbulence scale: '+str(self.phys.lc)+' kpc'+end)
+                outstream.write(prefix+'Turbulence Index: '+str(self.phys.delta)+end)
+                outstream.write(prefix+'Diffusion constant: '+str(self.phys.d0)+" cm^2 s^-1"+end)
         if not log is None:
             outstream.close()
 
@@ -476,13 +514,13 @@ def getCalcID(sim,phys,cos_env,halo,noBfield=False,noGas=False,short_id=False):
         phys      - Required : physical environment (phys_env)
         cos_env   - Required : cosmology environment (cosmology_env)
         halo      - Required : halo environment(halo_env)
-        nameFirst - Required : a flag that sets halo.name as the first element of the file id
         noBfield  - Optional : if True leave out the B field model details
         noGas     - Optional : if True leave out the gas model details
+        short_id  - Optional : if True include only halo label and WIMP model details
         ---------------------------
         Output
         ---------------------------
-        Unique file ID excluding extension (string)
+        Unique file ID prefix (string)
     """
     if halo.profile == "nfw":
         dm_str = "nfw"
@@ -521,12 +559,20 @@ def getCalcID(sim,phys,cos_env,halo,noBfield=False,noGas=False,short_id=False):
     else:
         halo_str = "m"+str(int(np.log10(halo.mvir)))
     halo_str += "_"
+    try:
+        mxSplit = str(phys.mx).split(".")
+        if float(mxSplit[-1]) == 0.0:
+            mxStr = str(int(phys.mx))
+        else:
+            mxStr = str(phys.mx)
+    except:
+        mxStr = str(phys.mx) 
 
-    wimp_str = phys.particle_model+"_mx"+str(phys.mx)+"GeV"
+    wimp_str = phys.particle_model+"_mx"+mxStr+"GeV"
     if halo.mode == "decay":
         wimp_str += "_decay"
     if short_id:
-        return wimp_str
+        return halo_str+wimp_str
     wimp_str += "_"
 
     if not noBfield:
