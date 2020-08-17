@@ -36,6 +36,29 @@ class calculation:
         self.prefix = {"hz":{"k":1e3,"m":1e6,"g":1e9,"t":1e12,"p":1e15},"ev":{"k":1e3,"m":1e6,"g":1e9,"t":1e12,"p":1e15},"jy":{"m":1e-3,"u":1e-6}}
         self.outLabel = {"gflux":"gamma","hflux":"he","rflux":"radio","flux":"multi","jflux":"he_jflux","nuflux":"nu_"+flavourStr,"nu_jflux":"nu_"+flavourStr+"_jflux"}
 
+    def calcSB(self,nu,calcMode,full_id=True,suppress_output=False):
+        """
+        Calculate and store flux from selected mechanism(s)
+            ---------------------------
+            Parameters
+            ---------------------------
+            calcMode        - Required : calculation type
+            regionFlag      - Optional : integration region flag
+            full_id         - Optional : if True don't use shortened file ID 
+            suppress_output - Optional : hide output for high-energy case (for use with self.jNormSelf)
+            ---------------------------
+            Output
+            ---------------------------
+            Flux data stored in file
+        """ 
+        halo_id = getCalcID(self.sim,self.phys,self.cosmo,self.halo,short_id=(not full_id))
+        fluxFile = halo_id+"_"+self.outLabel[calcMode]+"_"+calcMode+".out"
+        fluxData = self.__calcSB(nu,calcMode,suppress_output=suppress_output)
+        erg = fluxData*nu*1e-17
+        write = [];write.append(np.arctan(self.halo.r_sample[0]/np.sqrt(self.halo.dl**2+self.halo.r_sample[0]**2)));write.append(fluxData);write.append(erg)
+        self.calcWrite(log=join(self.sim.out_dir,fluxFile),fluxMode=calcMode)
+        writeFile(join(self.sim.out_dir,fluxFile),write,3,append=True)
+
     def calcFlux(self,calcMode,regionFlag="full",full_id=True,suppress_output=False):
         """
         Calculate and store flux from selected mechanism(s)
@@ -65,7 +88,7 @@ class calculation:
         self.calcWrite(log=join(self.sim.out_dir,fluxFile),fluxMode=calcMode)
         writeFile(join(self.sim.out_dir,fluxFile),write,3,append=True)
 
-    def __calcFlux(self,fluxMode,regionFlag,suppress_output=False):
+    def __calcFlux(self,fluxMode,regionFlag,suppress_output=False,jnorm=True):
         """
         Calculate flux from specified mechanism(s)
             ---------------------------
@@ -79,7 +102,10 @@ class calculation:
             ---------------------------
             Flux data returned as array-like float
         """ 
-        fRatio = self.__jNormSelf(fluxMode,regionFlag)
+        if jnorm:
+            fRatio = self.__jNormSelf(fluxMode,regionFlag)
+        else:
+            fRatio = 1.0
         if fluxMode == "rflux" or fluxMode == "flux":
             if self.halo.radio_emm is None:
                 self.__calcEmm(fluxMode)
@@ -106,13 +132,13 @@ class calculation:
                     print("=========================================================")
                     print("Calculating Pion-decay Flux from J-Factor")
                     print("=========================================================")
-                return high_e.gamma_from_j(self.halo,self.phys,self.sim)**4.14e-24*1.6e20
+                return high_e.gamma_from_j(self.halo,self.phys,self.sim)*4.14e-24*1.6e20
             if fluxMode == "dflux":
                 if not suppress_output:
                     print("=========================================================")
                     print("Calculating Pion-decay Flux from D-Factor")
                     print("=========================================================")
-                return high_e.gamma_from_d(self.halo,self.phys,self.sim)**4.14e-24*1.6e20
+                return high_e.gamma_from_d(self.halo,self.phys,self.sim)*4.14e-24*1.6e20
             if self.halo.he_emm is None:
                 self.__calcEmm(fluxMode)
             if fluxMode == "gflux":
@@ -131,7 +157,7 @@ class calculation:
                 if not suppress_output:
                     print("Finding Flux Within angular radius of: "+str(self.sim.theta)+" arcmin")
                 hFlux = high_e.high_E_flux(self.halo.da*np.tan(self.sim.theta*2.90888e-4),self.halo,self.sim,gammaFlag)
-            elif regionFlag == "r_integrate" and not self.sim.rintegrate is None:
+            elif regionFlag == "r_integrate" and not self.self.sim.rintegrate is None:
                 if not suppress_output:
                     print("Finding Flux Within radius of: "+str(self.sim.rintegrate)+" Mpc")
                 hFlux = high_e.high_E_flux(self.sim.rintegrate,self.halo,self.sim,gammaFlag)
@@ -166,6 +192,35 @@ class calculation:
             print("Process Complete")
             return nuFlux*fRatio
         return hFlux*fRatio + radioFlux*fRatio
+
+    def __calcSB(self,nu,fluxMode,suppress_output=False):
+        """
+        Calculate flux from specified mechanism(s)
+            ---------------------------
+            Parameters
+            ---------------------------
+            fluxMode        - Required : calculation type
+            suppress_output - Optional : hide output for high-energy case (for use with self.jNormSelf)
+            ---------------------------
+            Output
+            ---------------------------
+            Flux data returned as array-like float
+        """ 
+        fRatio = self.__jNormSelf(fluxMode,"theta")
+        if fluxMode == "rflux" or fluxMode == "flux":
+            if self.halo.radio_emm is None:
+                self.__calcEmm(fluxMode)
+            print("=========================================================")
+            print("Calculating Synchrotron Surface brightness")
+            print("=========================================================")
+            radioSB = radio.radio_sb(nu,self.halo,self.sim)
+            print('Magnetic Field Average Strength: '+str(self.halo.bav)+" micro Gauss")
+            print('Gas Average Density: '+str(self.halo.neav)+' cm^-3')
+            print("Process Complete")
+            if fluxMode == "rflux":
+                return radioSB*fRatio
+        
+        return radioSB*fRatio
 
     def calcEmm(self,fluxMode):
         """
@@ -277,15 +332,18 @@ class calculation:
         if self.halo.J_flag != 0 and (not "jflux" in fluxMode):
             hfmax = self.phys.mx/(1e6*4.136e-15*1e-9) #MHz
             hsim = simulation_env(n=self.sim.n,ngr=self.sim.ngr,num=20,fmin=1e-3*hfmax,fmax=0.1*hfmax,theta=self.sim.theta,nu_sb=self.sim.nu_sb)
+            hsim.specdir = self.sim.specdir
             jhalo = halo_env()
+            jcalc = calculation(jhalo,self.phys,hsim,self.cosmo)
             attSet = [att for att in dir(self.halo) if (not att.startswith("__")) and (not att in ["physical_averages","setup_halo","setup","setup_ucmh","check_self","make_spectrum"])]
             for att in attSet:
                 if not att in ["mode","mode_exp","rho_dm_sample"]:
                     setattr(jhalo,att,getattr(self.halo,att))
-            jcheck = jhalo.setup(self.sim,self.phys,self.cos_env)
+            jcheck = jhalo.setup(hsim,self.phys,self.cosmo)
             hsim.sample_f()
-            gflux = self.__calcFlux("gflux",regionFlag,suppress_output=True)
-            jflux = self.__calcFlux("jflux",regionFlag,suppress_output=True)
+            gflux = jcalc.__calcFlux("gflux",regionFlag,suppress_output=True,jnorm=False)
+            jflux = jcalc.__calcFlux("jflux",regionFlag,suppress_output=True,jnorm=False)
+            print(jflux)
             fRatio = (sum(jflux/gflux)/len(jflux))**(0.5*self.halo.mode_exp)
             self.sim.jnormed = True
             print("Normalisation factor: "+str(fRatio))

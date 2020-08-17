@@ -196,6 +196,7 @@ def process_command(command,phys,sim,halo,cos_env,loop):
     global last_set
     calc_dict = {"dflux":"Gamma-ray flux from D-factor","rflux":"Radio flux","hflux":"High-frequency flux","flux":"All flux","jflux":"Gamma-ray flux from Jfactor","gflux":"Gamma-ray flux","nuflux":"Neutrino flux","nu_jflux":"Neutrino flux from J-factor","sb":"Radio surface brightness","gamma_sb":"gamma-ray surface brightness","emm":"Emmissivity","loop":"Radio loop","hloop":"High energy loop","electrons":"Electron distributions"}
     diff_calc_set = ["rflux","hflux","flux","sb","emm","loop","hloop","electrons"]
+    sb_dict = {"sb":"rflux"}
     if "#" in command.strip() and not command.strip().startswith("#"):
         s = command.split("#")[0].split()
     elif not command.strip() == "":
@@ -226,7 +227,7 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         try:
             theta_flag = s[2].lower()
         except:
-            if not "jflux" in calc_mode: 
+            if not "jflux" in calc_mode or not "sb" in calc_mode: 
                 print("Warning: no region flag supplied with command \'"+s[0].lower()+"\' defaulting to \'full\'")
             theta_flag = "full"
         indices = getIndex(s)
@@ -243,7 +244,10 @@ def process_command(command,phys,sim,halo,cos_env,loop):
                 rmax = getRmax(theta_flag,calculations[i],command)
                 calculations[i].halo.physical_averages(rmax)
             print("Calculation ID: "+output.getCalcID(calculations[i].sim,calculations[i].phys,calculations[i].cosmo,calculations[i].halo,short_id=(not full_id)))
-            calculations[i].calcFlux(calc_mode,regionFlag=theta_flag,full_id=full_id,suppress_output=False)
+            if "sb" in calc_mode:
+                calculations[i].calcSB(sim.nu_sb,sb_dict[calc_mode],full_id=full_id,suppress_output=False)
+            else:
+                calculations[i].calcFlux(calc_mode,regionFlag=theta_flag,full_id=full_id,suppress_output=False)
     elif s[0].lower() in ["c+o","calc+out","calc+output"]:
         try:
             print("Calculation Task Given: "+calc_dict[s[1]])
@@ -293,14 +297,20 @@ def process_command(command,phys,sim,halo,cos_env,loop):
             print("=========================================================")
             print("Beginning new Dark Matters calculation")
             print("=========================================================")
-            c_run.calcWrite(fluxMode=calc_str)
+            if "sb" in calc_str:
+                c_run.calcWrite(fluxMode=sb_dict[calc_str])
+            else:
+                c_run.calcWrite(fluxMode=calc_str)
             if calc_str in diff_calc_set:
                 rmax = getRmax(t_str,c_run,command)
                 c_run.halo.physical_averages(rmax)
             full_id = True
             if "jflux" or "gflux" in calc_str:
                 full_id = False
-            c_run.calcFlux(calc_str,regionFlag=t_str,full_id=full_id,suppress_output=False)
+            if "sb" in calc_str:
+                c_run.calcSB(sim.nu_sb,sb_dict[calc_str],full_id=full_id,suppress_output=False)
+            else:
+                c_run.calcFlux(calc_str,regionFlag=t_str,full_id=full_id,suppress_output=False)
             calculations.append(deepcopy(c_run))
         print("Batch Time: "+str(time.time()-batch_time)+" s")
         print("Batch Time per Calculation: "+str((time.time()-batch_time)/batch_calc)+" s")
