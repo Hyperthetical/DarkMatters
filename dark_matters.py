@@ -237,7 +237,7 @@ def process_command(command,phys,sim,halo,cos_env,loop):
             print("Region: from Jfactor")
         print("Flux command: "+calc_dict[s[1]])
         full_id = True
-        if "jflux" or "gflux" in calc_mode:
+        if "jflux" in calc_mode or "gflux" in calc_mode:
             full_id = False
         for i in indices:
             if calc_mode in diff_calc_set:
@@ -305,12 +305,15 @@ def process_command(command,phys,sim,halo,cos_env,loop):
                 rmax = getRmax(t_str,c_run,command)
                 c_run.halo.physical_averages(rmax)
             full_id = True
-            if "jflux" or "gflux" in calc_str:
+            if "jflux" in calc_str or "gflux" in calc_str:
                 full_id = False
             if "sb" in calc_str:
                 c_run.calcSB(sim.nu_sb,sb_dict[calc_str],full_id=full_id,suppress_output=False)
             else:
-                c_run.calcFlux(calc_str,regionFlag=t_str,full_id=full_id,suppress_output=False)
+                if t_str == "radial":
+                    c_run.calcFluxRadial(sim.nu_sb,calc_str,full_id=full_id,suppress_output=False)
+                else:
+                    c_run.calcFlux(calc_str,regionFlag=t_str,full_id=full_id,suppress_output=False)
             calculations.append(deepcopy(c_run))
         print("Batch Time: "+str(time.time()-batch_time)+" s")
         print("Batch Time per Calculation: "+str((time.time()-batch_time)/batch_calc)+" s")
@@ -434,6 +437,8 @@ def getRmax(t_str,c_run,command):
         rmax = c_run.halo.da*tan(c_run.sim.theta*2.90888e-4)
     elif t_str == "r_integrate":
         rmax = c_run.sim.rintegrate
+    elif t_str == "radial":
+        rmax = c_run.halo.rvir
     else:
         rmax = c_run.halo.rvir
         print("Warning: region flag "+t_str+" in command "+command+" not recognised, defaulting to \'full\'")

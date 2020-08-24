@@ -1,6 +1,7 @@
 import numpy as np
 from os.path import join
 import sys,os
+from copy import deepcopy
 
 try:
     from wimp_tools import tools,cosmology_env,simulation_env,physical_env,loop_env,halo_env #wimp handling package
@@ -52,10 +53,33 @@ class calculation:
             Flux data stored in file
         """ 
         halo_id = getCalcID(self.sim,self.phys,self.cosmo,self.halo,short_id=(not full_id))
-        fluxFile = halo_id+"_"+self.outLabel[calcMode]+"_"+calcMode+".out"
+        fluxFile = halo_id+"_"+self.outLabel[calcMode]+"_"+calcMode+"_sb_{:02.1e}MHz.out".format(nu)
         fluxData = self.__calcSB(nu,calcMode,suppress_output=suppress_output)
         erg = fluxData*nu*1e-17
         write = [];write.append(np.arctan(self.halo.r_sample[0]/np.sqrt(self.halo.dl**2+self.halo.r_sample[0]**2)));write.append(fluxData);write.append(erg)
+        self.calcWrite(log=join(self.sim.out_dir,fluxFile),fluxMode=calcMode)
+        writeFile(join(self.sim.out_dir,fluxFile),write,3,append=True)
+
+    def calcFluxRadial(self,nu,calcMode,full_id=True,suppress_output=False):
+        """
+        Calculate and store flux from selected mechanism(s)
+            ---------------------------
+            Parameters
+            ---------------------------
+            calcMode        - Required : calculation type
+            regionFlag      - Optional : integration region flag
+            full_id         - Optional : if True don't use shortened file ID 
+            suppress_output - Optional : hide output for high-energy case (for use with self.jNormSelf)
+            ---------------------------
+            Output
+            ---------------------------
+            Flux data stored in file
+        """ 
+        halo_id = getCalcID(self.sim,self.phys,self.cosmo,self.halo,short_id=(not full_id))
+        fluxFile = halo_id+"_"+self.outLabel[calcMode]+"_radial_{:02.1e}MHz.out".format(self.sim.nu_sb)
+        fluxData = self.__calcFluxRadial(nu,calcMode,suppress_output=suppress_output)
+        erg = fluxData*nu*1e-17
+        write = [];write.append(self.halo.r_sample[0]);write.append(fluxData);write.append(erg)
         self.calcWrite(log=join(self.sim.out_dir,fluxFile),fluxMode=calcMode)
         writeFile(join(self.sim.out_dir,fluxFile),write,3,append=True)
 
@@ -82,11 +106,46 @@ class calculation:
             fluxFile += "_"+str(self.sim.rintegrate)+"mpcflux.out"
         elif regionFlag == "full":
             fluxFile += "_virflux.out"
+        elif regionFlag == "radial":
+            fluxFile += "_radial_{:02.1e}MHz.out".format(self.sim.nu_sb)
         fluxData = self.__calcFlux(calcMode,regionFlag,suppress_output=suppress_output)
         erg = fluxData*self.sim.f_sample*1e-17
         write = [];write.append(self.sim.f_sample);write.append(fluxData);write.append(erg)
         self.calcWrite(log=join(self.sim.out_dir,fluxFile),fluxMode=calcMode)
         writeFile(join(self.sim.out_dir,fluxFile),write,3,append=True)
+
+    def __calcFluxRadial(self,nu,fluxMode,suppress_output=False,jnorm=True):
+        """
+        Calculate flux from specified mechanism(s)
+            ---------------------------
+            Parameters
+            ---------------------------
+            fluxMode        - Required : calculation type
+            regionFlag      - Required : integration region flag 
+            suppress_output - Optional : hide output for high-energy case (for use with self.jNormSelf)
+            ---------------------------
+            Output
+            ---------------------------
+            Flux data returned as array-like float
+        """ 
+        if jnorm:
+            fRatio = self.__jNormSelf(fluxMode,"radial")
+        else:
+            fRatio = 1.0
+        if fluxMode == "rflux" or fluxMode == "flux":
+            if self.halo.radio_emm is None:
+                self.__calcEmm(fluxMode)
+            print("=========================================================")
+            print("Calculating Synchrotron Flux")
+            print("=========================================================")
+            rsim = deepcopy(self.sim)
+            rsim.num = 1
+            rsim.nu_sb = nu
+            rsim.sample_f()
+            radioFlux = []
+            for r in self.halo.r_sample[0]:
+                radioFlux.append(radio.radio_flux(r,self.halo,rsim)[0])
+        return np.array(radioFlux)*fRatio
 
     def __calcFlux(self,fluxMode,regionFlag,suppress_output=False,jnorm=True):
         """
@@ -329,10 +388,13 @@ class calculation:
             ---------------------------
             Writes to a file or stdout
         """
+        if regionFlag == "radial":
+            regionFlag = "theta"
         if self.halo.J_flag != 0 and (not "jflux" in fluxMode):
             hfmax = self.phys.mx/(1e6*4.136e-15*1e-9) #MHz
             hsim = simulation_env(n=self.sim.n,ngr=self.sim.ngr,num=20,fmin=1e-3*hfmax,fmax=0.1*hfmax,theta=self.sim.theta,nu_sb=self.sim.nu_sb)
             hsim.specdir = self.sim.specdir
+            hsim.rintegrate = self.sim.rintegrate
             jhalo = halo_env()
             jcalc = calculation(jhalo,self.phys,hsim,self.cosmo)
             attSet = [att for att in dir(self.halo) if (not att.startswith("__")) and (not att in ["physical_averages","setup_halo","setup","setup_ucmh","check_self","make_spectrum"])]
@@ -343,7 +405,6 @@ class calculation:
             hsim.sample_f()
             gflux = jcalc.__calcFlux("gflux",regionFlag,suppress_output=True,jnorm=False)
             jflux = jcalc.__calcFlux("jflux",regionFlag,suppress_output=True,jnorm=False)
-            print(jflux)
             fRatio = (sum(jflux/gflux)/len(jflux))**(0.5*self.halo.mode_exp)
             self.sim.jnormed = True
             print("Normalisation factor: "+str(fRatio))
@@ -608,7 +669,7 @@ def getCalcID(sim,phys,cos_env,halo,noBfield=False,noGas=False,short_id=False):
         if(phys.diff == 0):
             diff_str = "d0_"
         else:
-            diff_str = "d1_"
+            diff_str = "d1_{:02.1e}_".format(phys.d0)
     else:
         diff_str = ""
 
