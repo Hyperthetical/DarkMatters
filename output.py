@@ -77,6 +77,7 @@ class calculation:
         """ 
         halo_id = getCalcID(self.sim,self.phys,self.cosmo,self.halo,short_id=(not full_id))
         fluxFile = halo_id+"_"+self.outLabel[calcMode]+"_radial_{:02.1e}MHz.out".format(self.sim.nu_sb)
+        print(fluxFile)
         fluxData = self.__calcFluxRadial(nu,calcMode,suppress_output=suppress_output)
         erg = fluxData*nu*1e-17
         write = [];write.append(self.halo.r_sample[0]);write.append(fluxData);write.append(erg)
@@ -132,20 +133,58 @@ class calculation:
             fRatio = self.__jNormSelf(fluxMode,"radial")
         else:
             fRatio = 1.0
+        rsim = deepcopy(self.sim)
+        rsim.num = 1
+        rsim.nu_sb = nu
+        rsim.sample_f()
         if fluxMode == "rflux" or fluxMode == "flux":
             if self.halo.radio_emm is None:
                 self.__calcEmm(fluxMode)
             print("=========================================================")
             print("Calculating Synchrotron Flux")
             print("=========================================================")
-            rsim = deepcopy(self.sim)
-            rsim.num = 1
-            rsim.nu_sb = nu
-            rsim.sample_f()
             radioFlux = []
             for r in self.halo.r_sample[0]:
                 radioFlux.append(radio.radio_flux(r,self.halo,rsim)[0])
-        return np.array(radioFlux)*fRatio
+            if fluxMode == "rflux":
+                return np.array(radioFlux)*fRatio
+        if fluxMode in ["hflux","gflux","flux"]:
+            if self.halo.he_emm is None:
+                self.__calcEmm(fluxMode)
+            if fluxMode == "gflux":
+                gammaFlag = 0
+            else:
+                gammaFlag = 1
+            if not suppress_output:
+                print("=========================================================")
+                if fluxMode == "gflux":
+                    print("Calculating Pion-decay Flux")
+                else:
+                    print("Calculating Pion-decay, IC, and Bremsstrahlung Flux")
+                print("=========================================================")
+            high_e.gamma_source(self.halo,self.phys,self.sim)
+            hFlux = []
+            for r in self.halo.r_sample[0]:
+                hFlux.append(high_e.high_E_flux(r,self.halo,rsim,gammaFlag)[0])
+            hFlux = np.array(hFlux)
+            if not suppress_output and not fluxMode == "gflux":
+                print('Magnetic Field Average Strength: '+str(self.halo.bav)+" micro Gauss")
+                print('Gas Average Density: '+str(self.halo.neav)+' cm^-3')
+                print("Process Complete")
+            if not fluxMode == "flux":
+                return hFlux*fRatio
+        if "nu" in fluxMode: 
+            if self.halo.nu_emm is None:
+                self.__calcEmm(fluxMode)
+            print("=========================================================")
+            print("Calculating Neutrino Flux")
+            print("=========================================================")
+            nuFlux = []
+            for r in self.halo.r_sample[0]:
+                nuFlux.append(neutrino.nu_flux(r,self.halo,rsim,0)[0])
+            print("Process Complete")
+            return np.array(nuFlux)*fRatio
+        return hFlux*fRatio + radioFlux*fRatio
 
     def __calcFlux(self,fluxMode,regionFlag,suppress_output=False,jnorm=True):
         """
@@ -403,9 +442,11 @@ class calculation:
                     setattr(jhalo,att,getattr(self.halo,att))
             jcheck = jhalo.setup(hsim,self.phys,self.cosmo)
             hsim.sample_f()
+            #print(regionFlag)
             gflux = jcalc.__calcFlux("gflux",regionFlag,suppress_output=True,jnorm=False)
             jflux = jcalc.__calcFlux("jflux",regionFlag,suppress_output=True,jnorm=False)
-            fRatio = (sum(jflux/gflux)/len(jflux))**(0.5*self.halo.mode_exp)
+            #print(gflux,jflux)
+            fRatio = (sum(jflux[jflux>0]/gflux[gflux>0])/len(jflux[jflux>0]))**(0.5*self.halo.mode_exp)
             self.sim.jnormed = True
             print("Normalisation factor: "+str(fRatio))
             return fRatio

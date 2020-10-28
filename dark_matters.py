@@ -227,7 +227,7 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         try:
             theta_flag = s[2].lower()
         except:
-            if not "jflux" in calc_mode or not "sb" in calc_mode: 
+            if not "jflux" in calc_mode: 
                 print("Warning: no region flag supplied with command \'"+s[0].lower()+"\' defaulting to \'full\'")
             theta_flag = "full"
         indices = getIndex(s)
@@ -244,8 +244,10 @@ def process_command(command,phys,sim,halo,cos_env,loop):
                 rmax = getRmax(theta_flag,calculations[i],command)
                 calculations[i].halo.physical_averages(rmax)
             print("Calculation ID: "+output.getCalcID(calculations[i].sim,calculations[i].phys,calculations[i].cosmo,calculations[i].halo,short_id=(not full_id)))
-            if "sb" in calc_mode:
-                calculations[i].calcSB(sim.nu_sb,sb_dict[calc_mode],full_id=full_id,suppress_output=False)
+            if theta_flag == "radial":
+                calculations[i].calFluxRadial(sim.nu_sb,calc_mode,full_id=full_id,suppress_output=False)
+            elif theta_flag == "sb":
+                calculations[i].calcSB(sim.nu_sb,calc_mode,full_id=full_id,suppress_output=False)
             else:
                 calculations[i].calcFlux(calc_mode,regionFlag=theta_flag,full_id=full_id,suppress_output=False)
     elif s[0].lower() in ["c+o","calc+out","calc+output"]:
@@ -307,13 +309,12 @@ def process_command(command,phys,sim,halo,cos_env,loop):
             full_id = True
             if "jflux" in calc_str or "gflux" in calc_str:
                 full_id = False
-            if "sb" in calc_str:
-                c_run.calcSB(sim.nu_sb,sb_dict[calc_str],full_id=full_id,suppress_output=False)
+            if t_str == "radial":
+                c_run.calcFluxRadial(sim.nu_sb,calc_str,full_id=full_id,suppress_output=False)
+            elif t_str == "sb":
+                c_run.calcSB(sim.nu_sb,calc_str,full_id=full_id,suppress_output=False)
             else:
-                if t_str == "radial":
-                    c_run.calcFluxRadial(sim.nu_sb,calc_str,full_id=full_id,suppress_output=False)
-                else:
-                    c_run.calcFlux(calc_str,regionFlag=t_str,full_id=full_id,suppress_output=False)
+                c_run.calcFlux(calc_str,regionFlag=t_str,full_id=full_id,suppress_output=False)
             calculations.append(deepcopy(c_run))
         print("Batch Time: "+str(time.time()-batch_time)+" s")
         print("Batch Time per Calculation: "+str((time.time()-batch_time)/batch_calc)+" s")
@@ -438,6 +439,8 @@ def getRmax(t_str,c_run,command):
     elif t_str == "r_integrate":
         rmax = c_run.sim.rintegrate
     elif t_str == "radial":
+        rmax = c_run.halo.rvir
+    elif t_str == "sb":
         rmax = c_run.halo.rvir
     else:
         rmax = c_run.halo.rvir
@@ -642,8 +645,12 @@ def gather_spectrum(spec_dir,phys,sim,mode="ann"):
                 read_spectrum(pos,0,br,phys,sim)
                 read_spectrum(gamma,1,br,phys,sim)
     else:
-        pos = join(spec_dir,"pos_"+phys.particle_model+"_"+str(phys.mx)+"GeV.data")
-        gamma = join(spec_dir,"gamma_"+phys.particle_model+"_"+str(phys.mx)+"GeV.data")
+        if int(phys.mx) == phys.mx:
+            mStr = str(int(phys.mx))
+        else:
+            mStr = str(phys.mx)
+        pos = join(spec_dir,"pos_"+phys.particle_model+"_"+mStr+"GeV.data")
+        gamma = join(spec_dir,"gamma_"+phys.particle_model+"_"+mStr+"GeV.data")
         read_spectrum(pos,0,1.0,phys,sim)
         read_spectrum(gamma,1,1.0,phys,sim)
 
