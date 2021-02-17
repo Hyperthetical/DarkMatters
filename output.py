@@ -230,6 +230,7 @@ class calculation:
                     print("=========================================================")
                     print("Calculating Pion-decay Flux from J-Factor")
                     print("=========================================================")
+                #print(self.phys.gamma_spectrum)
                 return high_e.gamma_from_j(self.halo,self.phys,self.sim)*4.14e-24*1.6e20
             if fluxMode == "dflux":
                 if not suppress_output:
@@ -430,12 +431,16 @@ class calculation:
         if regionFlag == "radial":
             regionFlag = "theta"
         if self.halo.J_flag != 0 and (not "jflux" in fluxMode):
+            print("=========================================================")
+            print("Normalising halo density to given J-factor within {} arcminutes".format(self.sim.theta))
+            print("=========================================================")
             hfmax = self.phys.mx/(1e6*4.136e-15*1e-9) #MHz
             hsim = simulation_env(n=self.sim.n,ngr=self.sim.ngr,num=20,fmin=1e-3*hfmax,fmax=0.1*hfmax,theta=self.sim.theta,nu_sb=self.sim.nu_sb)
             hsim.specdir = self.sim.specdir
             hsim.rintegrate = self.sim.rintegrate
             jhalo = halo_env()
             jcalc = calculation(jhalo,self.phys,hsim,self.cosmo)
+            #print(jcalc.phys.gamma_spectrum)
             attSet = [att for att in dir(self.halo) if (not att.startswith("__")) and (not att in ["physical_averages","setup_halo","setup","setup_ucmh","check_self","make_spectrum"])]
             for att in attSet:
                 if not att in ["mode","mode_exp","rho_dm_sample"]:

@@ -29,7 +29,7 @@ except:
 from multiprocessing import Pool
 from os.path import join,isfile,isdir
 try:
-    from scipy.interpolate import interp1d
+    from scipy.interpolate import interp1d,interp2d
 except:
     print("Fatal Error: the scipy package is missing")
     sys.exit(2)
@@ -285,10 +285,15 @@ def process_command(command,phys,sim,halo,cos_env,loop):
             if(not sim.check_self()):
                 tools.fatal_error("simulation data underspecified")
             if "nu" in calc_str:
-                neutrino_spectrum(sim.specdir,phys,sim,sim.nu_flavour,mode=halo.mode)
+                use_nu = True
+            else:
+                use_nu = False
+            #    neutrino_spectrum(sim.specdir,phys,sim,sim.nu_flavour,mode=halo.mode)
             if(not phys.check_particles()):
                 tools.fatal_error("particle data underspecified")
-            gather_spectrum(sim.specdir,phys,sim,mode=halo.mode)
+            #gather_spectrum(sim.specdir,phys,sim,mode=halo.mode)
+            getSpectralData(sim.specdir,phys,sim,mode=halo.mode,use_nu=use_nu)
+            #print(phys.gamma_spectrum)
             halo.reset_avgs()
             if(not halo.setup(sim,phys,cos_env)):
                 tools.fatal_error("halo setup error")
@@ -353,10 +358,15 @@ def process_command(command,phys,sim,halo,cos_env,loop):
             if(not sim.check_self()):
                 tools.fatal_error("simulation data underspecified")
             if "nu" in calc_str:
-                neutrino_spectrum(sim.specdir,phys,sim,sim.nu_flavour,mode=halo.mode)
+                use_nu = True
+            else:
+                use_nu = False
+            #    neutrino_spectrum(sim.specdir,phys,sim,sim.nu_flavour,mode=halo.mode)
             if(not phys.check_particles()):
                 tools.fatal_error("particle data underspecified")
-            gather_spectrum(sim.specdir,phys,sim,mode=halo.mode)
+            #gather_spectrum(sim.specdir,phys,sim,mode=halo.mode)
+            getSpectralData(sim.specdir,phys,sim,mode=halo.mode,use_nu=use_nu)
+            #print(phys.gamma_spectrum)
             halo.reset_avgs()
             if(not halo.setup(sim,phys,cos_env)):
                 tools.fatal_error("halo setup error")
@@ -616,6 +626,141 @@ def read_spectrum(spec_file,gamma,branching,phys,sim):
         phys.nu_spectrum[0] = E_set
         phys.nu_spectrum[1] = Q_set
 
+def getSpectralData(spec_dir,phys,sim,mode="ann",use_nu=False):
+    if use_nu:
+        specFiles = ["positrons","gammas","neutrinos_{}".format(sim.nu_flavour)]
+    else:
+        specFiles = ["positrons","gammas"]
+
+    for f in specFiles:
+        if phys.model_independent == 1:
+            readSpectrum(join(spec_dir,"AtProduction_{}.dat".format(f)),phys,sim,mode=mode)
+        else:
+            readSpectrum(join(spec_dir,"{}_AtProduction_{}.dat".format(phys.particle_model,f)),phys,sim,mode=mode)
+
+def readSpectrum(spec_file,phys,sim,mode="ann"):
+    if phys.model_independent:
+        #mDM      Log[10,x]   eL         eR         e          \[Mu]L     \[Mu]R     \[Mu]      \[Tau]L    \[Tau]R    \[Tau]     q            c            b            t            WL          WT          W           ZL          ZT          Z           g            \[Gamma]    h           \[Nu]e     \[Nu]\[Mu]   \[Nu]\[Tau]   V->e       V->\[Mu]   V->\[Tau]
+        chCols = {"ee":4,"mumu":7,"tautau":10,"qq":11,"bb":13,"tt":14,"ww":17,"zz":20,"gamma":22,'hh':23}
+        mCol = 0
+        xCol = 1
+        try:
+            specData = loadtxt(spec_file,unpack=True)
+        except IOError:
+            tools.fatal_error("Spectrum File: "+spec_file+" does not exist at the specified location")
+        mx = specData[mCol]
+        xLog = specData[xCol]
+        if not "ann" in mode:
+            mxEff = phys.mx*0.5
+        else:
+            mxEff = phys.mx
+        if sim.e_bins is None:
+            spec_length = 51
+        else:
+            spec_length = sim.e_bins
+        for ch,br in zip(phys.channel,phys.branching):
+            chData = specData[chCols[ch]]
+            if mxEff > max(mx) or mxEff < min(mx):
+                tools.fatal_error("Required WIMP mass {} GeV does not lie within the data set found in {}".format(mxEff,spec_file))
+            elif mxEff in mx:
+                mIndices = where(mx==mxEff)
+                eData = 10**(xLog[mIndices])*mxEff/phys.me
+                dnData = chData[mIndices]/log(10.0)/10**(xLog[mIndices])/mxEff*phys.me
+                intSpec = interp1d(eData,dnData)
+                checkSpectra(spec_file,phys,logspace(log10(eData[0]),log10(eData[-1]),num=spec_length))
+                if "positrons" in spec_file:
+                    newE = phys.spectrum[0]
+                    dnData = intSpec(newE)
+                    phys.spectrum[1] += dnData*br
+                elif "gamma" in spec_file:
+                    newE = phys.gamma_spectrum[0]
+                    dnData = intSpec(newE)
+                    phys.gamma_spectrum[1] += dnData*br
+                elif "neutrino" in spec_file:
+                    newE = phys.nu_spectrum[0]
+                    dnData = intSpec(newE)
+                    phys.nu_spectrum[1] += dnData*br
+            else:
+                eData,dnData = interpolateInput(mxEff,mx,xLog,chData,spec_length)
+                eData *= 1.0/phys.me
+                dnData *= phys.me
+                checkSpectra(spec_file,phys,eData)
+                #print(phys.spectrum)
+                if "positrons" in spec_file:
+                    phys.spectrum[1] += dnData*br
+                elif "gamma" in spec_file:
+                    phys.gamma_spectrum[1] += dnData*br
+                elif "neutrino" in spec_file:
+                    phys.nu_spectrum[1] += dnData*br
+    else:
+        mCol = 0
+        xCol = 1
+        nCol = 2
+        mxEff = phys.mx
+        try:
+            specData = loadtxt(spec_file,unpack=True)
+        except IOError:
+            tools.fatal_error("Spectrum File: "+spec_file+" does not exist at the specified location")
+        mx = specData[mCol]
+        energyData = specData[xCol]/phys.me
+        chData = specData[nCol]*phys.me
+        if sim.e_bins is None:
+            spec_length = 51
+        else:
+            spec_length = sim.e_bins
+
+        if mxEff > max(mx) or mxEff < min(mx):
+            tools.fatal_error("Required WIMP mass {} GeV does not lie within the data set found in {}".format(mxEff,spec_file))
+        elif mxEff in mx:
+            mIndices = where(mx==mxEff)
+            eData = energyData[mIndices]
+            dnData = chData[mIndices]
+            intSpec = interp1d(eData,dnData)
+            checkSpectra(spec_file,phys,logspace(log10(eData[0]*1.00001),log10(eData[-1]*0.99999),num=spec_length))
+            if "positrons" in spec_file:
+                newE = phys.spectrum[0]
+                dnData = intSpec(newE)
+                phys.spectrum[1] = dnData
+            elif "gamma" in spec_file:
+                newE = phys.gamma_spectrum[0]
+                dnData = intSpec(newE)
+                phys.gamma_spectrum[1] = dnData
+            elif "neutrino" in spec_file:
+                newE = phys.nu_spectrum[0]
+                dnData = intSpec(newE)
+                phys.nu_spectrum[1] = dnData
+        else:
+            tools.fatal_error("Exact WIMP mass {} GeV not available in spectrum file {}, interpolation is not supported for custom models".format(phys.mx,spec_file))
+
+def checkSpectra(spec_file,phys,eData):
+    if "positrons" in spec_file:
+        specTarget = "spectrum"
+        specMin = "specMin"
+        specMax = "specMax"
+    elif "gamma" in spec_file:
+        specTarget = "gamma_spectrum"
+        specMin = "gamma_specMin"
+        specMax = "gamma_specMax"
+    elif "neutrino" in spec_file:
+        specTarget = "nu_spectrum"
+        specMin = "nu_specMin"
+        specMax = "nu_specMax"
+    if getattr(phys,specTarget)[0] is None and getattr(phys,specTarget)[1] is None:
+        setattr(phys,specTarget,[eData,zeros(len(eData))])
+        setattr(phys,specMin,eData[0])
+        setattr(phys,specMax,eData[-1])
+
+def interpolateInput(mx,mxSet,xLog,chData,specLength):
+    chTable = []
+    xTarget = linspace(min(xLog),max(xLog),num=specLength)
+    for m in unique(mxSet):
+        mData = chData[where(mxSet==m)]
+        eData = xLog[where(mxSet==m)]
+        intSpec = interp1d(eData,mData)
+        chTable.append(intSpec(xTarget))
+    #print(interp2d(xTarget,unique(mxSet),array(chTable))(xTarget,mx))
+    return 10**(xTarget)*mx,interp2d(xTarget,unique(mxSet),array(chTable))(xTarget,mx)/log(10.0)/10**(xTarget)/mx
+
 def gather_spectrum(spec_dir,phys,sim,mode="ann"):
     """
     This extracts dN/dE spectra from input data in environments by working out what file to use
@@ -781,7 +926,7 @@ try:
 except IndexError:
     console_flag = True
 except IOError:
-    tools.fatal_error("Invalid script file path supplied")
+    tools.fatal_error("Invalid script file path {} supplied".format(in_file))
 
 
 #===============================================================
