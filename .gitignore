@@ -1,5 +1,9 @@
 *.out
 *.data
 *.in
+*.o
+*.obj
+*.x
+*.exe
 !*.py
 !*.md

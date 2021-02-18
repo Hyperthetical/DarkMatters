@@ -656,6 +656,7 @@ def readSpectrum(spec_file,phys,sim,mode="ann"):
             mxEff = phys.mx
         if sim.e_bins is None:
             spec_length = 51
+            sim.e_bins = 51
         else:
             spec_length = sim.e_bins
         for ch,br in zip(phys.channel,phys.branching):
@@ -706,6 +707,7 @@ def readSpectrum(spec_file,phys,sim,mode="ann"):
         chData = specData[nCol]*phys.me
         if sim.e_bins is None:
             spec_length = 51
+            sim.e_bins = 51
         else:
             spec_length = sim.e_bins
 
