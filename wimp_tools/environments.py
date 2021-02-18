@@ -1,5 +1,5 @@
 #cython: language_level=3
-from numpy import *
+import numpy as np
 from scipy.integrate import simps as integrate
 try:
     from wimp_tools import cosmology,astrophysics,tools,substructure,ucmh
@@ -14,8 +14,9 @@ try:
     from emm_tools import electron
 except:
     import emm_tools.electron as electron
-from os.path import isdir
+from os.path import isdir,join
 from os import mkdir
+import sys
 
 class simulation_env:
     """
@@ -67,7 +68,7 @@ class simulation_env:
         self.nu_flavour = "mu" #neutrino  flavour
         self.nu_sb = nu_sb #frequency for surface brightness computation in MHz
         self.sub_mode = None #None is no substructure, sc2006 uses sub_frac calculation, prada uses sanchez-conde & prada 2013
-        self.specdir = None #directory of input spectra 
+        self.specdir = join(sys.path[0],"particle_physics") #directory of input spectra 
         self.rintegrate = None #radius for flux integration in Mpc
         self.log_mode = 0 #do you want log files? 
         self.out_dir = "./" #output file location
@@ -77,9 +78,9 @@ class simulation_env:
 
     def sample_f(self):
         if self.num > 1: #check if we want to do one frequency point or multiple
-            self.f_sample = logspace(log10(self.flim[0]),log10(self.flim[1]),num=self.num)
+            self.f_sample = np.logspace(np.log10(self.flim[0]),np.log10(self.flim[1]),num=self.num)
         else:
-            self.f_sample = array([self.nu_sb])
+            self.f_sample = np.array([self.nu_sb])
 
     def check_self(self):
         #we set everything to lower case for ease of checking
@@ -247,7 +248,7 @@ class physical_env:
                 self.particle_model = ""
                 if len(self.branching) != len(self.channel):
                     print("Warning: number of branching ratios doesn't match channels, setting all equal!")
-                    self.branching = ones(len(self.channel),dtype=float)/len(self.channel)
+                    self.branching = np.ones(len(self.channel),dtype=float)/len(self.channel)
                 for ch,br in zip(self.channel,self.branching): #build a string of channels and branching ratios
                     print(("%3.2f"%br)[-1])
                     if float(("%3.2f"%br)[-1]) == 0.0: 
@@ -256,7 +257,7 @@ class physical_env:
                         self.particle_model += "%3.2f"%br+str(ch)
         elif len(self.branching) != len(self.channel):
             print("Warning: number of branching ratios doesn't match channels, setting all equal!")
-            self.branching = ones(len(self.channel),dtype=float)/len(self.channel)
+            self.branching = np.ones(len(self.channel),dtype=float)/len(self.channel)
             for ch,br in zip(self.channel,self.branching):
                     self.particle_model += "%3.2f"%br+str(ch)
         return check
@@ -554,14 +555,14 @@ class halo_env:
             radians_per_arcmin = 2.909e-4
             #self.mvir = ucmh.massUCMH(self.z,self.phase,**cosmo.cosmo)
             self.rvir = ucmh.rConvert(self.z,self.mvir,**cosmo.cosmo) 
-            self.r_sample = [logspace(log10(self.rvir*1e-7),log10(2*self.rvir),sim.n),logspace(log10(self.rvir*1e-7),log10(2*self.rvir),sim.ngr)]
+            self.r_sample = [np.logspace(np.log10(self.rvir*1e-7),np.log10(2*self.rvir),sim.n),np.logspace(np.log10(self.rvir*1e-7),np.log10(2*self.rvir),sim.ngr)]
             if self.dm == 1.5:
                 self.rho_dm_sample = [ucmh.rhoUCMHMoore(self.r_sample[0],self.z,self.mvir,1.0e-26,phys.mx,**cosmo.cosmo)**self.mode_exp,ucmh.rhoUCMHMoore(self.r_sample[1],self.z,self.mvir,1.0e-26,phys.mx,**cosmo.cosmo)**self.mode_exp]
             else:
                 self.rho_dm_sample = [ucmh.rhoUCMH(self.r_sample[0],self.z,self.mvir,1.0e-26,phys.mx,**cosmo.cosmo)**self.mode_exp,ucmh.rhoUCMH(self.r_sample[1],self.z,self.mvir,1.0e-26,phys.mx,**cosmo.cosmo)**self.mode_exp]
             #print(self.rho_dm_sample[0])
-            self.b_sample = phys.b0*ones(sim.n)
-            self.ne_sample = phys.ne0*ones(sim.n)
+            self.b_sample = phys.b0*np.ones(sim.n)
+            self.ne_sample = phys.ne0*np.ones(sim.n)
             self.neav = phys.ne0
             self.bav = phys.b0
             if self.dl is None:
@@ -570,10 +571,10 @@ class halo_env:
             else:
                 self.da = self.dl/(1+self.z)**2
             #if(sim.num > 1):
-            #    self.f_sample = logspace(log10(sim.flim[0]),log10(sim.flim[1]),num=sim.num)
+            #    self.f_sample = np.logspace(np.log10(sim.flim[0]),np.log10(sim.flim[1]),num=sim.num)
             #else:
-            #    self.f_sample = array([sim.nu_sb])
-            self.rfarc = self.da*tan(radians_per_arcmin)  #radius in Mpc arcmin^-1
+            #    self.f_sample = np.array([sim.nu_sb])
+            self.rfarc = self.da*np.tan(radians_per_arcmin)  #radius in Mpc arcmin^-1
             self.ready = True
         else:
             self.ready = False
@@ -682,8 +683,8 @@ class halo_env:
             #print("Halo mass normalisation: ",norm/self.mvir)
             if not rhos_adjust: #if rhos is guaranteed to normalise we fix it to ensure the halo has mvir within rvir
                 self.rhos = self.rhos/norm*self.mvir #this ensures rhos normalises the density profile, as rhos method works best for NFW
-            self.rfarc = self.da*tan(radians_per_arcmin)  #radius in Mpc arcmin^-1
-            self.r_sample = [logspace(log10(self.rcore*1e-5),log10(2*self.rvir),sim.n),logspace(log10(self.rcore*1e-7),log10(2*self.rvir),sim.ngr)] #we go to 2rvir for diffusion reaons
+            self.rfarc = self.da*np.tan(radians_per_arcmin)  #radius in Mpc arcmin^-1
+            self.r_sample = [np.logspace(np.log10(self.rcore*1e-5),np.log10(2*self.rvir),sim.n),np.logspace(np.log10(self.rcore*1e-7),np.log10(2*self.rvir),sim.ngr)] #we go to 2rvir for diffusion reaons
             self.rho_dm_sample = astrophysics.rho_dm_halo(self,cos_env)#[cosmology.rho_dm(self.r_sample[0],self.rcore,self.dm,self.alpha),cosmology.rho_dm(self.r_sample[1],self.rcore,self.dm,self.alpha)]
             if(phys.lp is None):
                 phys.lp = self.rcore
@@ -753,7 +754,7 @@ class halo_env:
             self.ready = False
         return self.ready
             
-#cosmo_spec = [('h',float32),('w_m',float32),('w_l',float32),('w_dm',float32),('n',float32),('w_nu',float32),('N_nu',float32),('sigma_8',float32),('w_b',float32),('G_newton',float32),('w_k',float32),('universe',array(char,1d,A)]     
+#cosmo_spec = [('h',float32),('w_m',float32),('w_l',float32),('w_dm',float32),('n',float32),('w_nu',float32),('N_nu',float32),('sigma_8',float32),('w_b',float32),('G_newton',float32),('w_k',float32),('universe',np.array(char,1d,A)]     
 class cosmology_env:
     """
     Container for cosmology parameters
@@ -793,7 +794,7 @@ class cosmology_env:
         else:
             self.w_k = 1.0 - self.w_l - self.w_m
         #cosmolopy dictionary object for compatibility -> no longer in use
-        self.cosmo = {'omega_M_0':self.w_m, 'omega_lambda_0':self.w_l, 'omega_k_0':self.w_k, 'h':self.h, 'omega_dm_0':self.w_dm, 'omega_b_0':self.w_b, 'sigma_8':self.sigma_8, 'n':self.n, 'omega_n_0':self.w_nu, 'N_nu':self.N_nu, 'EW':array([2e11,107,1e15]),'QCD':array([2e8,55,1e12]),'EE':array([0.51e6,10.8,2e9])}
+        self.cosmo = {'omega_M_0':self.w_m, 'omega_lambda_0':self.w_l, 'omega_k_0':self.w_k, 'h':self.h, 'omega_dm_0':self.w_dm, 'omega_b_0':self.w_b, 'sigma_8':self.sigma_8, 'n':self.n, 'omega_n_0':self.w_nu, 'N_nu':self.N_nu, 'EW':np.array([2e11,107,1e15]),'QCD':np.array([2e8,55,1e12]),'EE':np.array([0.51e6,10.8,2e9])}
 
 #loop_spec = [('mmin',float32),('mmax',float32),('zmin',float32),('zmax',float32),('zn',float32),('nu',float32),('phys
 #old project, don't worry about this bit
@@ -809,7 +810,7 @@ class loop_env:
         self.cosm = cosm
         self.sim = sim
         self.mn = nloop
-        self.m_sample = logspace(log10(mmin),log10(mmax),num=self.mn)
+        self.m_sample = np.logspace(np.log10(mmin),np.log10(mmax),num=self.mn)
         self.ne_sample = None
         self.halos = None
         self.phys_set = None
@@ -822,9 +823,9 @@ class loop_env:
         if(self.phys is None or self.cosm is None or self.sim is None):
             check = False
         else:
-            self.m_sample = logspace(log10(self.mmin),log10(self.mmax),num=self.mn)
+            self.m_sample = np.logspace(np.log10(self.mmin),np.log10(self.mmax),num=self.mn)
             if(self.zmin != None and self.zmax != None and self.zn != 1):
-                self.z_sample = logspace(log10(self.zmin),log10(self.zmax),num=self.zn)
+                self.z_sample = np.logspace(np.log10(self.zmin),np.log10(self.zmax),num=self.zn)
             else:
                 self.z_sample = [self.z]
                 self.zn = 1
@@ -832,10 +833,10 @@ class loop_env:
                 self.z = self.z_sample[z_index]
             except IndexError:
                 tools.fatal_error("Z index for loop is larger than allowed, please specify limits properly")
-            mass_set_0 = logspace(7,15,num=9)
-            ne_set_0 = array([1.0e-6,1.0e-6,1.0e-5,1.0e-5,1.0e-4,1.0e-4,1.0e-3,1.0e-3,1.0e-3])
+            mass_set_0 = np.logspace(7,15,num=9)
+            ne_set_0 = np.array([1.0e-6,1.0e-6,1.0e-5,1.0e-5,1.0e-4,1.0e-4,1.0e-3,1.0e-3,1.0e-3])
             nef = sp.interp1d(mass_set_0,ne_set_0)
-            ne_set = zeros(len(self.m_sample))
+            ne_set = np.zeros(len(self.m_sample))
             for i in range(0,len(self.m_sample)):
                 if(self.m_sample[i] < mass_set_0[0]):
                     ne_set[i] = ne_set_0[0]

@@ -1,7 +1,7 @@
 #cython: language_level=3
 from scipy.integrate import simps
 from scipy.interpolate import interp1d
-from numpy import *
+import numpy as np
 import sys
 
 def Integrate(y,x):
@@ -20,16 +20,16 @@ def int_bessel(t):
         ---------------------------
         1D float array-like []
     """
-    return 1.25*t**(1.0/3.0)*exp(-t)*(648.0+t**2)**(1.0/12.0)
+    return 1.25*t**(1.0/3.0)*np.exp(-t)*(648.0+t**2)**(1.0/12.0)
 
 def weightedLineAvg(y,r,w=None,rmax=-1):
     if rmax == -1:
         rmax = r[-1]
     if w is None:
-        w = ones(len(r),dtype=float)
+        w = np.ones(len(r),dtype=float)
     yintp = interp1d(r,y)
     wintp = interp1d(r,w)
-    x = logspace(log10(r[0]),log10(rmax),num=100)
+    x = np.logspace(np.log10(r[0]),np.log10(rmax),num=100)
     ny = yintp(x)
     nw = wintp(x)
     return Integrate(ny*nw,x)/Integrate(nw,x)
@@ -38,10 +38,10 @@ def weightedVolAvg(y,r,w=None,rmax=-1):
     if rmax == -1:
         rmax = r[-1]
     if w is None:
-        w = ones(len(r),dtype=float)
+        w = np.ones(len(r),dtype=float)
     yintp = interp1d(r,y)
     wintp = interp1d(r,w)
-    x = logspace(log10(r[0]),log10(rmax),num=100)
+    x = np.logspace(np.log10(r[0]),np.log10(rmax),num=100)
     ny = yintp(x)
     nw = wintp(x)
     return Integrate(ny*nw*x**2,x)/Integrate(nw*x**2,x)
@@ -52,15 +52,15 @@ def rho_nfw_smooth(rho,r_set,rc,rsm):
     #rc -> scale radius
     #rsm -> smoothing radius
     n = len(r_set)
-    rho_int = zeros(n,dtype=float) #integration storage
+    rho_int = np.zeros(n,dtype=float) #integration storage
     for i in range(0,n):
         r = r_set[i]
         for j in range(0,n):
             rpr = r_set[j]
             #convolve rhopr with a gaussian
-            rho_int[j] = rhopr[j]*rpr*(exp(-0.5*(rpr-r)**2/rsm**2) - exp(-0.5*(rpr+r)**2/rsm**2))
+            rho_int[j] = rho[j]*rpr*(np.exp(-0.5*(rpr-r)**2/rsm**2) - np.exp(-0.5*(rpr+r)**2/rsm**2))
         #integrate to smear out 
-        rho[i] = simps(rho_int,r_set)/(sqrt(2.0*pi)*r*rsm)
+        rho[i] = simps(rho_int,r_set)/(np.sqrt(2.0*np.pi)*r*rsm)
     return rho
 
 
@@ -128,7 +128,7 @@ def write(log,write_mode,sim,phys,cosm,halo):
     if halo.name != None:
         outstream.write(prefix+'Halo Name: '+str(halo.name)+end)
     elif(write_mode == "flux" and halo.ucmh == 0 and (not halo.mvir is None)):
-        outstream.write(prefix+'Halo Mass Code: m'+str(int(log10(halo.mvir)))+end)
+        outstream.write(prefix+'Halo Mass Code: m'+str(int(np.log10(halo.mvir)))+end)
     #outstream.write(prefix+'Field File Code: b'+str(int(phys.b0))+"q"+str(phys.qb)+end)
     outstream.write(prefix+"Frequency Samples: "+str(sim.num)+end)
     outstream.write(prefix+"Minimum Frequency Sampled: "+str(sim.flim[0])+" MHz"+end)
@@ -180,7 +180,7 @@ def write(log,write_mode,sim,phys,cosm,halo):
     outstream.write(prefix+'Angular Diameter Distance: '+str(halo.da)+' Mpc'+end)
     outstream.write(prefix+'Angular Observation Radius Per Arcmin: '+str(halo.rfarc)+' Mpc arcmin^-1'+end)
     if sim.theta > 0.0 and not sim.theta is None:  
-        outstream.write(prefix+'Observation Radius for '+str(sim.theta)+' arcmin is '+str(halo.da*tan(sim.theta*2.90888e-4))+" Mpc"+end)
+        outstream.write(prefix+'Observation Radius for '+str(sim.theta)+' arcmin is '+str(halo.da*np.tan(sim.theta*2.90888e-4))+" Mpc"+end)
     if not sim.rintegrate is None:  
         outstream.write(prefix+'Observation Radius r_integrate '+str(sim.rintegrate)+" Mpc"+end)
     outstream.write(prefix+'======================================================'+end)

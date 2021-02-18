@@ -2,7 +2,7 @@
 import scipy.interpolate as sp
 import sys
 from scipy.integrate import simps as integrate
-from numpy import *
+import numpy as np
 from emm_tools.tools_emm import progress
 
 def int_bessel(t):
@@ -17,7 +17,7 @@ def int_bessel(t):
         ---------------------------
         1D float array-like []
     """
-    return 1.25*t**(1.0/3.0)*exp(-t)*(648.0+t**2)**(1.0/12.0)
+    return 1.25*t**(1.0/3.0)*np.exp(-t)*(648.0+t**2)**(1.0/12.0)
 
 def G_fac(q,L):
     """
@@ -32,7 +32,7 @@ def G_fac(q,L):
         ---------------------------
         1D float array-like []
     """
-    return 2*q*log(q) + (1+2*q)*(1-q) + (L*q)**2*(1-q)/(2+2*L*q)
+    return 2*q*np.log(q) + (1+2*q)*(1-q) + (L*q)**2*(1-q)/(2+2*L*q)
 
 def klein_nishina(E_g,E,g):
     """
@@ -51,7 +51,7 @@ def klein_nishina(E_g,E,g):
     re = 2.82e-13  #electron radius (cm)
     me = 0.511e-3 #electron mass c**2 (GeV)
     E_e = g*me
-    sig_thom = 8*pi/3.0*re**2 
+    sig_thom = 8*np.pi/3.0*re**2 
     Le = 4*E*g/me
     q = E_g*me/(4*E*g*(E_e - E_g))
     q[q>1] = 1.0
@@ -73,7 +73,7 @@ def sigma_brem(E_g,g):
     """
     re = 2.82e-13  #electron radius (cm)
     me = 0.511e-3 #electron mass c**2 (GeV)
-    sig_thom = 8*pi/3.0*re**2 
+    sig_thom = 8*np.pi/3.0*re**2 
     E = g*me
     a = 7.29735257e-3 
     E_d = 2*g*(E - E_g)/E_g
@@ -81,9 +81,9 @@ def sigma_brem(E_g,g):
         phi_1 = 0.0 #GET
         phi_2 = 0.0 #GET
     else:
-        phi_1 = 4*log(E_d) - 0.5
-        phi_2 = 4*log(E_d) - 0.5
-    return  3*a*sig_thom/(8*pi*E_g)*((1+(1-E_g/E)**2)*phi_1 - 2.0/3*(1-E_g/E)*phi_2)
+        phi_1 = 4*np.log(E_d) - 0.5
+        phi_2 = 4*np.log(E_d) - 0.5
+    return  3*a*sig_thom/(8*np.pi*E_g)*((1+(1-E_g/E)**2)*phi_1 - 2.0/3*(1-E_g/E)*phi_2)
     
 
 def black_body(E,T):
@@ -104,8 +104,8 @@ def black_body(E,T):
     c = 3.0e10     #speed of light (cm s^-1)
     k = 1.3806488e-23*6.24150934e9 #k in J K^-1 to k in GeV K^-1
     b = 1.0/(k*T)
-    isnan = (1-exp(-E*b))
-    return where(isnan == 0.0, 0.0, 2*4*pi*E**2/(h*c)**3*exp(-E*b)*(1-exp(-E*b))**(-1))
+    isnan = (1-np.exp(-E*b))
+    return np.where(isnan == 0.0, 0.0, 2*4*np.pi*E**2/(h*c)**3*np.exp(-E*b)*(1-np.exp(-E*b))**(-1))
 
 def high_E_emm(halo,phys,sim):
     """
@@ -126,11 +126,11 @@ def high_E_emm(halo,phys,sim):
     num = sim.num  #number of frequency sampling points
     ntheta = 100   #angular integration points
 
-    emm = zeros((num,n),dtype=float)   #emmisivity
-    P_IC = zeros((num,k),dtype=float)
-    P_B = zeros((num,k),dtype=float)
-    e_int = zeros(ntheta,dtype=float) #angular integral sampling
-    int_1 = zeros(k,dtype=float) #energy integral sampling
+    emm = np.zeros((num,n),dtype=float)   #emmisivity
+    P_IC = np.zeros((num,k),dtype=float)
+    P_B = np.zeros((num,k),dtype=float)
+    e_int = np.zeros(ntheta,dtype=float) #angular integral sampling
+    int_1 = np.zeros(k,dtype=float) #energy integral sampling
 
     r0 = 2.82e-13  #electron radius (cm)
     me = 0.511e-3  #electron mass (GeV)
@@ -149,7 +149,7 @@ def high_E_emm(halo,phys,sim):
             else:
                 emax = E_g*g*me/(me*g - E_g)
                 emin = emax/(4*g**2)
-                e_set = logspace(log10(emin),log10(emax),num=ntheta)
+                e_set = np.logspace(np.log10(emin),np.log10(emax),num=ntheta)
                 e_int = black_body(e_set,2.73*(1+halo.z))*klein_nishina(E_g,e_set,g)
                 P_IC[i][l] = c*E_g*integrate(e_int,e_set)
                 P_B[i][l] = c*E_g*sigma_brem(E_g,g)
@@ -180,16 +180,16 @@ def gamma_source(halo,phys,sim):
     h = 4.13566751086e-24 #h in GeV s
     me = 0.511e-3  #electron mass (GeV)
     #msun converted to kg, convert to GeV, convert Mpc to cm 
-    nwimp0 = sqrt(1.458e-33)**halo.mode_exp/halo.mode_exp*(1.0/phys.mx)**halo.mode_exp  #non-thermal wimp density (cm^-3) (central)
+    nwimp0 = np.sqrt(1.458e-33)**halo.mode_exp/halo.mode_exp*(1.0/phys.mx)**halo.mode_exp  #non-thermal wimp density (cm^-3) (central)
     rhodm = nwimp0*halo.rho_dm_sample[0]
-    emm = zeros((sim.num,sim.n),dtype=float)
+    emm = np.zeros((sim.num,sim.n),dtype=float)
     Q_func = sp.interp1d(phys.gamma_spectrum[0],phys.gamma_spectrum[1])
     for i in range(0,sim.num):
         E_g = h*sim.f_sample[i]*1e6*(1+halo.z)/me
-        #Q_set = where(phys.gamma_spectrum[0] < E_g,0.0,phys.gamma_spectrum[1])
+        #Q_set = np.where(phys.gamma_spectrum[0] < E_g,0.0,phys.gamma_spectrum[1])
         #emm[i,:] = integrate(Q_set,phys.gamma_spectrum[0])*rhodm[:] 
         if E_g < phys.gamma_spectrum[0][0] or E_g > phys.gamma_spectrum[0][len(phys.gamma_spectrum[0])-1]:
-            emm[i,:] = zeros(len(rhodm))
+            emm[i,:] = np.zeros(len(rhodm))
         else:
             emm[i,:] = Q_func(E_g)*rhodm[:]*E_g #now in units of flux
         progress(i+1,sim.num)
@@ -213,8 +213,8 @@ def gamma_from_j(halo,phys,sim):
     """
     h = 4.13566751086e-24 #h in GeV s
     me = 0.511e-3  #electron mass (GeV)
-    nwimp0 = 0.125/pi/phys.mx**2 #GeV^-2
-    emm = zeros(sim.num,dtype=float)
+    nwimp0 = 0.125/np.pi/phys.mx**2 #GeV^-2
+    emm = np.zeros(sim.num,dtype=float)
     Q_func = sp.interp1d(phys.gamma_spectrum[0],phys.gamma_spectrum[1])
     for i in range(0,sim.num):
         E_g = h*sim.f_sample[i]*1e6*(1+halo.z)/me
@@ -241,8 +241,8 @@ def gamma_from_d(halo,phys,sim):
     """
     h = 4.13566751086e-24 #h in GeV s
     me = 0.511e-3  #electron mass (GeV)
-    nwimp0 = 0.25/pi/phys.mx #GeV^-1
-    emm = zeros(sim.num,dtype=float)
+    nwimp0 = 0.25/np.pi/phys.mx #GeV^-1
+    emm = np.zeros(sim.num,dtype=float)
     Q_func = sp.interp1d(phys.gamma_spectrum[0],phys.gamma_spectrum[1])
     for i in range(0,sim.num):
         E_g = h*sim.f_sample[i]*1e6*(1+halo.z)/me
@@ -272,8 +272,8 @@ def high_E_flux(rf,halo,sim,gamma_only=1):
     h = 4.13566751086e-24 #h in GeV s
     n = sim.n
     num = sim.num
-    jj = zeros(n,dtype=float)   #temporary integrand array
-    ff = zeros(num,dtype=float)    #flux density
+    jj = np.zeros(n,dtype=float)   #temporary integrand array
+    ff = np.zeros(num,dtype=float)    #flux density
     #print(rf)
     #print(gamma_only)
     for i in range(0,num):
@@ -281,7 +281,7 @@ def high_E_flux(rf,halo,sim,gamma_only=1):
             if gamma_only != 0:
                 halo_interp_x = sp.interp1d(halo.r_sample[0],halo.he_emm[i])
             halo_interp_g = sp.interp1d(halo.r_sample[0],halo.gamma_emm[i])
-            rset = logspace(log10(halo.r_sample[0][0]),log10(rf),num=n)
+            rset = np.logspace(np.log10(halo.r_sample[0][0]),np.log10(rf),num=n)
             if gamma_only == 0:
                 emm_r = halo_interp_g(rset)
             else:
@@ -295,9 +295,9 @@ def high_E_flux(rf,halo,sim,gamma_only=1):
         jj = rset**2*emm_r
         #flux density as a function of frequency, integrate over r to get there
         if halo.J_flag == 0:
-            ff[i] = 4.0*pi*integrate(jj/(halo.dl**2+rset**2),rset)/(4.0*pi)
+            ff[i] = 4.0*np.pi*integrate(jj/(halo.dl**2+rset**2),rset)/(4.0*np.pi)
         else:
-            ff[i] = 4.0*pi*integrate(jj/(halo.dl**2+rset**2),rset)/(4.0*pi)
+            ff[i] = 4.0*np.pi*integrate(jj/(halo.dl**2+rset**2),rset)/(4.0*np.pi)
     ff = ff*3.09e24   #incident photon number density from Mpc cm^-3 s^-1 to cm^-2 s^-1
     ff = ff*h #flux from cm^-2 s^-1 to GeV cm^-2
     ff = ff*1.6e20 #flux from GeV cm^-2 to Jy
@@ -317,8 +317,8 @@ def xray_sb(halo,sim):
         ---------------------------
         1D float array (sim.n) [Jy sr^-1]
     """
-    lum = zeros(sim.n,dtype=float)
-    sb = zeros(sim.n,dtype=float) #surface brightness (nu,r)
+    lum = np.zeros(sim.n,dtype=float)
+    sb = np.zeros(sim.n,dtype=float) #surface brightness (nu,r)
     for j in range(0,sim.n):
         rprime = halo.r_sample[0][j]
         for k in range(0,sim.n):    
@@ -326,9 +326,9 @@ def xray_sb(halo,sim):
             if(rprime >= r):
                 lum[k] = 0.0
             else:
-                lum[k] = halo.he_emm_nu[k]*r/sqrt(r**2-rprime**2)
+                lum[k] = halo.he_emm_nu[k]*r/np.sqrt(r**2-rprime**2)
         sb[j] = 2.0*integrate(lum,halo.r_sample[0]) #the 2 comes from integrating over diameter not radius
-    return sb*3.09e24*1.6e20/(4*pi)/1.1818e7 #unit conversions and adjustment to angles 
+    return sb*3.09e24*1.6e20/(4*np.pi)/1.1818e7 #unit conversions and adjustment to angles 
 
 def gamma_sb(halo,sim):
     """
@@ -343,8 +343,8 @@ def gamma_sb(halo,sim):
         ---------------------------
         1D float array (sim.n) [Jy sr^-1]
     """
-    lum = zeros(sim.n,dtype=float)
-    sb = zeros(sim.n,dtype=float) #surface brightness (nu,r)
+    lum = np.zeros(sim.n,dtype=float)
+    sb = np.zeros(sim.n,dtype=float) #surface brightness (nu,r)
     for j in range(0,sim.n):
         rprime = halo.r_sample[0][j]
         for k in range(0,sim.n):
@@ -352,6 +352,6 @@ def gamma_sb(halo,sim):
             if(rprime >= r):
                 lum[k] = 0.0
             else:
-                lum[k] = halo.gamma_emm_nu[k]*r/sqrt(r**2-rprime**2)
+                lum[k] = halo.gamma_emm_nu[k]*r/np.sqrt(r**2-rprime**2)
         sb[j] = 2.0*integrate(lum,halo.r_sample[0]) #the 2 comes from integrating over diameter not radius
-    return sb*3.09e24*1.6e20/(4*pi)/1.1818e7 #unit conversions and adjustment to angles 
+    return sb*3.09e24*1.6e20/(4*np.pi)/1.1818e7 #unit conversions and adjustment to angles 

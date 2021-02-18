@@ -1,7 +1,7 @@
 #cython: language_level=3
 from scipy.integrate import quad
 from scipy.optimize import newton,bisect
-from numpy import *
+import numpy as np
 try:
     from wimp_tools import tools,cosmology
 except:
@@ -30,8 +30,8 @@ def einInt(xmin,xmax,alpha):
         Integral value from xmin to xmax [] (float) 
     """
     #note the 4pi is left out
-    xset = logspace(log10(xmin),log10(xmax),num=100)
-    yset = xset**2*exp(-2/alpha*(xset**alpha-1))
+    xset = np.logspace(np.log10(xmin),np.log10(xmax),num=100)
+    yset = xset**2*np.exp(-2/alpha*(xset**alpha-1))
     return tools.Integrate(yset,xset)
 
 def get_rcore_ein(mvir,rvir,rho0,alpha):
@@ -92,7 +92,7 @@ def rho_ein(mvir,z,alpha,cos_env,cvir_match=False):
     cv = cvir_ein(z,mvir,cos_env,cvir_match)
     dc = cosmology.delta_c(z,cos_env)
     rhoc = cosmology.rho_crit(z,cos_env)
-    return dc*rhoc/exp(-2/alpha*(cv**alpha-1))
+    return dc*rhoc/np.exp(-2/alpha*(cv**alpha-1))
 
 def r2_ein(mvir,z,alpha,cos_env,cvir_match=False):
     """
@@ -114,7 +114,7 @@ def r2_ein(mvir,z,alpha,cos_env,cvir_match=False):
     #this solves for r_s to match mvir
     cv = cvir_ein(z,mvir,cos_env,cvir_match)
     rho2 = rho_ein(mvir,z,alpha,cos_env,cvir_match)
-    return (mvir/(4*pi*rho2)/einInt(1e-10,cv,alpha))**(1.0/3)
+    return (mvir/(4*np.pi*rho2)/einInt(1e-10,cv,alpha))**(1.0/3)
 
 def mstar(z,cos_env):
     """
@@ -176,7 +176,7 @@ def root_rvir_ein(r,rs,rho0,mvir,alpha):
         Normalisation variance from mvir [Msol] (float)
     """
     x = r/rs
-    return 4*pi*rs**3*rho0*einInt(1e-7,x,alpha) - mvir
+    return 4*np.pi*rs**3*rho0*einInt(1e-7,x,alpha) - mvir
 
 def root_rcore_ein(r,rvir,rho0,mvir,alpha):
     """
@@ -195,7 +195,7 @@ def root_rcore_ein(r,rvir,rho0,mvir,alpha):
         Normalisation variance from mvir [Msol] (float)
     """
     x = rvir/r
-    return 4*pi*r**3*rho0*einInt(1e-7,x,alpha) - mvir
+    return 4*np.pi*r**3*rho0*einInt(1e-7,x,alpha) - mvir
 
 def get_rvir_ein(rs,mvir,rho0,alpha):
     """
@@ -231,7 +231,7 @@ def root_rvir_burkert(r,rb,rho0,mvir):
         Normalisation variance from mvir [Msol] (float)
     """
     x = r/rb
-    return 0.25*(log(x**2+1)+2*log(1+x)-2*arctan(x))*4*pi*rb**3*rho0 - mvir
+    return 0.25*(np.log(x**2+1)+2*np.log(1+x)-2*np.arctan(x))*4*np.pi*rb**3*rho0 - mvir
 
 def root_rcore_burkert(r,rvir,mvir):
     """
@@ -248,7 +248,7 @@ def root_rcore_burkert(r,rvir,mvir):
         Normalisation variance from mvir [Msol] (float)
     """
     x = rvir/r
-    return 0.25*(log(x**2+1)+2*log(1+x)-2*arctan(x))*4*pi*r**3*rhos_burkert(r) - mvir
+    return 0.25*(np.log(x**2+1)+2*np.log(1+x)-2*np.arctan(x))*4*np.pi*r**3*rhos_burkert(r) - mvir
 
 def get_rcore_burkert(rvir,mvir):
     """
@@ -358,7 +358,7 @@ def average_rho(rmax,rhos,rc,dmmod,alpha=0.17,target=0.0):
         average rhos - target [] (float)
     """
     n = 100
-    r_set = logspace(log10(rc*1e-7),log10(rmax),num=n)
+    r_set = np.logspace(np.log10(rc*1e-7),np.log10(rmax),num=n)
     rho = rho_dm(r_set,rc,dmmod,alpha)*rhos
     return tools.Integrate(r_set**2*rho,r_set)/tools.Integrate(r_set**2,r_set)-target
 
@@ -407,17 +407,17 @@ def rho_nfw_core(halo,cos_env):
     kappa = 0.04 #1508.04143
     rs = halo.rcore
     rmin = halo.r_sample[0][0]
-    rset = logspace(log10(rmin),log10(rs),num=50)
+    rset = np.logspace(np.log10(rmin),np.log10(rs),num=50)
     rho_nfw = halo.rhos*rho_dm(rset,rs,1)
-    M_rs = tools.Integrate(rho_nfw*rset**2,rset)*4*pi
+    M_rs = tools.Integrate(rho_nfw*rset**2,rset)*4*np.pi
     rc = eta*halo.r_stellar_half_light
-    tdyn = 2*pi*sqrt(rs**3/cos_env.G_newton/M_rs)
+    tdyn = 2*np.pi*np.sqrt(rs**3/cos_env.G_newton/M_rs)
     q = halo.t_sf/tdyn*kappa
-    n = tanh(q)
-    f = [tanh(halo.r_sample[0]/rc),tanh(halo.r_sample[1]/rc)]
+    n = np.tanh(q)
+    f = [np.tanh(halo.r_sample[0]/rc),np.tanh(halo.r_sample[1]/rc)]
     rho_nfw = [rho_dm(halo.r_sample[0],rs,1),rho_dm(halo.r_sample[1],rs,1)]
     M_nfw = tools.Integrate(rho_nfw[0]*halo.r_sample[0]**2,halo.r_sample[0])*4*pi
-    return [f[0]**n*rho_nfw[0] + n*f[0]**(n-1)*(1-f[0]**2)/4/pi/halo.r_sample[0]**2/rc*M_nfw,f[1]**n*rho_nfw[1] + n*f[1]**(n-1)*(1-f[1]**2)/4/pi/halo.r_sample[1]**2/rc*M_nfw]
+    return [f[0]**n*rho_nfw[0] + n*f[0]**(n-1)*(1-f[0]**2)/4/np.pi/halo.r_sample[0]**2/rc*M_nfw,f[1]**n*rho_nfw[1] + n*f[1]**(n-1)*(1-f[1]**2)/4/np.pi/halo.r_sample[1]**2/rc*M_nfw]
 
 def rho_nfw(halo,cos_env):
     """
@@ -545,7 +545,7 @@ def rho_dm(r_set,rc,dmmod,alpha=0.17):
     """
     #dmmod 1 is NFW, 2 is Burkert, 3 is Isothermal, -1 gives Einasto, other is generalised NFW
     n = len(r_set)
-    rho = zeros(n,dtype=float)
+    rho = np.zeros(n,dtype=float)
     if(dmmod != -1 and dmmod != 4):
         x = r_set/rc
         if(dmmod == 2):
@@ -561,7 +561,7 @@ def rho_dm(r_set,rc,dmmod,alpha=0.17):
             x = r_set/rc
         else:
             x = abs(r_set-1e-4)/rc
-        rho = exp(-2.0/alpha*(x**alpha -1.0))
+        rho = np.exp(-2.0/alpha*(x**alpha -1.0))
     return rho
 
 def rho_boost(rho,rho_sub,rhos,rhobar,rhobs,rhoc,bf,fsub,mode_exp):
@@ -585,7 +585,7 @@ def rho_boost(rho,rho_sub,rhos,rhobar,rhobs,rhoc,bf,fsub,mode_exp):
         Radial density profile values ^ mode_exp (float len(rho))
     """
     n = len(rho)
-    rhodm = zeros(n,dtype=float)
+    rhodm = np.zeros(n,dtype=float)
     rhodm = ((rhoc*rhos*rho - fsub*rhobs*rho_sub)**2/rhobar**2 + fsub*rhobs*rho_sub*bf/rhobar)*rhobar**2
     #print "boost:"+str((rhodm/rho**2/rhos**2/rhoc**2).sum()/n)
     return rhodm**(mode_exp*0.5) #rhodm is rho**2, which explains the mode_exp*0.5 power
@@ -607,13 +607,13 @@ def rho_volume_int(rv,rc,q,dmmod,alpha=0.18):
         Integral value (float)
     """
     n = 100
-    r_set = zeros(n,dtype=float)
-    int_set = zeros(n,dtype=float)
+    r_set = np.zeros(n,dtype=float)
+    int_set = np.zeros(n,dtype=float)
 
-    r_set = logspace(log10(rc*1e-7),log10(rv),num=n)
+    r_set = np.logspace(np.log10(rc*1e-7),np.log10(rv),num=n)
     rho = rho_dm(r_set,rc,dmmod,alpha)
     int_set = r_set**2*rho**q
-    I = tools.Integrate(int_set,r_set)*4.0*pi
+    I = tools.Integrate(int_set,r_set)*4.0*np.pi
     return I
 
 
@@ -669,10 +669,10 @@ def ne_distribution(phys,halo,ne_model):
             lb = halo.r_stellar_half_light
         else:
             lb = phys.lb
-        ne_set = phys.ne0*exp(-halo.r_sample[0]/lb)
+        ne_set = phys.ne0*np.exp(-halo.r_sample[0]/lb)
     else:
-        ne_set = phys.ne0*ones(len(halo.r_sample[0]))
-    return array(ne_set)
+        ne_set = phys.ne0*np.ones(len(halo.r_sample[0]))
+    return np.array(ne_set)
 
 
 #==========================================================================================
@@ -718,7 +718,7 @@ def bfield(phys,halo,cos_env,b_flag):
         #this model nomalises a power-law B to the energy in the gas
         rcore_z0 = cosmology.rcore(halo.mvir,0.0,cos_env)
         rvir_z0 = cosmology.rvir(halo.mvir,0.0,cos_env)
-        r_set_z0 = logspace(log10(rcore_z0*1e-7),log10(rvir_z0),num=n) #spherical shells within radio halo
+        r_set_z0 = np.logspace(np.log10(rcore_z0*1e-7),np.log10(rvir_z0),num=n) #spherical shells within radio halo
         neav_z0 =  phys.ne0*tools.SphAvg(king_radial_scale(r_set_z0,rcore_z0,-phys.qe),r_set_z0)
         b0 = normalise_b(halo.mvir,1e-3*phys.lc,rvir_z0,neav_z0,1.0/3)
         b_set = b0*equipartition_bfield_profile(halo.r_sample[0],1e-3*phys.lc,1.0/3)       #magnetic field within the halo
@@ -733,7 +733,7 @@ def bfield(phys,halo,cos_env,b_flag):
             rd = halo.r_stellar_half_light
         else:
             rd = phys.qb
-        b_set = phys.b0*ones(n)*exp(-halo.r_sample[0]/rd)
+        b_set = phys.b0*np.ones(n)*np.exp(-halo.r_sample[0]/rd)
         phys.btag = "b"+str(phys.b0)+"_exp"
     elif(b_flag == "m31"):
         #based on Ruiz-Granados 2010 model for M31 (valid out to 40 kpc)
@@ -752,10 +752,10 @@ def bfield(phys,halo,cos_env,b_flag):
         r_exp = 40.0e-3 #Mpc
         b_set = (phys.b0*r1 + 64.0e-3)/(r1+halo.r_sample[0]) #m31
         phys.btag = "b"+str(phys.b0)+"_m31exp"
-        b_set = where(halo.r_sample[0]>r_exp,(phys.b0*r1 + 64.0e-3)/(r1+r_exp)*exp(-(halo.r_sample[0]-r_exp)/halo.r_stellar_half_light),b_set)
+        b_set = np.where(halo.r_sample[0]>r_exp,(phys.b0*r1 + 64.0e-3)/(r1+r_exp)*np.exp(-(halo.r_sample[0]-r_exp)/halo.r_stellar_half_light),b_set)
     else:
         #just a boring flat profile
-        b_set = phys.b0*ones(n)
+        b_set = phys.b0*np.ones(n)
         phys.btag = "b"+str(phys.b0)+"_flat"
     return b_set
 
@@ -799,6 +799,6 @@ def normalise_b(Mvir,rmin,rvir,ne,w):
     #KbT = (Mvir/1e-15)**(2.0/3)*delta**(1.0/3)*(1+z)*1.6021773e-9/beta
     #KbT = 2*5.8e-13*(Mvir/1e-15)**(2.0/3)*delta**(1.0/3)
     Uth = ne*KbT*scaling
-    r_set = logspace(log10(rmin),log10(rvir),num=101)
+    r_set = np.logspace(np.log10(rmin),np.log10(rvir),num=101)
     V = 4.0/3*pi*r_set[-1]**3
-    return sqrt(2.0*Uth*V/tools.Integrate(g(r_set,rmin,w)**2*r_set**2,r_set))*1e6
+    return np.sqrt(2.0*Uth*V/tools.Integrate(g(r_set,rmin,w)**2*r_set**2,r_set))*1e6

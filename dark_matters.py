@@ -1,7 +1,7 @@
 import sys,getopt,time,os
 from copy import deepcopy
 try:
-    from numpy import *
+    import numpy as np
 except:
     print("Fatal Error: the numpy package is missing")
     sys.exit(2)
@@ -420,23 +420,23 @@ def getIndex(s):
                 imin = int(s[3].split(":")[0])
                 if imax == -1:
                     imax = len(calculations)-1
-                indices = arange(imin,imax+1)
+                indices = np.arange(imin,imax+1)
             else:
                 indices = [s[3].lower()]
         except:
             print("Warning: no set of calculations to output supplied with command \'"+s[0].lower()+"\' defaulting to \'all\'")
             indices = ["all"]
     if indices == ["all"]:
-        indices = arange(0,len(calculations))
+        indices = np.arange(0,len(calculations))
     elif indices == ["-1"]:
         indices = [len(calculations)-1]
     elif indices == ["last"]:
         imin = len(calculations)-len(last_set)
         imax = len(calculations)-1
-        indices = arange(imin,imax+1)
+        indices = np.arange(imin,imax+1)
     else:
         try:
-            indices = array(indices,dtype=int)
+            indices = np.array(indices,dtype=int)
         except ValueError:
             tools.fatal_error("The indices for output supplied as "+indices+" are not valid")
     return indices
@@ -445,7 +445,7 @@ def getRmax(t_str,c_run,command):
     if t_str == "full":
         rmax = c_run.halo.rvir
     elif t_str == "theta":
-        rmax = c_run.halo.da*tan(c_run.sim.theta*2.90888e-4)
+        rmax = c_run.halo.da*np.tan(c_run.sim.theta*2.90888e-4)
     elif t_str == "r_integrate":
         rmax = c_run.sim.rintegrate
     elif t_str == "radial":
@@ -538,9 +538,9 @@ def process_set(line,phys,sim,halo,cos_env,loop):
             elif commands[s[1]][1] == "boolean":
                 setattr(commands[s[1]][0],commands[s[1]][2],bool(int(s[2]))) 
             elif commands[s[1]][1].startswith("intarray"):
-                setattr(commands[s[1]][0],commands[s[1]][2],array(s[2:],dtype=int)) 
+                setattr(commands[s[1]][0],commands[s[1]][2],np.array(s[2:],dtype=int)) 
             elif commands[s[1]][1].startswith("floatarray"):
-                setattr(commands[s[1]][0],commands[s[1]][2],array(s[2:],dtype=float)) 
+                setattr(commands[s[1]][0],commands[s[1]][2],np.array(s[2:],dtype=float)) 
             elif commands[s[1]][1].startswith("stringarray"):
                 setattr(commands[s[1]][0],commands[s[1]][2],s[2:])
             else: 
@@ -590,8 +590,8 @@ def read_spectrum(spec_file,gamma,branching,phys,sim):
         if not line.startswith("#"):
             useLine = line.strip().split("#")[0]
             s.append(useLine.strip().split())
-    E_set = zeros(len(s),dtype=float)  #Energies set
-    Q_set = zeros(len(s),dtype=float)  #electron generation function dn/dE
+    E_set = np.zeros(len(s),dtype=float)  #Energies set
+    Q_set = np.zeros(len(s),dtype=float)  #electron generation function dn/dE
     for i in range(0,len(s)):
         #me factors convert this to gamma and dn/dgamma
         #gamma is the Lorenz factor for electrons with energy E
@@ -606,8 +606,8 @@ def read_spectrum(spec_file,gamma,branching,phys,sim):
         if phys.spectrum[0] is None and phys.spectrum[1] is None:
             phys.specMin = E_set[0]
             phys.specMax = E_set[-1]
-            phys.spectrum[0] = logspace(log10(phys.specMin*1.00001),log10(phys.specMax*0.99999),num=spec_length)
-            phys.spectrum[1] = zeros(spec_length)
+            phys.spectrum[0] = np.logspace(np.log10(phys.specMin*1.00001),np.log10(phys.specMax*0.99999),num=spec_length)
+            phys.spectrum[1] = np.zeros(spec_length)
         intSpec = interp1d(E_set,Q_set)
         newE = phys.spectrum[0]
         Q_set = intSpec(newE)
@@ -616,8 +616,8 @@ def read_spectrum(spec_file,gamma,branching,phys,sim):
         if phys.gamma_spectrum[0] is None and phys.gamma_spectrum[1] is None:
             phys.gamma_specMin = E_set[0]
             phys.gamma_specMax = E_set[-1]
-            phys.gamma_spectrum[0] = logspace(log10(phys.gamma_specMin*1.00001),log10(phys.gamma_specMax*0.99999),num=spec_length)
-            phys.gamma_spectrum[1] = zeros(spec_length)
+            phys.gamma_spectrum[0] = np.logspace(np.log10(phys.gamma_specMin*1.00001),np.log10(phys.gamma_specMax*0.99999),num=spec_length)
+            phys.gamma_spectrum[1] = np.zeros(spec_length)
         intSpec = interp1d(E_set,Q_set)
         newE = phys.gamma_spectrum[0]
         Q_set = intSpec(newE)
@@ -645,7 +645,7 @@ def readSpectrum(spec_file,phys,sim,mode="ann"):
         mCol = 0
         xCol = 1
         try:
-            specData = loadtxt(spec_file,unpack=True)
+            specData = np.loadtxt(spec_file,unpack=True)
         except IOError:
             tools.fatal_error("Spectrum File: "+spec_file+" does not exist at the specified location")
         mx = specData[mCol]
@@ -664,11 +664,11 @@ def readSpectrum(spec_file,phys,sim,mode="ann"):
             if mxEff > max(mx) or mxEff < min(mx):
                 tools.fatal_error("Required WIMP mass {} GeV does not lie within the data set found in {}".format(mxEff,spec_file))
             elif mxEff in mx:
-                mIndices = where(mx==mxEff)
+                mIndices = np.where(mx==mxEff)
                 eData = 10**(xLog[mIndices])*mxEff/phys.me
-                dnData = chData[mIndices]/log(10.0)/10**(xLog[mIndices])/mxEff*phys.me
+                dnData = chData[mIndices]/np.log(10.0)/10**(xLog[mIndices])/mxEff*phys.me
                 intSpec = interp1d(eData,dnData)
-                checkSpectra(spec_file,phys,logspace(log10(eData[0]),log10(eData[-1]),num=spec_length))
+                checkSpectra(spec_file,phys,np.logspace(np.log10(eData[0]*1.00001),np.log10(eData[-1]*0.99999),num=spec_length))
                 if "positrons" in spec_file:
                     newE = phys.spectrum[0]
                     dnData = intSpec(newE)
@@ -699,7 +699,7 @@ def readSpectrum(spec_file,phys,sim,mode="ann"):
         nCol = 2
         mxEff = phys.mx
         try:
-            specData = loadtxt(spec_file,unpack=True)
+            specData = np.loadtxt(spec_file,unpack=True)
         except IOError:
             tools.fatal_error("Spectrum File: "+spec_file+" does not exist at the specified location")
         mx = specData[mCol]
@@ -714,11 +714,11 @@ def readSpectrum(spec_file,phys,sim,mode="ann"):
         if mxEff > max(mx) or mxEff < min(mx):
             tools.fatal_error("Required WIMP mass {} GeV does not lie within the data set found in {}".format(mxEff,spec_file))
         elif mxEff in mx:
-            mIndices = where(mx==mxEff)
+            mIndices = np.where(mx==mxEff)
             eData = energyData[mIndices]
             dnData = chData[mIndices]
             intSpec = interp1d(eData,dnData)
-            checkSpectra(spec_file,phys,logspace(log10(eData[0]*1.00001),log10(eData[-1]*0.99999),num=spec_length))
+            checkSpectra(spec_file,phys,np.logspace(np.log10(eData[0]*1.00001),np.log10(eData[-1]*0.99999),num=spec_length))
             if "positrons" in spec_file:
                 newE = phys.spectrum[0]
                 dnData = intSpec(newE)
@@ -748,7 +748,7 @@ def checkSpectra(spec_file,phys,eData):
         specMin = "nu_specMin"
         specMax = "nu_specMax"
     if getattr(phys,specTarget)[0] is None and getattr(phys,specTarget)[1] is None:
-        setattr(phys,specTarget,[eData,zeros(len(eData))])
+        setattr(phys,specTarget,[eData,np.zeros(len(eData))])
         setattr(phys,specMin,eData[0])
         setattr(phys,specMax,eData[-1])
 
@@ -756,12 +756,12 @@ def interpolateInput(mx,mxSet,xLog,chData,specLength):
     chTable = []
     xTarget = linspace(min(xLog),max(xLog),num=specLength)
     for m in unique(mxSet):
-        mData = chData[where(mxSet==m)]
-        eData = xLog[where(mxSet==m)]
+        mData = chData[np.where(mxSet==m)]
+        eData = xLog[np.where(mxSet==m)]
         intSpec = interp1d(eData,mData)
         chTable.append(intSpec(xTarget))
-    #print(interp2d(xTarget,unique(mxSet),array(chTable))(xTarget,mx))
-    return 10**(xTarget)*mx,interp2d(xTarget,unique(mxSet),array(chTable))(xTarget,mx)/log(10.0)/10**(xTarget)/mx
+    #print(interp2d(xTarget,unique(mxSet),np.array(chTable))(xTarget,mx))
+    return 10**(xTarget)*mx,interp2d(xTarget,unique(mxSet),np.array(chTable))(xTarget,mx)/np.log(10.0)/10**(xTarget)/mx
 
 def gather_spectrum(spec_dir,phys,sim,mode="ann"):
     """
@@ -845,8 +845,8 @@ def neutrino_spectrum(spec_dir,phys,sim,flavour,mode="ann"):
                 for line in spec:
                     if not line.startswith("#"):
                         s.append(line.strip().split())
-                E_set = zeros(len(s),dtype=float)  #Energies set
-                Q_set = zeros(len(s),dtype=float)  #electron generation function dn/dE
+                E_set = np.zeros(len(s),dtype=float)  #Energies set
+                Q_set = np.zeros(len(s),dtype=float)  #electron generation function dn/dE
                 for i in range(0,len(s)):
                     #me factors convert this to gamma and dn/dgamma
                     #gamma is the Lorenz factor for an electron
@@ -858,10 +858,10 @@ def neutrino_spectrum(spec_dir,phys,sim,flavour,mode="ann"):
                     phys.nu_specMax = E_set[-1]
                     if sim.e_bins == None:
                         sim.e_bins = len(E_set)
-                    nu_spec = [None,zeros(sim.e_bins)]
-                    nu_spec[0] = logspace(log10(phys.nu_specMin*1.00001),log10(phys.nu_specMax*0.99999),num=sim.e_bins)
+                    nu_spec = [None,np.zeros(sim.e_bins)]
+                    nu_spec[0] = np.logspace(np.log10(phys.nu_specMin*1.00001),np.log10(phys.nu_specMax*0.99999),num=sim.e_bins)
                     phys.nu_spectrum[0] = nu_spec[0]
-                    phys.nu_spectrum[1] = zeros(len(phys.nu_spectrum[0]))
+                    phys.nu_spectrum[1] = np.zeros(len(phys.nu_spectrum[0]))
                 intSpec = interp1d(E_set,Q_set)
                 newE = phys.nu_spectrum[0]
                 Q_set = intSpec(newE)
@@ -887,8 +887,8 @@ def neutrino_spectrum(spec_dir,phys,sim,flavour,mode="ann"):
             for line in spec:
                 if not line.startswith("#"):
                     s.append(line.strip().split())
-            E_set = zeros(len(s),dtype=float)  #Energies set
-            Q_set = zeros(len(s),dtype=float)  #electron generation function dn/dE
+            E_set = np.zeros(len(s),dtype=float)  #Energies set
+            Q_set = np.zeros(len(s),dtype=float)  #electron generation function dn/dE
             for i in range(0,len(s)):
                 #me factors convert this to gamma and dn/dgamma
                 #gamma is the Lorenz factor for an electron
@@ -900,10 +900,10 @@ def neutrino_spectrum(spec_dir,phys,sim,flavour,mode="ann"):
                 phys.nu_specMax = E_set[-1]
                 if sim.e_bins == None:
                     sim.e_bins = len(E_set)
-                nu_spec = [None,zeros(sim.e_bins)]
-                nu_spec[0] = logspace(log10(phys.nu_specMin*1.00001),log10(phys.nu_specMax*0.99999),num=sim.e_bins)
+                nu_spec = [None,np.zeros(sim.e_bins)]
+                nu_spec[0] = np.logspace(np.log10(phys.nu_specMin*1.00001),np.log10(phys.nu_specMax*0.99999),num=sim.e_bins)
                 phys.nu_spectrum[0] = nu_spec[0]
-                phys.nu_spectrum[1] = zeros(len(phys.nu_spectrum[0]))
+                phys.nu_spectrum[1] = np.zeros(len(phys.nu_spectrum[0]))
             intSpec = interp1d(E_set,Q_set)
             newE = phys.nu_spectrum[0]
             Q_set = intSpec(newE)

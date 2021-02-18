@@ -1,7 +1,7 @@
 #cython: language_level=3
 from scipy.integrate import quad
 from scipy.optimize import newton,bisect
-from numpy import *
+import numpy as np
 try:
     from wimp_tools import tools#,environments
 except:
@@ -51,7 +51,7 @@ def delta_c(z,cos_env):
         float []
     """
     x = 1.0 - omega_m(z,cos_env)
-    return (18.0*pi**2 - 82.0*x - 39.0*x**2)/omega_m(z,cos_env)
+    return (18.0*np.pi**2 - 82.0*x - 39.0*x**2)/omega_m(z,cos_env)
 
 def cvir(M,z,cos_env):
     """
@@ -83,10 +83,10 @@ def cvir_p12_param(M,z,cos_env):
         ---------------------------
         float []
     """
-    c = array([37.5153,-1.5093,1.636e-2,3.66e-4,-2.89237e-5,5.32e-7])
+    c = np.array([37.5153,-1.5093,1.636e-2,3.66e-4,-2.89237e-5,5.32e-7])
     cv = 0.0
     for i in range(0,len(c)):
-        cv += c[i]*log(M*cos_env.h)**i
+        cv += c[i]*np.log(M*cos_env.h)**i
     return cv
 
 def cvir_p12(M,z,cosmo):
@@ -110,7 +110,7 @@ def cvir_p12(M,z,cosmo):
     b1 = smin(x,y)
     sigma_p = b1*sigma_param(M,z,cosmo)
     A = 2.881;b=1.257;c=1.022;d=0.060
-    csig = A*((sigma_p/b)**c + 1)*exp(d/sigma_p**2)
+    csig = A*((sigma_p/b)**c + 1)*np.exp(d/sigma_p**2)
     return b0*csig
 
 def sigma_param(M,z,cosmo):
@@ -145,7 +145,7 @@ def smin(x,y):
         float []
     """
     s0 = 1.047;s1 = 1.646;beta = 7.386;x1 = 0.526 #fitting parameters
-    return (s0 + (s1-s0)*(arctan(beta*(x-x1))/pi+0.5))/(s0 + (s1-s0)*(arctan(beta*(y-x1))/pi+0.5))
+    return (s0 + (s1-s0)*(np.arctan(beta*(x-x1))/np.pi+0.5))/(s0 + (s1-s0)*(np.arctan(beta*(y-x1))/np.pi+0.5))
 
 def cmin(x,y):
     """
@@ -161,7 +161,7 @@ def cmin(x,y):
         float []
     """
     c0 = 3.681;c1 = 5.033;alpha = 6.948;x0 = 0.424 #fitting parameters
-    return (c0 + (c1-c0)*(arctan(alpha*(x-x0))/pi+0.5))/(c0 + (c1-c0)*(arctan(alpha*(y-x0))/pi+0.5))
+    return (c0 + (c1-c0)*(np.arctan(alpha*(x-x0))/np.pi+0.5))/(c0 + (c1-c0)*(np.arctan(alpha*(y-x0))/np.pi+0.5))
 
 def rvir(M,z,cos_env):
     """
@@ -177,7 +177,7 @@ def rvir(M,z,cos_env):
         ---------------------------
         float [Mpc]
     """
-    return (0.75*M/(pi*delta_c(z,cos_env)*rho_crit(z,cos_env)))**(1.0/3.0) #in Mpc
+    return (0.75*M/(np.pi*delta_c(z,cos_env)*rho_crit(z,cos_env)))**(1.0/3.0) #in Mpc
 
 def mvir_from_rvir(r,z,cos_env):
     """
@@ -193,7 +193,7 @@ def mvir_from_rvir(r,z,cos_env):
         ---------------------------
         float [Msol]
     """
-    return 4*pi/3.0*delta_c(z,cos_env)*rho_crit(z,cos_env)*r**3
+    return 4*np.pi/3.0*delta_c(z,cos_env)*rho_crit(z,cos_env)*r**3
 
 def rvir_ps(M,z,cos_env):
     """
@@ -209,7 +209,7 @@ def rvir_ps(M,z,cos_env):
         ---------------------------
         float [Mpc]
     """
-    return (0.75*M/(pi*omega_m(z,cos_env)*rho_crit(z,cos_env)))**(1.0/3.0) #in Mpc
+    return (0.75*M/(np.pi*omega_m(z,cos_env)*rho_crit(z,cos_env)))**(1.0/3.0) #in Mpc
 
 def rcore(M,z,cos_env):
     """
@@ -241,7 +241,7 @@ def rhos(cv,z,cos_env):
         ---------------------------
         float []
     """
-    return delta_c(z,cos_env)/3.0*cv**3/(log(cv+1.0) - cv/(1.0+cv))
+    return delta_c(z,cos_env)/3.0*cv**3/(np.log(cv+1.0) - cv/(1.0+cv))
 
 def hubble_z(z,cos_env):
     """
@@ -258,7 +258,7 @@ def hubble_z(z,cos_env):
     """
     H0 = 100.0
     w_k = 1 - cos_env.w_m - cos_env.w_l
-    return (H0*cos_env.h*sqrt(cos_env.w_m*(1.0+z)**3+w_k*(1+z)**2+cos_env.w_l))**(-1)
+    return (H0*cos_env.h*np.sqrt(cos_env.w_m*(1.0+z)**3+w_k*(1+z)**2+cos_env.w_l))**(-1)
 
 def dist_co_move(z,cos_env):
     """
@@ -280,9 +280,9 @@ def dist_co_move(z,cos_env):
     if(w_k == 0.0):
         dcm = dc
     elif(w_k > 0.0):
-        dcm = dh/sqrt(w_k)*sinh(sqrt(w_k)*dc/dh)
+        dcm = dh/np.sqrt(w_k)*np.sinh(np.sqrt(w_k)*dc/dh)
     elif(w_k < 0.0):
-        dcm = dh/sqrt(-w_k)*sinh(sqrt(-w_k)*dc/dh)
+        dcm = dh/np.sqrt(-w_k)*np.sinh(np.sqrt(-w_k)*dc/dh)
     return dcm
 
 def dist_luminosity(z,cos_env):
@@ -330,7 +330,7 @@ def pspec(k,z,cos_env):
         float [?]
     """
     q = k/(omega_m(z,cos_env)*cos_env.h**2)
-    return k*(log(1+2.34*q)/(2.34*q)/(1 + 3.89*q + (16.1*q)**2 + (5.46*q)**3+(6.71*q)**4)**0.25)**2
+    return k*(np.log(1+2.34*q)/(2.34*q)/(1 + 3.89*q + (16.1*q)**2 + (5.46*q)**3+(6.71*q)**4)**0.25)**2
 
 def window(x):
     """
@@ -344,7 +344,7 @@ def window(x):
         ---------------------------
         float [Mpc]
     """
-    return 3*(sin(x) - x*cos(x))/x**3
+    return 3*(np.sin(x) - x*np.cos(x))/x**3
 
 def sigma_l(r,l,rc,rmin,z,cos_env):
     #z is redshift, h is H(0) in 100 Mpc s^-1 km^-1, w_m is matter density parameter at z = 0
@@ -368,10 +368,10 @@ def sigma_l(r,l,rc,rmin,z,cos_env):
     kmax = 1.0/rmin
     kcut = 1.0/rc
     kmin = 1.0e-8*kmax
-    kset = zeros(n,dtype=float)
-    kint = zeros(n,dtype=float)
-    kset = logspace(log10(kmin),log10(kmax),num=n)
-    kint = 0.5*kset**(2*(1+l))*pspec(kset,z,cos_env)*window(kset*r)**2*exp(-kset/kcut)/pi**2
+    kset = np.zeros(n,dtype=float)
+    kint = np.zeros(n,dtype=float)
+    kset = np.logspace(np.log10(kmin),np.log10(kmax),num=n)
+    kint = 0.5*kset**(2*(1+l))*pspec(kset,z,cos_env)*window(kset*r)**2*np.exp(-kset/kcut)/np.pi**2
     return tools.Integrate(kint,kset)
 
 def sigma_l_pl(r,l,rc,rmin,z,cos_env):
@@ -396,9 +396,9 @@ def sigma_l_pl(r,l,rc,rmin,z,cos_env):
     kmax = 1.0/rmin
     kcut = 1.0/rc
     kmin = 1.0e-12*kmax
-    kint = zeros(n,dtype=float)
-    kset = logspace(log10(kmin),log10(kmax),num=n)
-    kint = 0.5*kset**(2*(1+l)+pn)*window(kset*r)**2/pi**2#*exp(-kset/kcut)
+    kint = np.zeros(n,dtype=float)
+    kset = np.logspace(np.log10(kmin),np.log10(kmax),num=n)
+    kint = 0.5*kset**(2*(1+l)+pn)*window(kset*r)**2/np.pi**2#*np.exp(-kset/kcut)
     return tools.Integrate(kint,kset)
 
 def glinear(z,cos_env):
@@ -420,8 +420,8 @@ def glinear(z,cos_env):
     elif(cos_env.w_m < 1.0 and cos_env.w_l == 0.0):
         x0 = (1.0/cos_env.w_m - 1)
         x = x0/(1+z)
-        Ax = 1 + 3/x + 3*sqrt(1+x)/x**1.5*log(sqrt(1+x)-sqrt(x))
-        Ax0 = 1 + 3/x0 + 3*sqrt(1+x0)/x0**1.5*log(sqrt(1+x0)-sqrt(x0))
+        Ax = 1 + 3/x + 3*np.sqrt(1+x)/x**1.5*np.log(np.sqrt(1+x)-np.sqrt(x))
+        Ax0 = 1 + 3/x0 + 3*np.sqrt(1+x0)/x0**1.5*np.log(np.sqrt(1+x0)-np.sqrt(x0))
         g = Ax/Ax0
     elif(cos_env.w_l > 0 and cos_env.w_l == 1.0 - cos_env.w_m):
         om = omega_m(z,cos_env)
@@ -437,8 +437,8 @@ def glinear(z,cos_env):
         #x0set = linspace(0,x0,num=101)
         #aset = (xset/(xset**3+2))**1.5
         #a0set = (x0set/(x0set**3+2))**1.5
-        #Ax = sqrt(x**3 + 2)/x**1.5*tools.Integrate(aset,xset)
-        #Ax0 = sqrt(x0**3 + 2)/x0**1.5*tools.Integrate(a0set,x0set)
+        #Ax = np.sqrt(x**3 + 2)/x**1.5*tools.Integrate(aset,xset)
+        #Ax0 = np.sqrt(x0**3 + 2)/x0**1.5*tools.Integrate(a0set,x0set)
         #ga = Ax/Ax0
     return g
 
@@ -508,10 +508,10 @@ def get_zc_secant(Mvir,cosmo):
     m = f*Mvir
     r8 = 8/cosmo.h
     z0 = 0.0
-    rcut = (3*1.0e-6/(4*pi*omega_m(z0,cosmo)*rho_crit(z0,cosmo)))**(1.0/3)
-    r = (3*m/(4*pi*omega_m(z0,cosmo)*rho_crit(z0,cosmo)))**(1.0/3)
+    rcut = (3*1.0e-6/(4*np.pi*omega_m(z0,cosmo)*rho_crit(z0,cosmo)))**(1.0/3)
+    r = (3*m/(4*np.pi*omega_m(z0,cosmo)*rho_crit(z0,cosmo)))**(1.0/3)
     sig8 = sigma_l(r8,0,rcut,rcut,z0,cosmo)/0.897**2
-    sig = sqrt(sigma_l(r,0,rcut,rcut,z0,cosmo)/sig8)
+    sig = np.sqrt(sigma_l(r,0,rcut,rcut,z0,cosmo)/sig8)
     return newton(density_contrast,1.0,args=(sig,cosmo))
 
 def get_zc(Mvir,cos_env):
@@ -538,10 +538,10 @@ def get_zc(Mvir,cos_env):
     z3 = (z1+z2)*0.5
     r8 = 8/cos_env.h
     z0 = 0.0
-    rcut = (3*1.0e-6/(4*pi*omega_m(z0,cos_env)*rho_crit(z0,cos_env)))**(1.0/3)
-    r = (3*m/(4*pi*omega_m(z0,cos_env)*rho_crit(z0,cos_env)))**(1.0/3)
+    rcut = (3*1.0e-6/(4*np.pi*omega_m(z0,cos_env)*rho_crit(z0,cos_env)))**(1.0/3)
+    r = (3*m/(4*np.pi*omega_m(z0,cos_env)*rho_crit(z0,cos_env)))**(1.0/3)
     sig8 = sigma_l(r8,0,rcut,rcut,z0,cos_env)/0.897**2
-    sig = sqrt(sigma_l(r,0,rcut,rcut,z0,cos_env)/sig8)
+    sig = np.sqrt(sigma_l(r,0,rcut,rcut,z0,cos_env)/sig8)
     d3 = glinear(z3,cos_env)*sig - dsc
     d2 = glinear(z2,cos_env)*sig - dsc
     d1 = glinear(z1,cos_env)*sig - dsc
@@ -631,7 +631,7 @@ def cvir_munoz(Mvir,z,cos_env):
     gamma = 16.885
     a = w*z - m
     b = alpha/(z+gamma) + beta/(z+gamma)**2
-    logc = a*log10(Mvir*cos_env.h) + b
+    logc = a*np.log10(Mvir*cos_env.h) + b
     return 10**(logc)
 
 def tLookback(z,cosmo):
@@ -647,7 +647,7 @@ def tLookback(z,cosmo):
         ---------------------------
         float [s]
     """
-    zset = logspace(-3,log10(z),num=1000)
+    zset = np.logspace(-3,np.log10(z),num=1000)
     inverseEset = hubble_z(zset,cosmo)*cosmo.h*100.0
     mpcToKm = 3.086e19
     tH = 1.0/cosmo.h*1e-2*mpcToKm #in s

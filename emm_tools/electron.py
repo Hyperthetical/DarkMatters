@@ -1,5 +1,5 @@
 #cython: language_level=3
-from numpy import *
+import numpy as np
 import sys,platform
 from scipy.integrate import simps as integrate
 from emm_tools.tools_emm import progress
@@ -8,13 +8,13 @@ from subprocess import call
 from emm_tools.electrons_crank import getElectrons_numeric
 #@jit
 #def integrate(x,y):
-#    lx = log10(x)
-#    ly = log10(y)
+#    lx = np.log10(x)
+#    ly = np.log10(y)
 #    h = (lx[-1]-lx[0])/len(x)
-#    w = 1.0/3*ones(len(x))
-#    indices = arange(0,len(x))
-#    w = where(indices%2==0,2.0/3,w)
-#    w = where(indices%2!=0,4.0/3,w)
+#    w = 1.0/3*np.ones(len(x))
+#    indices = np.arange(0,len(x))
+#    w = np.where(indices%2==0,2.0/3,w)
+#    w = np.where(indices%2!=0,4.0/3,w)
 #    w[-1] = 1.0/3
 #    w[0] = 1.0/3
 #    return sum(h*w*10**(ly+lx))
@@ -40,10 +40,10 @@ def read_electrons_c(infile,halo,phys,sim):
     except:
         return None
     line = inf.readline().strip().split()
-    eArray = array(line,dtype=float)
+    eArray = np.array(line,dtype=float)
     n = sim.n
     k = len(phys.spectrum[0])
-    electrons = zeros((k,n),dtype=float)
+    electrons = np.zeros((k,n),dtype=float)
     for i in range(0,k):
         for j in range(0,n):
             electrons[i][j] = eArray[i*n + j]
@@ -142,11 +142,11 @@ def eloss_vector(E_vec,B,ne,z,ISRF=0):
     """
     n = ne#*(1+z)**3
     me = 0.511e-3 #GeV -> E_vec comes in as E/me
-    coeffs = array([6.08e-16+0.25e-16*(1+z)**4,0.0254e-16,6.13e-16,4.7e-16],dtype=float)
+    coeffs = np.array([6.08e-16+0.25e-16*(1+z)**4,0.0254e-16,6.13e-16,4.7e-16],dtype=float)
     if ISRF == 0:
         coeffs[0] = 0.25e-16*(1+z)**4 #only CMB used so it scales with z
     if ne == 0.0: 
-        eloss_tot = coeffs[0]*(me*E_vec)**2 + coeffs[1]*(me*E_vec)**2*B**2 + coeffs[2]*n*(1+log(E_vec/n)/75.0)+ coeffs[3]*n*E_vec*me
+        eloss_tot = coeffs[0]*(me*E_vec)**2 + coeffs[1]*(me*E_vec)**2*B**2 + coeffs[2]*n*(1+np.log(E_vec/n)/75.0)+ coeffs[3]*n*E_vec*me
     else:
         eloss_tot = coeffs[0]*(me*E_vec)**2 + coeffs[1]*(me*E_vec)**2*B**2 
     return eloss_tot/me #make it gamma s^-1 units
@@ -157,7 +157,7 @@ def eloss_loop(E,B,ne,z):
     #calculates b(E) for every value in E_set
     #E_vec is the set of energies, B is the mean magnetic field, ne is the mean plasma density, z is redshift
     n = ne#*(1+z)**3
-    return 1.37e-20*E**2*(1+z)**4 + 1.30e-21*E**2*B**2 + 6.13e-16*n*(1+log(E/n)/75.0)+ 1.51e-16*n*(0.36+log(E/n))
+    return 1.37e-20*E**2*(1+z)**4 + 1.30e-21*E**2*B**2 + 6.13e-16*n*(1+np.log(E/n)/75.0)+ 1.51e-16*n*(0.36+np.log(E/n))
 
 #@jit
 def green_integrand_vector(rpr,rn,dv,rhosq):
@@ -175,7 +175,7 @@ def green_integrand_vector(rpr,rn,dv,rhosq):
         ---------------------------
         1D array of floats (len(rpr)) 
     """
-    return rpr/rn*(exp(-(rpr-rn)**2/(4.0*dv))-exp(-(rpr+rn)**2/(4.0*dv)))*rhosq
+    return rpr/rn*(np.exp(-(rpr-rn)**2/(4.0*dv))-np.exp(-(rpr+rn)**2/(4.0*dv)))*rhosq
 
 #@jit
 def Green_vector(r_set,r,rhosq,dv,diff):
@@ -195,14 +195,14 @@ def Green_vector(r_set,r,rhosq,dv,diff):
         1D float array (phys.e_bins)
     """
     m = len(dv)
-    G = zeros(m)
+    G = np.zeros(m)
     if(diff == 0):
         G[dv != -1] = 1.0
     else:
         n = len(r_set)
         rh = r_set.max()
         images = 33 #image charges for green function solution -> should be odd
-        image_set = arange(-(images-1)/2,(images-1)/2,dtype=int)
+        image_set = np.arange(-(images-1)/2,(images-1)/2,dtype=int)
 
         for i in range(0,m):
             if(dv[i] == 0.0):
@@ -210,7 +210,7 @@ def Green_vector(r_set,r,rhosq,dv,diff):
             elif(dv[i] == -1): #this exists to limit the domain of the Green's function to between relevant energies
                 G[i] = 0.0
             else:
-                k1 = 1.0/sqrt(4*pi*dv[i]) #coefficient
+                k1 = 1.0/np.sqrt(4*np.pi*dv[i]) #coefficient
                 for j in range(0,len(image_set)):
                     p = image_set[j]
                     rn = (-1.0)**p*r + 2.0*p*rh  #position of the image charge
@@ -304,16 +304,16 @@ def equilibrium_electrons(E_set,Q_set,r_sample,rho_dm_sample,mx,mode_exp,b_av,ne
     n = len(r_sample[0])
     ngr = len(r_sample[1])
 
-    loss = zeros(k)#,dtype=float)  #energy loss (E,r)
-    electrons = zeros((k,n))#,dtype=float)  #energy loss (E,r)
-    int_E = zeros(k)#,dtype=float)  
-    int_E2 = zeros(k)#,dtype=float)  
-    rhosq = zeros((n,ngr))#,dtype=float)
+    loss = np.zeros(k)#,dtype=float)  #energy loss (E,r)
+    electrons = np.zeros((k,n))#,dtype=float)  #energy loss (E,r)
+    int_E = np.zeros(k)#,dtype=float)  
+    int_E2 = np.zeros(k)#,dtype=float)  
+    rhosq = np.zeros((n,ngr))#,dtype=float)
     me = 0.511e-3 #GeV
 
     Q_set[Q_set<0.0] = 0.0
     #msun converted to kg, convert to GeV, convert kpc to cm 
-    nwimp0 = sqrt(1.458e-33)**mode_exp/mode_exp*(1.0/mx)**mode_exp  #non-thermal wimp density (cm^-3) (central)
+    nwimp0 = np.sqrt(1.458e-33)**mode_exp/mode_exp*(1.0/mx)**mode_exp  #non-thermal wimp density (cm^-3) (central)
     rhodm = nwimp0*rho_dm_sample[0]
     rhodm_gr = nwimp0*rho_dm_sample[1]
     #for i in range(0,k):
@@ -327,13 +327,13 @@ def equilibrium_electrons(E_set,Q_set,r_sample,rho_dm_sample,mx,mode_exp,b_av,ne
     #d0 = (1.0/3.0)*(3e8)**(delta-1.0)*(1.6e-19)**(delta-2.0)*(1.6e-10)**(2.0-delta)
     #d0 = d0*(b_av*1e-10)**(delta-2.0)*(lc*3.09e19)**(delta-1.0)*1e4   #cm^2 s^-1
     #print(d0,lc,b_av)
-    d0 = exp(log(d0)-2.0*log(3.09e24))   #Mpc^2 s^-1 from cm^2 s^-1
+    d0 = np.exp(np.log(d0)-2.0*np.log(3.09e24))   #Mpc^2 s^-1 from cm^2 s^-1
     #d0 = 3.1e28*lc**(2.0/3)*bmu**(-1.0/3)
     if(diff == 1):
         vtab = make_vtab(E_set,d0,delta,loss,me)
     else:
-        vtab = zeros(k)
-    dv = zeros(k)
+        vtab = np.zeros(k)
+    dv = np.zeros(k)
     for i in range(0,k): #loop over energies
         E = E_set[i]
         if(diff == 1):
@@ -367,7 +367,7 @@ def D(E_set,B,lc,delta):
     me = 0.511e-3
     d0= (1.0/3.0)*(3e8)**(delta-1.0)*(1.6e-19)**(delta-2.0)*(1.6e-10)**(2.0-delta)
     d0 = d0*(B*1e-10)**(delta-2.0)*(lc*3.09e19)**(delta-1.0)*1e4   #cm^2 s^-1
-    d0 = exp(log(d0)-2.0*log(3.09e24))   #Mpc^2 s^-1
+    d0 = np.exp(np.log(d0)-2.0*np.log(3.09e24))   #Mpc^2 s^-1
     dset = d0*(E_set*me)**(2.0-delta)
     return dset
 
@@ -412,7 +412,7 @@ def make_vtab(E_set,d0,delta,loss,me):
         1D float array (phys.e_bins)
     """
     k = len(E_set)
-    vtab = zeros(k)#,dtype=float)
+    vtab = np.zeros(k)#,dtype=float)
     for i in range(0,k):
         vtab[i] = get_v(E_set[i],E_set,d0,delta,loss,me)
     return vtab
@@ -422,7 +422,7 @@ def make_vtab(E_set,d0,delta,loss,me):
     #for halo mass M, thermal plasma density ne and at redshift z
     #it uses the D(E) and energy_loss_vector functions
 #    spectrum = tools.read_spectrum("/home/geoff/Coding/Python/wimp/it_data/pos_bb_60GeV.dat")
-#    outfile = "/home/geoff/Coding/Python/wimp/bb60_m"+str(int(log10(M)))+"_b5_z"+str(z)+"_loss.data"
+#    outfile = "/home/geoff/Coding/Python/wimp/bb60_m"+str(int(np.log10(M)))+"_b5_z"+str(z)+"_loss.data"
 #    E_set = spectrum[0]
 #    Q_set = spectrum[1]
 #    loss = eloss_vector(E_set,5.0,ne,z)

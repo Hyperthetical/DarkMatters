@@ -1,5 +1,5 @@
 #cython: language_level=3
-from numpy import *
+import numpy as np
 
 def column(matrix,i):
     return np.array([row[i] for row in matrix])
