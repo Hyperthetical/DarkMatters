@@ -49,6 +49,24 @@ def get_rcore_ein(mvir,rvir,rho0,alpha):
         ---------------------------
         rs [Mpc] (float) 
     """
+    def root_rcore_ein(r,rvir,rho0,mvir,alpha):
+        """
+        Zeros of this function locate r=rs for einasto halos
+            ---------------------------
+            Parameters
+            ---------------------------
+            r     - Required : radial position [Mpc] (float)
+            rvir  - Required : virial radius [Mpc] (float)
+            rho0   - Required : characteristic density [Msol Mpc^-3] (float)
+            mvir  - Required : virial mass [Msol] (float)
+            alpha - Required : einasto parameter (float)
+            ---------------------------
+            Output
+            ---------------------------
+            Normalisation variance from mvir [Msol] (float)
+        """
+        x = rvir/r
+        return 4*np.pi*r**3*rho0*einInt(1e-7,x,alpha) - mvir
     #this optimises an r_s for the einasto profile with everything else specified
     return newton(root_rcore_ein,0.028*mvir/1.2e12,args=(rvir,rho0,mvir,alpha),maxiter=200) 
 
@@ -159,44 +177,6 @@ def cvir_ein(z,mvir,cos_env,cvir_match=False):
     else:
         return cosmology.cvir_p12(mvir,z,cos_env)
 
-def root_rvir_ein(r,rs,rho0,mvir,alpha):
-    """
-    Zeros of this function locate r=rvir for einasto halos
-        ---------------------------
-        Parameters
-        ---------------------------
-        r     - Required : radial position [Mpc] (float)
-        rs    - Required : radial scale length [Mpc] (float)
-        rho0   - Required : characteristic density [Msol Mpc^-3] (float)
-        mvir  - Required : virial mass [Msol] (float)
-        alpha - Required : einasto parameter (float)
-        ---------------------------
-        Output
-        ---------------------------
-        Normalisation variance from mvir [Msol] (float)
-    """
-    x = r/rs
-    return 4*np.pi*rs**3*rho0*einInt(1e-7,x,alpha) - mvir
-
-def root_rcore_ein(r,rvir,rho0,mvir,alpha):
-    """
-    Zeros of this function locate r=rs for einasto halos
-        ---------------------------
-        Parameters
-        ---------------------------
-        r     - Required : radial position [Mpc] (float)
-        rvir  - Required : virial radius [Mpc] (float)
-        rho0   - Required : characteristic density [Msol Mpc^-3] (float)
-        mvir  - Required : virial mass [Msol] (float)
-        alpha - Required : einasto parameter (float)
-        ---------------------------
-        Output
-        ---------------------------
-        Normalisation variance from mvir [Msol] (float)
-    """
-    x = rvir/r
-    return 4*np.pi*r**3*rho0*einInt(1e-7,x,alpha) - mvir
-
 def get_rvir_ein(rs,mvir,rho0,alpha):
     """
     Find rvir for an einasto halo by optimisation
@@ -212,43 +192,26 @@ def get_rvir_ein(rs,mvir,rho0,alpha):
         ---------------------------
         rvir [Mpc] (float)
     """
+    def root_rvir_ein(r,rs,rho0,mvir,alpha):
+        """
+        Zeros of this function locate r=rvir for einasto halos
+            ---------------------------
+            Parameters
+            ---------------------------
+            r     - Required : radial position [Mpc] (float)
+            rs    - Required : radial scale length [Mpc] (float)
+            rho0   - Required : characteristic density [Msol Mpc^-3] (float)
+            mvir  - Required : virial mass [Msol] (float)
+            alpha - Required : einasto parameter (float)
+            ---------------------------
+            Output
+            ---------------------------
+            Normalisation variance from mvir [Msol] (float)
+        """
+        x = r/rs
+        return 4*np.pi*rs**3*rho0*einInt(1e-7,x,alpha) - mvir
     return newton(root_rvir_ein,0.35*mvir/1.2e12,args=(rs,rho0,mvir,alpha))
 
-
-def root_rvir_burkert(r,rb,rho0,mvir):
-    """
-    Zeros of this function locate r=rvir for burkert halos
-        ---------------------------
-        Parameters
-        ---------------------------
-        r     - Required : radial position [Mpc] (float)
-        rb    - Required : radial scale [Mpc] (float)
-        rho0   - Required : characteristic density [Msol Mpc^-3] (float)
-        mvir  - Required : virial mass [Msol] (float)
-        ---------------------------
-        Output
-        ---------------------------
-        Normalisation variance from mvir [Msol] (float)
-    """
-    x = r/rb
-    return 0.25*(np.log(x**2+1)+2*np.log(1+x)-2*np.arctan(x))*4*np.pi*rb**3*rho0 - mvir
-
-def root_rcore_burkert(r,rvir,mvir):
-    """
-    Zeros of this function locate r=rs for burkert halos
-        ---------------------------
-        Parameters
-        ---------------------------
-        r     - Required : radial position [Mpc] (float)
-        rvir  - Required : virial radius [Mpc] (float)
-        mvir  - Required : virial mass [Msol] (float)
-        ---------------------------
-        Output
-        ---------------------------
-        Normalisation variance from mvir [Msol] (float)
-    """
-    x = rvir/r
-    return 0.25*(np.log(x**2+1)+2*np.log(1+x)-2*np.arctan(x))*4*np.pi*r**3*rhos_burkert(r) - mvir
 
 def get_rcore_burkert(rvir,mvir):
     """
@@ -263,6 +226,22 @@ def get_rcore_burkert(rvir,mvir):
         ---------------------------
         rs [Mpc] (float)
     """
+    def root_rcore_burkert(r,rvir,mvir):
+        """
+        Zeros of this function locate r=rs for burkert halos
+            ---------------------------
+            Parameters
+            ---------------------------
+            r     - Required : radial position [Mpc] (float)
+            rvir  - Required : virial radius [Mpc] (float)
+            mvir  - Required : virial mass [Msol] (float)
+            ---------------------------
+            Output
+            ---------------------------
+            Normalisation variance from mvir [Msol] (float)
+        """
+        x = rvir/r
+        return 0.25*(np.log(x**2+1)+2*np.log(1+x)-2*np.arctan(x))*4*np.pi*r**3*rhos_burkert(r) - mvir
     return newton(root_rcore_burkert,0.028*mvir/1.5e12,args=(rvir,mvir),maxiter=200)
 
 def get_rvir_burkert(rb,mvir):
@@ -278,6 +257,23 @@ def get_rvir_burkert(rb,mvir):
         ---------------------------
         rvir [Mpc] (float)
     """
+    def root_rvir_burkert(r,rb,rho0,mvir):
+        """
+        Zeros of this function locate r=rvir for burkert halos
+            ---------------------------
+            Parameters
+            ---------------------------
+            r     - Required : radial position [Mpc] (float)
+            rb    - Required : radial scale [Mpc] (float)
+            rho0   - Required : characteristic density [Msol Mpc^-3] (float)
+            mvir  - Required : virial mass [Msol] (float)
+            ---------------------------
+            Output
+            ---------------------------
+            Normalisation variance from mvir [Msol] (float)
+        """
+        x = r/rb
+        return 0.25*(np.log(x**2+1)+2*np.log(1+x)-2*np.arctan(x))*4*np.pi*rb**3*rho0 - mvir
     rho0 = rhos_burkert(rb)
     #print(rho0)
     return newton(root_rvir_burkert,0.15*mvir/1.5e12,args=(rb,rho0,mvir),maxiter=200)
@@ -380,6 +376,7 @@ def rvir_from_rho(z,rhos,rc,dmmod,cos_env,alpha=0.17):
         rvir [Mpc] (float)
     """
     target = cosmology.delta_c(z,cos_env) #density contast we need
+    print(target)
     #print(average_rho(rc,rhos,rc,dmmod))
     #print(average_rho(rc*30,rhos,rc,dmmod))
     return bisect(average_rho,rc,rc*1e2,args=(rhos,rc,dmmod,alpha,target))
@@ -416,7 +413,7 @@ def rho_nfw_core(halo,cos_env):
     n = np.tanh(q)
     f = [np.tanh(halo.r_sample[0]/rc),np.tanh(halo.r_sample[1]/rc)]
     rho_nfw = [rho_dm(halo.r_sample[0],rs,1),rho_dm(halo.r_sample[1],rs,1)]
-    M_nfw = tools.Integrate(rho_nfw[0]*halo.r_sample[0]**2,halo.r_sample[0])*4*pi
+    M_nfw = tools.Integrate(rho_nfw[0]*halo.r_sample[0]**2,halo.r_sample[0])*4*np.pi
     return [f[0]**n*rho_nfw[0] + n*f[0]**(n-1)*(1-f[0]**2)/4/np.pi/halo.r_sample[0]**2/rc*M_nfw,f[1]**n*rho_nfw[1] + n*f[1]**(n-1)*(1-f[1]**2)/4/np.pi/halo.r_sample[1]**2/rc*M_nfw]
 
 def rho_nfw(halo,cos_env):
@@ -719,7 +716,7 @@ def bfield(phys,halo,cos_env,b_flag):
         rcore_z0 = cosmology.rcore(halo.mvir,0.0,cos_env)
         rvir_z0 = cosmology.rvir(halo.mvir,0.0,cos_env)
         r_set_z0 = np.logspace(np.log10(rcore_z0*1e-7),np.log10(rvir_z0),num=n) #spherical shells within radio halo
-        neav_z0 =  phys.ne0*tools.SphAvg(king_radial_scale(r_set_z0,rcore_z0,-phys.qe),r_set_z0)
+        neav_z0 =  phys.ne0*tools.weightedVolAvg(king_radial_scale(r_set_z0,rcore_z0,-phys.qe),r_set_z0)
         b0 = normalise_b(halo.mvir,1e-3*phys.lc,rvir_z0,neav_z0,1.0/3)
         b_set = b0*equipartition_bfield_profile(halo.r_sample[0],1e-3*phys.lc,1.0/3)       #magnetic field within the halo
         phys.btag = "b"+str(b0)+"_equipartition"
@@ -800,5 +797,5 @@ def normalise_b(Mvir,rmin,rvir,ne,w):
     #KbT = 2*5.8e-13*(Mvir/1e-15)**(2.0/3)*delta**(1.0/3)
     Uth = ne*KbT*scaling
     r_set = np.logspace(np.log10(rmin),np.log10(rvir),num=101)
-    V = 4.0/3*pi*r_set[-1]**3
-    return np.sqrt(2.0*Uth*V/tools.Integrate(g(r_set,rmin,w)**2*r_set**2,r_set))*1e6
+    V = 4.0/3*np.pi*r_set[-1]**3
+    return np.sqrt(2.0*Uth*V/tools.Integrate(equipartition_bfield_profile(r_set,rmin,w)**2*r_set**2,r_set))*1e6

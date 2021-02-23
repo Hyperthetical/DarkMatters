@@ -51,7 +51,7 @@ def delta_c(z,cos_env):
         float []
     """
     x = 1.0 - omega_m(z,cos_env)
-    return (18.0*np.pi**2 - 82.0*x - 39.0*x**2)/omega_m(z,cos_env)
+    return (18.0*np.pi**2 - 82.0*x - 39.0*x**2)#/omega_m(z,cos_env)
 
 def cvir(M,z,cos_env):
     """

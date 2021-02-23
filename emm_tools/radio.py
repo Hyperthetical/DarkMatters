@@ -131,8 +131,8 @@ def int_bessel_intp(t):
     interpy = np.array([0.0996,0.213,0.445,0.613,0.818,0.904,0.918,0.918,0.872,0.742,0.655,0.301,0.130,2.14e-2,1.92e-4])
     spline = interp1d(interpx,interpy)
     result = -1*np.ones(len(t))
-    result = np.where(t>1e1,np.sqrt(np.sqrt(*0.5)*np.exp(-t)*np.sqrt(t),result)
-    result = np.where(t<1e-4,4*np.sqrt(/np.sqrt(3.0)/2.67894*(t*0.5)**(1.0/3),result)
+    result = np.where(t>1e1,np.sqrt(np.pi*0.5)*np.exp(-t)*np.sqrt(t),result)
+    result = np.where(t<1e-4,4*np.pi/np.sqrt(3.0)/2.67894*(t*0.5)**(1.0/3),result)
     #print(t,result)
     if t[np.where(result==-1.0)[0]] != []:
         result = np.where(result==-1.0,spline(t),result)
@@ -163,7 +163,6 @@ def radio_emm(halo,phys,sim):
 
     emm = np.zeros((num,n),dtype=float)   #emmisivity
     theta_set = np.zeros(ntheta,dtype=float) #angular sampling values
-    tset = np.zeros(ntheta,dtype=float) #angular sampling values
     theta_int = np.zeros(ntheta,dtype=float) #angular integral sampling
     int_1 = np.zeros(k,dtype=float) #energy integral sampling
 
@@ -171,7 +170,7 @@ def radio_emm(halo,phys,sim):
     me = 0.511e-3  #electron mass (GeV)
     c = 3.0e10     #speed of light (cm s^-1)
 
-    theta_set = np.linspace(1e-2,np.sqrt(,num=ntheta)  #choose angles 0 -> pi
+    theta_set = np.linspace(1e-2,np.pi,num=ntheta)  #choose angles 0 -> pi
     nu_cut = 1e12*phys.mx/3e3 #MHz -> cut-off to stop synchrotron calculations works up 3 TeV m_x
     
     for i in range(0,num):  #loop over freq
@@ -180,16 +179,15 @@ def radio_emm(halo,phys,sim):
             emm[i,:] = np.zeros(n)[:]
         else:
             for j in range(0,n):  #loop over r
-                r = halo.r_sample[0][j]
                 bmu = halo.b_sample[j]
                 ne = halo.ne_sample[j]#*(1+halo.z)**3
                 nu0 = 2.8*bmu*1e-6      #non-relativistic gyro freq
                 nup = 8980.0*np.sqrt(ne)*1e-6    #plasma freq 
-                a = 2.0*np.sqrt(*np.sqrt(3.0)*r0*me/c*1e6*nu0  #gyro radius
+                a = 2.0*np.pi*np.sqrt(3.0)*r0*me/c*1e6*nu0  #gyro radius
                 for l in range(0,k):   #loop over energy
                     g = phys.spectrum[0][l]
                     x = 2.0*nu/(3.0*nu0*g**2)*(1+(g*nup/nu)**2)**1.5 #dimensionless integration
-                    theta_int = 0.5*sin(theta_set)*int_bessel(x/sin(theta_set))  #theta integrand vectorised
+                    theta_int = 0.5*np.sin(theta_set)*int_bessel(x/np.sin(theta_set))  #theta integrand vectorised
                     #print(theta_int)
                     #integrate over that and factor in electron densities
                     P_S = a*integrate(theta_int,theta_set)
@@ -227,14 +225,14 @@ def radio_flux(rf,halo,sim):
     for i in range(0,num):
         if rf < 0.9*halo.r_sample[0][n-1]:
             halo_interp = sp.interp1d(halo.r_sample[0],halo.radio_emm[i])
-            rset = logspace(np.log10(halo.r_sample[0][0]),np.log10(rf),num=n)
+            rset = np.logspace(np.log10(halo.r_sample[0][0]),np.log10(rf),num=n)
             emm_r = halo_interp(rset)
         else:
             emm_r = halo.radio_emm[i]
             rset = halo.r_sample[0]
         jj = rset**2*emm_r
         #flux density as a function of frequency, integrate over r to get there
-        ff[i] = 4.0*np.sqrt(*integrate(jj/(halo.dl**2+rset**2),rset)/(4.0*np.sqrt()
+        ff[i] = 4.0*np.pi*integrate(jj/(halo.dl**2+rset**2),rset)/(4.0*np.pi)
     ff = ff*3.09e24   #flux density in GeV cm^-2
     ff = ff*1.60e20    #flux density in Jy
     ff = ff*boost_mod #accounts for reduced boost for radio flux when using Prada 2013 boosting
@@ -262,8 +260,8 @@ def radio_sb(nu_sb,halo,sim):
         emm = interp2d(sim.f_sample,halo.r_sample[0],halo.radio_emm)
         emm_nu = emm(nu_sb,halo.r_sample[0])
     print(emm_nu)
-    if any(isnan(emm_nu)):
-        nanIndex = abs(np.where(isnan(emm_nu))[0][0] - sim.n)
+    if any(np.isnan(emm_nu)):
+        nanIndex = np.abs(np.where(np.isnan(emm_nu))[0][0] - sim.n)
     else:
         nanIndex = 0
     for j in range(0,sim.n-nanIndex):
@@ -275,4 +273,4 @@ def radio_sb(nu_sb,halo,sim):
             else:
                 lum[k] = emm_nu[k]*r/np.sqrt(r**2-rprime**2)
         sb[j] = 2.0*integrate(lum,halo.r_sample[0]) #the 2 comes from integrating over diameter not radius
-    return sb*3.09e24*1.6e20/(4*np.sqrt()/1.1818e7 #unit conversions and adjustment to angles 
+    return sb*3.09e24*1.6e20/(4*np.pi)/1.1818e7 #unit conversions and adjustment to angles 

@@ -2,11 +2,13 @@
 import numpy as np
 try:
     from wimp_tools import cosmology,tools,environments,astrophysics
+    from scipy.optimize import bisect
 except:
     import wimp_tools.cosmology as cosmology
     import wimp_tools.tools as tools
     import wimp_tools.environments as environments
     import wimp_tools.astrophysics as astrophysics
+    from scipy.optimize import bisect
 
 def b_sanchez(M,Mmin,z,cosmo):
     alpha = -2.0
@@ -28,6 +30,15 @@ def b_p12(M,cosmo):
     n = np.array([0,1,2,3,4,5],dtype=int)
     bp = (bi*lm**n).sum()
     return 10**bp
+
+def fSubDistSpekkens08(r,halo,omega_m_0):
+    #This is defined in 0809.0898
+    r50 = bisect(astrophysics.average_rho, halo.rcore, halo.rcore*1e2, args=(halo.rhos,halo.rcore,halo.dm,halo.alpha,200*omega_m_0))
+    alpha = -0.36
+    beta = 0.87
+    gamma = -1.31
+    #print(r50,bisect(astrophysics.average_rho, halo.rcore, halo.rcore*1e2, args=(halo.rhos,halo.rcore,halo.dm,halo.alpha,50)))
+    return np.exp(gamma + beta*np.log(r/r50) + 0.5*alpha*np.log(r/r50)**2)
 
 def rho_sub_dist(r_set,rho,rb,N,dmmod,alphas):
     #returns spacial density of sub halos relative to rho_crit
@@ -90,8 +101,6 @@ def radio_power_ratio(halo,phys,sim):
                 P_S[j] = tools.Integrate(P_Sj[:,j],phys.spectrum[0])
             av += P_S/P_S[0]/num
     return av
-
-
 
 
 def mass_sub(ms,mstar,mu):

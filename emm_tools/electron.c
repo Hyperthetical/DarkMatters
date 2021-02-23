@@ -7,36 +7,38 @@
 
 using namespace std;
 
-double simps_3_8( double h, int const n,double x[], double f[] ) {
-
-   double integral = f[0]*x[0] + 3.0 * f[1]*x[1] + 3.0*f[2]*x[2];
-   int i;
-
-   for (i = 3; i < (n + n + n); i += 3)
-      integral += 2.0 * f[i] * x[i] + 3.0 * f[i+1]*x[i+1] + 3.0*f[i+2]*x[i+2];
-
-   return 3.0/8 *  h * ( integral + f[i]*x[i] )*log(10.0);
+double simps_3_8(int const n,std::vector<double> &x,std::vector<double> &y){
+    double w,result,h;
+    h = (log10(x[n-1]) - log10(x[0]))/(n-1);
+    result = 0.0;
+    for (int i = 0;i<n;i++){
+        if ((i == 0) || (i == n-1)){
+            w = 1.0;
+        }
+        else if (i%3 == 0){
+            w = 2.0;
+        }
+        else{
+            w = 3.0;
+        }
+        result += h*w*x[i]*y[i]*log(10.0)*3/8.0;
+    }
+    return result;
 }
 
 double simps(int const n,std::vector<double> &x,std::vector<double> &y){
     double w,result,h;
-    std::vector<double> lx(n);
-    std::vector<double> ly(n);
-    for (int i = 0;i<n;i++){
-        lx[i] = log10(x[i]);
-        ly[i] = log10(y[i]);
-    }
-    h = (lx[n-1] - lx[0])/(n-1);
+    h = (log10(x[n-1]) - log10(x[0]))/(n-1);
     result = 0.0;
     for (int i = 0;i<n;i++){
         if ((i == 0) || (i == n-1)){
             w = 1.0;
         }
         else if (i%2 == 0){
-            w = 4.0;
+            w = 2.0;
         }
         else{
-            w = 2.0;
+            w = 4.0;
         }
         result += h*w*x[i]*y[i]*log(10.0)/3.0;
     }
@@ -171,8 +173,8 @@ std::vector<double> equilibrium_p(int const k,std::vector<double> &E_set,std::ve
                                 int_v2[i2] = pow(E3*me,2.0-delta)/loss[i2];
                             }
                         }
-                        double v1 = simps(k,E_set,int_v1);
-                        double v2 = simps(k,E_set,int_v2);
+                        double v1 = simps_3_8(k,E_set,int_v1);
+                        double v2 = simps_3_8(k,E_set,int_v2);
                         dv = v1-v2;   //spacial diffusion gradient
                         dv *= d0/pow(3.09e24,2.0); //Mpc^2
                         //printf("%le \n",dv);
@@ -186,7 +188,7 @@ std::vector<double> equilibrium_p(int const k,std::vector<double> &E_set,std::ve
             }
             //#pragma omp atomic
             //electrons[n*i +j] = 2.0*simps_3_8((log10(E_set[k-1])-log10(E_set[0]))/((k-1)/3.0-1),(k-1)/3,E_set,int_E)/loss[i]*rhosq[j]; //the 2 is for electrons and positrons
-            electrons[n*i +j] = 2.0*simps(k,E_set,int_E)/loss[i]*rhosq[j]; //the 2 is for electrons and positrons
+            electrons[n*i +j] = 2.0*simps_3_8(k,E_set,int_E)/loss[i]*rhosq[j]; //the 2 is for electrons and positrons
             #pragma omp atomic
             steps_done++;
             #pragma omp critical
