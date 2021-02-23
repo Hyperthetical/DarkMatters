@@ -1,8 +1,6 @@
 set profile einasto
 set alpha 4e-1
 set submode none
-set input_spectra_directory /home/geoff/Dropbox/Physics/Wimps/data_input/production_spectra
-set output_directory /home/geoff/Dropbox/Physics/Wimps/test
 set B 1.0
 set flim 5e1 1e21
 set f_num 200 

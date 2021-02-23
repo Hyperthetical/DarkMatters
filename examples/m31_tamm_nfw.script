@@ -2,7 +2,6 @@
 #halo data from 1208.5712
 set mvir 1.04e12 #nfw
 set profile nfw
-set input_spectra_directory /home/geoff/Dropbox/Physics/Wimps/data_input/production_spectra/madala
 set alpha 1.8e-1
 set electrons_from_c t /home/geoff/Dropbox/Physics/Wimps/dark_matters/emm_tools/electron.x
 set B 4.6
@@ -29,10 +28,9 @@ set name m31_tamm
 set d 0.05
 set z 0.0001746
 set nu_flavour mu
-#set wimp_mode decay
-set model_independent 1
+set model_independent 0
+set particle_model madala_22_spin0
 set mx_set 200 300 400
-set channel bb
 b rflux r_integrate
 set channel mumu
 b rflux r_integrate
