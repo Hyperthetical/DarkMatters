@@ -1,6 +1,7 @@
 #cython: language_level=3
 import numpy as np
 from scipy.integrate import simps as integrate
+from scipy import interpolate as sp
 try:
     from wimp_tools import cosmology,astrophysics,tools,substructure,ucmh
 except:

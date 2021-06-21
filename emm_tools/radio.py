@@ -198,6 +198,7 @@ def radio_emm(halo,phys,sim):
                 #print(emm[i][j])
         progress(i+1,num)
     sys.stdout.write("\n")
+    emm = np.where(np.isnan(emm),0.0,emm)
     return emm
 
 def radio_flux(rf,halo,sim):

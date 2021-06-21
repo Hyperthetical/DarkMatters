@@ -176,7 +176,7 @@ std::vector<double> equilibrium_p(int const k,std::vector<double> &E_set,std::ve
                         double v1 = simps_3_8(k,E_set,int_v1);
                         double v2 = simps_3_8(k,E_set,int_v2);
                         dv = v1-v2;   //spacial diffusion gradient
-                        dv *= d0/pow(3.09e24,2.0); //Mpc^2
+                        dv *= d0;//pow(3.09e24,2.0)*exp(r/35e-6); //Mpc^2
                         //printf("%le \n",dv);
                     }
                     else{
@@ -266,7 +266,7 @@ int main(int argc, char *argv[]){
         fscanf(fptr,"%d %d %lf %lf",&diff,&ISRF,&d0,&mode_exp);
         fclose(fptr);
         //printf("%le %le %le %le %le %le \n",z,mchi,lc,delta,ne_av,b_av);
-        //printf("%d \n",diff);
+        //printf("%le \n",d0);
         std::vector<double> electrons = equilibrium_p(k,e_set,q_set,n,n_gr,r_set,r_set_gr,rhosq,rhosq_gr,b_set,ne_set,z,mchi,lc,delta,diff,b_av,ne_av,d0,ISRF,mode_exp);
         fptr = fopen(argv[2],"w");
         for (int i = 0;i<k;i++){

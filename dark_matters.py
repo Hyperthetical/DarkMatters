@@ -1,3 +1,4 @@
+from output import calculation
 import sys,getopt,time,os
 from copy import deepcopy
 try:
@@ -250,6 +251,41 @@ def process_command(command,phys,sim,halo,cos_env,loop):
                 calculations[i].calcSB(sim.nu_sb,calc_mode,full_id=full_id,suppress_output=False)
             else:
                 calculations[i].calcFlux(calc_mode,regionFlag=theta_flag,full_id=full_id,suppress_output=False)
+    elif s[0].lower() in ["f","fits"]:
+        print("=========================================================")
+        print("Preparing to output fits data cubes")
+        print("=========================================================")
+        fitsModes = ["electrons","emmisivity"]
+        if calculations == []:
+            tools.fatal_error("no calculations have been produced to output yet!")
+        try:
+            if not s[1].lower() in fitsModes:
+                tools.fatal_error("command "+s[0].lower()+" must be supplied with a an output type from: "+fitsModes)
+            else:
+                calc_mode = s[1].lower()
+        except:
+            tools.fatal_error("command "+s[0].lower()+" must be supplied with an output type from: "+fitsModes)
+        indices = getIndex(s)
+        print("Output command: "+s[1])
+        full_id = True
+        if calc_mode == "electrons":
+            for i in indices:
+                if calculations[i].halo.electrons is None:
+                    tools.fatal_error("All runs must have had electron distributions calculated")
+            output.fitsElectron(calculations)
+        else:
+            try:
+                if not s[2].lower() in calc_dict:
+                    tools.fatal_error("command "+s[1].lower()+" must be supplied with a fluxmode from: "+calc_dict.keys)
+                else:
+                    calc_mode = s[1].lower()
+            except:
+                tools.fatal_error("command "+s[1].lower()+" must be supplied with a fluxmode from: "+calc_dict.keys)
+            for i in indices:
+                emmDict = {"rflux":"radio_emm","gflux":"gamma_emm","hflux":"he_emm","nuflux":"nu_emm"}
+                if getattr(calculations[i].halo,emmDict[s[2].lower()]) is None:
+                    tools.fatal_error("All runs must have had {} emmisivity computed".format(s[2].lower()))
+            output.fitsEmm(calculations,s[2].lower())
     elif s[0].lower() in ["c+o","calc+out","calc+output"]:
         try:
             print("Calculation Task Given: "+calc_dict[s[1]])
@@ -754,14 +790,14 @@ def checkSpectra(spec_file,phys,eData):
 
 def interpolateInput(mx,mxSet,xLog,chData,specLength):
     chTable = []
-    xTarget = linspace(min(xLog),max(xLog),num=specLength)
-    for m in unique(mxSet):
+    xTarget = np.linspace(min(xLog),max(xLog),num=specLength)
+    for m in np.unique(mxSet):
         mData = chData[np.where(mxSet==m)]
         eData = xLog[np.where(mxSet==m)]
         intSpec = interp1d(eData,mData)
         chTable.append(intSpec(xTarget))
     #print(interp2d(xTarget,unique(mxSet),np.array(chTable))(xTarget,mx))
-    return 10**(xTarget)*mx,interp2d(xTarget,unique(mxSet),np.array(chTable))(xTarget,mx)/np.log(10.0)/10**(xTarget)/mx
+    return 10**(xTarget)*mx,interp2d(xTarget,np.unique(mxSet),np.array(chTable))(xTarget,mx)/np.log(10.0)/10**(xTarget)/mx
 
 def gather_spectrum(spec_dir,phys,sim,mode="ann"):
     """

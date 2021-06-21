@@ -2,6 +2,7 @@ import numpy as np
 from os.path import join
 import sys,os
 from copy import deepcopy
+from astropy.io import fits 
 
 try:
     from wimp_tools import tools,cosmology_env,simulation_env,physical_env,loop_env,halo_env #wimp handling package
@@ -35,7 +36,7 @@ class calculation:
         self.allXUnits = ["hz","ev"]
         self.allYUnits = ["erg","ev","jy"]
         self.prefix = {"hz":{"k":1e3,"m":1e6,"g":1e9,"t":1e12,"p":1e15},"ev":{"k":1e3,"m":1e6,"g":1e9,"t":1e12,"p":1e15},"jy":{"m":1e-3,"u":1e-6}}
-        self.outLabel = {"gflux":"gamma","hflux":"he","rflux":"radio","flux":"multi","jflux":"he_jflux","nuflux":"nu_"+flavourStr,"nu_jflux":"nu_"+flavourStr+"_jflux"}
+        self.outLabel = {"sb":"sb","gflux":"gamma","hflux":"he","rflux":"radio","flux":"multi","jflux":"he_jflux","nuflux":"nu_"+flavourStr,"nu_jflux":"nu_"+flavourStr+"_jflux"}
 
     def calcSB(self,nu,calcMode,full_id=True,suppress_output=False):
         """
@@ -306,18 +307,15 @@ class calculation:
             Flux data returned as array-like float
         """ 
         fRatio = self.__jNormSelf(fluxMode,"theta")
-        if fluxMode == "rflux" or fluxMode == "flux":
-            if self.halo.radio_emm is None:
-                self.__calcEmm(fluxMode)
-            print("=========================================================")
-            print("Calculating Synchrotron Surface brightness")
-            print("=========================================================")
-            radioSB = radio.radio_sb(nu,self.halo,self.sim)
-            print('Magnetic Field Average Strength: '+str(self.halo.bav)+" micro Gauss")
-            print('Gas Average Density: '+str(self.halo.neav)+' cm^-3')
-            print("Process Complete")
-            if fluxMode == "rflux":
-                return radioSB*fRatio
+        if self.halo.radio_emm is None:
+            self.__calcEmm(fluxMode)
+        print("=========================================================")
+        print("Calculating Synchrotron Surface brightness")
+        print("=========================================================")
+        radioSB = radio.radio_sb(nu,self.halo,self.sim)
+        print('Magnetic Field Average Strength: '+str(self.halo.bav)+" micro Gauss")
+        print('Gas Average Density: '+str(self.halo.neav)+' cm^-3')
+        print("Process Complete")
         
         return radioSB*fRatio
 
@@ -472,11 +470,22 @@ class calculation:
             ---------------------------
             Writes to a file or stdout
         """
+        class stringStream:
+            def __init__(self,string):
+                self.text = string
+
+            def write(self,string):
+                self.text += string
+
         if(log is None):
             outstream = sys.stdout
+        elif isinstance(log,str):
+            outstream = stringStream(log)
         else:
             outstream = open(log,"w")
         end = "\n"
+        if isinstance(log,str):
+            end = ""
         if log is None:
             prefix = ""
         else:
@@ -628,8 +637,12 @@ class calculation:
                 outstream.write(prefix+'Turbulence scale: '+str(self.phys.lc)+' kpc'+end)
                 outstream.write(prefix+'Turbulence Index: '+str(self.phys.delta)+end)
                 outstream.write(prefix+'Diffusion constant: '+str(self.phys.d0)+" cm^2 s^-1"+end)
-        if not log is None:
+        if isinstance(log,str):
+            return outstream.text
+        elif not log is None:
             outstream.close()
+
+    
 
 def writeFile(file_name,data,cols,index_row=0,append=False):
     """
@@ -669,7 +682,7 @@ def writeFile(file_name,data,cols,index_row=0,append=False):
             outfile.write("\n")
     outfile.close()
 
-def getCalcID(sim,phys,cos_env,halo,noBfield=False,noGas=False,short_id=False):
+def getCalcID(sim,phys,cos_env,halo,noBfield=False,noGas=False,short_id=False,noMass=False):
     """
     Builds an output file id code
         ---------------------------
@@ -733,7 +746,10 @@ def getCalcID(sim,phys,cos_env,halo,noBfield=False,noGas=False,short_id=False):
     except:
         mxStr = str(phys.mx) 
 
-    wimp_str = phys.particle_model+"_mx"+mxStr+"GeV"
+    if not noMass:
+        wimp_str = phys.particle_model+"_mx"+mxStr+"GeV"
+    else:
+        wimp_str = phys.particle_model
     if halo.mode == "decay":
         wimp_str += "_decay"
     if short_id:
@@ -759,4 +775,74 @@ def getCalcID(sim,phys,cos_env,halo,noBfield=False,noGas=False,short_id=False):
         file_id = halo_str+wimp_str+z_str+field_str+diff_str[:-1]
     return file_id
 
+def fitsEmm(calcSet,fluxMode):
+    emmCube = []
+    if fluxMode == "rflux":
+        fluxStr = "sync"
+    elif fluxMode == "hflux":
+        fluxStr = "gamma"
+    elif fluxMode == "nuflux":
+        fluxStr = "neutrino"
+    for c in calcSet:
+        if fluxMode == "rflux":
+            emmCube.append(c.halo.radio_emm)
+        elif fluxMode == "hflux":
+            emmCube.append(c.halo.he_emm)
+        elif fluxMode == "nuflux":
+            emmCube.append(c.halo.nu_emm)
+    emmCube = np.array(emmCube,dtype=np.float64)
+    hdu = fits.PrimaryHDU(emmCube)
+    hdr = hdu.header
+    hdr['CRSET1'] = " ".join(str(mx) for mx in calcSet[0].sim.mx_set)
+    hdr['CTYPE1'] = "WIMP Mass"
+    hdr["CUNIT1"] = "GeV"
+    hdr['CRVAl2'] = calcSet[0].sim.f_sample[0]
+    hdr['CRPIX2'] = 0
+    hdr['CDELT2'] = np.log10(calcSet[0].sim.f_sample[1]) - np.log10(calcSet[0].sim.f_sample[0]) 
+    hdr['CTYPE2'] = "Frequency"
+    hdr["CUNIT2"] = "MHz"
+    hdr['CRSET2'] = " ".join(str(x) for x in calcSet[0].sim.f_sample)
+    hdr['CRVAl3'] = calcSet[0].halo.r_sample[0][0]
+    hdr['CRPIX3'] = 0
+    hdr['CDELT3'] = np.log10(calcSet[0].halo.r_sample[0][1]) - np.log10(calcSet[0].halo.r_sample[0][0]) 
+    hdr['CTYPE3'] = "Radius"
+    hdr["CUNIT3"] = "Mpc"
+    hdr['CRSET3'] = " ".join(str(x) for x in calcSet[0].halo.r_sample[0])
+    dmHDR = calcSet[0].calcWrite(log="")
+    hdr["DMHDR"] = dmHDR
+    hdul = fits.HDUList([hdu])
+    hdul.writeto(getCalcID(calcSet[0].sim,calcSet[0].phys,calcSet[0].cosmo,calcSet[0].halo,noMass=True)+"_"+fluxStr+"_emm.fits",overwrite=True)
 
+def fitsElectron(calcSet):
+    eCube = []
+    hdus = []
+    for c in calcSet:
+        eCube = c.halo.electrons
+        eCube = np.array(eCube,dtype=np.float64)
+        if hdus == []:
+            hdu = fits.PrimaryHDU(eCube)
+        else:
+            hdu = fits.ImageHDU(eCube)
+        hdr = hdu.header
+        # hdr['CRSET1'] = " ".join(str(mx) for mx in c.sim.mx_set)
+        # hdr['CRVAl1'] = c.phys.mx
+        # hdr['CTYPE1'] = "WIMP Mass"
+        # hdr["CUNIT1"] = "GeV"
+        hdr['CRVAl1'] = c.phys.spectrum[0][0]
+        hdr['CRSET1'] = " ".join(str(ps) for ps in c.phys.spectrum[0])
+        hdr['CRPIX1'] = 0
+        hdr['CDELT1'] = np.log10(c.phys.spectrum[0][1]*c.phys.me) - np.log10(c.phys.spectrum[0][0]*c.phys.me) 
+        hdr['CTYPE1'] = "Electron energy (log10-spaced)"
+        hdr["CUNIT1"] = "GeV"
+        hdr['CRVAl2'] = c.halo.r_sample[0][0]
+        hdr['CRSET2'] = " ".join(str(x) for x in c.halo.r_sample[0])
+        hdr['CRPIX2'] = 0
+        hdr['CDELT2'] = np.log10(c.halo.r_sample[0][1]) - np.log10(c.halo.r_sample[0][0]) 
+        hdr['CTYPE2'] = "Radius (log10-spaced)"
+        hdr["CUNIT2"] = "Mpc"
+        hdr["WIMP"] = c.phys.mx
+        dmHDR = c.calcWrite(log="")
+        hdr["DMHDR"] = dmHDR
+        hdus.append(hdu)
+    hdul = fits.HDUList(hdus)
+    hdul.writeto(getCalcID(calcSet[0].sim,calcSet[0].phys,calcSet[0].cosmo,calcSet[0].halo,noMass=True)+"_electrons.fits",overwrite=True)

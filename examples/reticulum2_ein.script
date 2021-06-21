@@ -2,14 +2,14 @@ set profile einasto
 set alpha 4e-1
 set submode none
 set B 1.0
-set flim 5e1 1e21
-set f_num 200 
+set flim 5e1 1e5
+set f_num 40 
 set electrons_from_c t /home/geoff/Dropbox/Physics/Wimps/dark_matters/emm_tools/electron.x
 set submode none
 set rcore 0.2e-3
 set rho0 7e16
 set r_stellar_half_light 35e-6 #stellar half-light radius gets used as radial scale in exp profiles
-set e_bins 49
+set e_bins 71
 set r_num 71
 set gr_num 201
 set b_model exp
@@ -19,18 +19,21 @@ set delta 1.66666
 set name reticulum2
 set diffusion_constant 3.1e28
 set diff 1
-set nloop 100
 set ne 1e-6
 set d 1.0e-3
 set z 6.8e-6
-set theta 30
-set jfactor 8e18 reticulum2
+set theta 20
+#set jfactor 8e18 reticulum2
 set name reticulum2
-set jflag 1 #this forces the halo density to normalise to the input Jfactor 
+set jflag 0 #this forces the halo density to normalise to the input Jfactor 
 set nu_flavour mu
-set mx_set 300  
 set wimp_mode ann
-set model_independent 0
-set particle_model madala_22_spin0
-c+o flux theta
+set model_independent 1
+#set particle_model madala_22_spin0
+set channel bb
+c+o rflux theta
+set channel mumu
+c+o rflux theta
+set channel tautau
+c+o rflux theta
 exit
