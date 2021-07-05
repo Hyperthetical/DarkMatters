@@ -516,7 +516,7 @@ def process_set(line,phys,sim,halo,cos_env,loop):
 
     loop_commands = {"nloop":[loop,"int","mn","(number of mass samples in loop)"]}
 
-    hsp2_commands = {"model_independent":[phys,"boolean","model_independent","(1 or 0 flag for model independent approach)"],"diffusion_constant":[phys,"float","d0","(diffusion constant (cm^2 s^-1))"],"isrf":[phys,"int","ISRF","(inter-sellar radiation field flag (1 or 0))"],"output_directory":[sim,"string","out_dir","(output directory)"],"nfw_index":[halo,"float","gnfw_gamma","(gnfw gamma index)"]}
+    hsp2_commands = {"model_independent":[phys,"boolean","model_independent","(1 or 0 flag for model independent approach)"],"diffusion_constant":[phys,"float","d0","(diffusion constant (cm^2 s^-1))"],"isrf":[phys,"int","ISRF","(inter-sellar radiation field flag (1 or 0))"],"output_directory":[sim,"string","out_dir","(output directory)"],"nfw_index":[halo,"float","gnfw_gamma","(gnfw gamma index)"],"halo_weights":[halo,"string","weights","(Weights for averaging physical quantities)"]}
 
     commands = {**hsp_commands,**cosmo_commands}
     commands = {**commands,**loop_commands,**hsp2_commands}

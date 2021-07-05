@@ -442,6 +442,7 @@ class halo_env:
         #===================================================
         self.mode = mode.lower()
         self.mode_exp = 2.0 #2.0 -> annihilation, 1.0 -> decay
+        self.weights = None
     
     def check_self(self):
         if self.ucmh != 0:
@@ -524,7 +525,10 @@ class halo_env:
            self.multi_virflux = self.radio_virflux + self.he_virflux 
 
     def physical_averages(self,rmax):
-        weights = self.rho_dm_sample[0] #the average is weighted
+        if self.weights is None or self.weights == "rho":
+            weights = self.rho_dm_sample[0] #the average is weighted
+        elif self.weights == "flat":
+            weights = np.ones(len(self.rho_dm_sample[0]),dtype=np.float64)
         if self.bav_flag == 0:
             self.bav = tools.weightedVolAvg(self.b_sample,self.r_sample[0],weights,rmax)
         if self.neav_flag == 0:
@@ -730,15 +734,17 @@ class halo_env:
                 self.rho_dm_sample[0] = (self.rho_dm_sample[0]*self.rhos*rhoc)**self.mode_exp
                 self.rho_dm_sample[1] = (self.rho_dm_sample[1]*self.rhos*rhoc)**self.mode_exp
             #======================================================================================
+            if self.weights is None or self.weights == "rho":
+                weights = self.rho_dm_sample[0] #the average is weighted
+            elif self.weights == "flat":
+                weights = np.ones(len(self.rho_dm_sample[0]),dtype=np.float64)
             if phys.b_flag == "flat" and self.bav == 0.0:
                 self.bav = phys.b0
             elif self.bav == 0.0: #check it wasn't set by input
-                weights = self.rho_dm_sample[0] #the average is weighted
                 self.bav = tools.weightedVolAvg(self.b_sample,self.r_sample[0],weights,self.rvir)
             else:
                 self.bav_flag = 1
             if self.neav == 0.0:
-                weights = self.rho_dm_sample[0]
                 self.neav = tools.weightedVolAvg(self.ne_sample,self.r_sample[0],weights,self.rvir)
             else:
                 self.neav_flag = 1
