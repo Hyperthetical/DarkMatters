@@ -176,7 +176,7 @@ std::vector<double> equilibrium_p(int const k,std::vector<double> &E_set,std::ve
                         double v1 = simps_3_8(k,E_set,int_v1);
                         double v2 = simps_3_8(k,E_set,int_v2);
                         dv = v1-v2;   //spacial diffusion gradient
-                        dv *= d0;//pow(3.09e24,2.0)*exp(r/35e-6); //Mpc^2
+                        dv *= d0/pow(3.09e24,2.0);//*exp(r/35e-6); //Mpc^2
                         //printf("%le \n",dv);
                     }
                     else{
