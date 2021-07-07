@@ -721,6 +721,10 @@ def getCalcID(sim,phys,cos_env,halo,noBfield=False,noGas=False,short_id=False,no
     else:
         sub_str = "none"
     sub_str += "_"
+    if halo.weights == "flat":
+        sub_str += "weights-flat_"
+    else:
+        sub_str += "weights-rhosq_"
 
     z_str = "z"+str(halo.z)+"_"  #redshift value to append to file names
 
@@ -734,6 +738,7 @@ def getCalcID(sim,phys,cos_env,halo,noBfield=False,noGas=False,short_id=False,no
 
     if not halo.name is None:
         halo_str = halo.name
+        z_str = ""
     else:
         halo_str = "m"+str(int(np.log10(halo.mvir)))
     halo_str += "_"
