@@ -583,7 +583,10 @@ class calculation:
             elif(self.phys.ne_model == "exp"):
                 outstream.write(prefix+'Gas Distribution: '+"Exponential"+end)
                 outstream.write(prefix+'Gas Central Density: '+str(self.phys.ne0)+' cm^-3'+end)
-                outstream.write(prefix+'Scale radius: '+str(self.halo.r_stellar_half_light*1e3)+" kpc"+end)
+                if self.halo.r_stellar_half_light is None:
+                    outstream.write(prefix+'Scale radius: '+str(self.phys.lb*1e3)+" kpc"+end)
+                else:
+                    outstream.write(prefix+'Scale radius: '+str(self.halo.r_stellar_half_light*1e3)+" kpc"+end)
 
             if(writeMode == "flux"):
                 outstream.write(prefix+'Gas Average Density (rvir): '+str(self.halo.neav)+' cm^-3'+end)
