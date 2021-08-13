@@ -1,4 +1,5 @@
 #cython: language_level=3
+from matplotlib.pyplot import csd
 import numpy as np
 from scipy.integrate import simps as integrate
 from scipy import interpolate as sp
@@ -121,6 +122,13 @@ class simulation_env:
             return True
         else:
             return False
+
+    def simFromHeader(self,hdr):
+        #need: boost, radio_boost
+        r_sample = np.array(hdr['CRSET3'].split(),dtype=np.float64)
+        self.n = len(r_sample)
+        self.f_sample = np.array(hdr['CRSET2'].split(),dtype=np.float64)
+        self.num = len(self.f_sample)
         
 class physical_env:
     """
@@ -263,6 +271,11 @@ class physical_env:
                     self.particle_model += "%3.2f"%br+str(ch)
         return check
 
+    def physFromHeader(self,hdr):
+        self.particle_model = hdr['PMODEL']
+    
+    
+
 class halo_env:
     """
     Container for all halo related parameters
@@ -342,7 +355,7 @@ class halo_env:
         setup_halo           - args : self, sim, phys, cosmo - setup non-ucmh halo values from input data
 
     """
-    def __init__(self,z=None,m=None,fs=0.0,dmmod=None,alpha=0.17,name=None,mode="ann"):
+    def __init__(self,z=None,m=None,fs=0.0,dmmod=None,alpha=None,name=None,mode="ann"):
         self.name = name #just halo name for labelling output files
         self.ready = False #if halo has been set-up or not
         self.electrons = None #annihilation product electron density
@@ -359,6 +372,7 @@ class halo_env:
         self.dm = dmmod #flag to decide halo density profile, -1 -> Einasto, 2 -> Burkert, 1 - > NFW, 3 -> Isothermal
         self.alpha = alpha #Einasto parameter
         self.gnfw_gamma = 1.0 #generalised nfw index
+        self.profileCalcMode = 0 #how we compute the densty profile
         #===================================================
         # Jfactor Parameters
         #===================================================
@@ -410,9 +424,6 @@ class halo_env:
         self.radio_emm = None #radio emm
         self.gamma_emm = None #gamma emm
         self.he_emm = None #brem + ics emm
-        self.radio_emm_nu = None #single frequency radio emm
-        self.he_emm_nu = None #single frequency high energy emm
-        self.gamma_emm_nu = None #single frequency gamma emm
         self.nu_emm = None #neutrino emmissivity   
         #===================================================
         # Fluxes
@@ -443,6 +454,7 @@ class halo_env:
         self.mode = mode.lower()
         self.mode_exp = 2.0 #2.0 -> annihilation, 1.0 -> decay
         self.weights = None
+        self.profileDict = {"einasto":-1,"nfw":1,"burkert":2,"isothermal":3}
     
     def check_self(self):
         if self.ucmh != 0:
@@ -469,6 +481,9 @@ class halo_env:
             elif(self.profile.lower() == "einasto" or self.profile.lower() == "ein"):
                 self.profile = "einasto"
                 self.dm = -1
+                if self.alpha is None:
+                    print("Warning: Einasto alpha parameter not set, defaulting to 0.17")
+                    self.alpha = 0.17
             elif(self.profile.lower() == "moore"):
                 self.profile = "gnfw"
                 self.dm = 1.5
@@ -487,31 +502,22 @@ class halo_env:
                 haloCheck = False
 
             #this is to check we have enough halo information, experimental
-            if self.rcore is None:
-                rcIndex = 0
+            rvirInfo = not (self.mvir is None and self.rvir is None)
+            rhoInfo = not (self.rhos is None and self.rho0 is None)
+            rsInfo = not (self.rcore is None)
+            cvirInfo = not self.cvir is None 
+            if rsInfo and rhoInfo:
+                haloInfoCheck = True
+                self.profileCalcMode = 0
+            elif rvirInfo and rsInfo:
+                haloInfoCheck = True
+                self.profileCalcMode = 1
+            elif rvirInfo and cvirInfo:
+                haloInfoCheck = True
+                self.profileCalcMode = 2
             else:
-                rcIndex = 1
-            if self.rhos is None and self.rho0 is None:
-                rhosIndex = 0
-            else:
-                rhosIndex = 1
-            if self.mvir is None:
-                mvirIndex = 0
-            else:
-                mvirIndex = 2
-            if self.rvir is None:
-                rvirIndex = 0
-            else:
-                rvirIndex = 1
-            if self.cvir is None:
-                cvirIndex = 0
-            else:
-                cvirIndex = 1
-            if cvirIndex + rvirIndex + mvirIndex + rhosIndex + rcIndex < 2:
-                indexNone = False
-            else:
-                indexNone = True
-            if zNone and indexNone and haloCheck:
+                haloInfoCheck = False
+            if zNone and haloInfoCheck and haloCheck:
                 check = True
             else:
                 check = False
@@ -539,7 +545,57 @@ class halo_env:
         self.bav = 0.0
         self.neav_flag = 0
         self.neav = 0.0
-    
+
+    def rhoNorm(self,cosmo):
+        if self.rho0 is None and not self.rhos is None:
+            self.rho0 = self.rhos*cosmology.rho_crit(self.z,cosmo)
+        elif self.rhos is None and not self.rho0 is None:
+            self.rhos = self.rho0/cosmology.rho_crit(self.z,cosmo)
+        else:
+            self.rho0 = self.mvir/astrophysics.rho_volume_int(self.rvir,self.rcore,1,self.dm,self.alpha)
+            self.rhos = self.rho0/cosmology.rho_crit(self.z,cosmo)
+
+    def rhoProfileCalc(self,cosmo):
+        if self.profileCalcMode == 1:
+            if not self.rvir is None:
+                if self.cvir is None:
+                    self.cvir = self.rvir/self.rcore
+                if self.mvir is None:
+                    self.mvir = cosmology.mvir_from_rvir(self.rvir,self.z,cosmo)
+                self.rhoNorm(cosmo)
+            else:
+                if self.rvir is None:
+                    self.rvir = cosmology.rvir(self.mvir,self.z,cosmo)
+                if self.cvir is None:
+                    self.cvir = self.rvir/self.rcore
+                self.rhoNorm(cosmo)
+        elif self.profileCalcMode == 2:
+            if not self.rvir is None:
+                if self.rcore is None:
+                    self.rcore = self.rvir/self.cvir
+                if self.mvir is None:
+                    self.mvir = cosmology.mvir_from_rvir(self.rvir,self.z,cosmo)
+                self.rhoNorm(cosmo)
+            else:
+                if self.rvir is None:
+                    self.rvir = cosmology.rvir(self.mvir,self.z,cosmo)
+                if self.rcore is None:
+                    self.rcore = self.rvir*self.cvir
+                self.rhoNorm(cosmo)
+        else:
+            if self.rhos is None:
+                self.rhos = self.rho0/cosmology.rho_crit(self.z,cosmo)
+            elif self.rho0 is None:
+                self.rho0 = self.rhos*cosmology.rho_crit(self.z,cosmo)
+            if self.mvir is None and not self.rvir is None:
+                self.mvir = self.rho0*astrophysics.rho_volume_int(self.rvir,self.rcore,1,self.dm,self.alpha)
+            if self.rvir is None and not self.mvir is None:
+                self.rvir = cosmology.rvir(self.mvir,self.z,cosmo)
+            else:
+                self.rvir = astrophysics.rvir_from_rho(self.z,self.rhos,self.rcore,self.dm,cosmo,self.alpha)
+                self.mvir = self.rho0*astrophysics.rho_volume_int(self.rvir,self.rcore,1,self.dm,self.alpha)
+            if self.cvir is None and not self.rvir is None:
+                self.cvir = self.rvir/self.rcore
     def setup(self,sim,phys,cosmo):
         #vital to force re-calculations if the halo is changed
         self.radio_emm = None
@@ -587,7 +643,6 @@ class halo_env:
 
     def setup_halo(self,sim,phys,cos_env):
         if self.check_self() and sim.check_self() and phys.check_self():
-            rhos_adjust = True
             radians_per_arcmin = 2.909e-4
             if self.dl is None:
                 #set up the cosmic distances
@@ -597,97 +652,7 @@ class halo_env:
                 if self.z is None:
                     self.z = 0.0
                 self.da = self.dl/(1+self.z)**2
-            if self.profile == "einasto": #this tries to calculate all non given information for the halo profile
-                if not self.rvir is None and not self.rcore is None:
-                    self.cvir = self.rvir/self.rcore
-                    if self.mvir is None:
-                        self.mvir = cosmology.mvir_from_rvir(self.rvir,self.z,cos_env)
-                elif self.cvir is None and not self.mvir is None:
-                    ein_rhos,ein_rs,ein_cv = astrophysics.getProfile_einasto(self.z,self.mvir,self.alpha,cos_env,cvir_match=True)
-                    self.cvir = ein_cv
-                if not self.rcore is None and not self.rho0 is None:
-                    self.rhos = self.rho0/cosmology.rho_crit(self.z,cos_env)
-                    if not self.cvir is None:
-                        self.rvir = self.rcore*self.cvir
-                    else:
-                        self.rvir = astrophysics.rvir_from_rho(self.z,self.rhos,self.rcore,-1,cos_env,alpha=self.alpha)
-                        self.cvir = self.rvir/self.rcore
-                    if self.mvir is None:
-                        self.mvir = cosmology.mvir_from_rvir(self.rvir,self.z,cos_env)
-                ein_rhos,ein_rs,ein_cv = astrophysics.getProfile_einasto(self.z,self.mvir,self.alpha,cos_env,cvir_match=True)
-                if self.rhos is None:
-                    self.rhos = ein_rhos/cosmology.rho_crit(self.z,cos_env)
-                if self.rcore is None:
-                    self.rcore = ein_rs
-                if self.rvir is None:
-                    self.rvir = cosmology.rvir(self.mvir,self.z,cos_env)
-                #else:
-                #    self.rcore = cosmology.get_rcore_ein(self.mvir,self.rvir,self.rhos*cosmology.rho_crit(self.z,cos_env),self.alpha)
-            elif self.profile == "burkert": #this tries to calculate all non given information for the halo profile
-                if not self.rvir is None and not self.rcore is None:
-                    if self.cvir is None:
-                        self.cvir = self.rvir/self.rcore/1.52
-                if not self.rho0 is None and not self.rcore is None:
-                    self.rhos = self.rho0/cosmology.rho_crit(self.z,cos_env)
-                    if not self.cvir is None:
-                        self.rvir = self.rcore*self.cvir
-                    else:
-                        self.rvir = astrophysics.rvir_from_rho(self.z,self.rhos,self.rcore,2,cos_env,alpha=self.alpha)
-                        self.cvir = self.rvir/self.rcore
-                    if self.mvir is None:
-                        self.mvir = cosmology.mvir_from_rvir(self.rvir,self.z,cos_env)
-                if self.rcore is None:
-                    if self.rvir is None:
-                        self.rvir = cosmology.rvir(self.mvir,self.z,cos_env)
-                    self.rcore = astrophysics.get_rcore_burkert(self.rvir,self.mvir)
-                    if self.cvir is None:
-                        self.cvir = self.rvir/self.rcore
-                elif self.rvir is None:
-                    self.rvir = astrophysics.get_rvir_burkert(self.rcore,self.mvir)
-                    if self.cvir is None:
-                        self.cvir = self.rvir/self.rcore/1.52
-                if self.rhos is None:
-                     self.rhos = astrophysics.rhos_burkert(self.rcore)/cosmology.rho_crit(self.z,cos_env)
-            else: #this tries to calculate all non given information for the halo profile
-                if not self.rvir is None and not self.rcore is None:
-                    self.cvir = self.rvir/self.rcore
-                    if self.mvir is None:
-                        self.mvir = cosmology.mvir_from_rvir(self.rvir,self.z,cos_env)
-                if not self.mvir is None:
-                    if self.cvir is None:
-                        self.cvir = cosmology.cvir_p12(self.mvir,self.z,cos_env)
-                    if self.rvir is None and self.rcore is None:
-                        self.rvir = cosmology.rvir(self.mvir,self.z,cos_env)
-                        self.rcore = self.rvir/self.cvir
-                    elif self.rvir is None:
-                        if self.rcore is None:
-                            self.rvir = cosmology.rvir(self.mvir,self.z,cos_env)
-                        else:
-                            self.rvir = self.rcore*self.cvir
-                    elif self.rcore is None:
-                        self.rcore = self.rvir/self.cvir
-                if not self.rho0 is None:
-                    self.rhos = self.rho0/cosmology.rho_crit(self.z,cos_env)
-                    if self.rvir is None and not self.rcore is None:
-                        self.rvir = astrophysics.rvir_from_rho(self.z,self.rhos,self.rcore,self.dm,cos_env)
-                        if self.mvir is None:
-                            self.mvir = cosmology.mvir_from_rvir(self.rvir,self.z,cos_env)
-                    if not self.rcore is None:
-                        self.cvir = self.rvir/self.rcore 
-                elif self.rhos is None:
-                    self.rhos = cosmology.rhos(self.cvir,self.z,cos_env)
-                    if self.rvir is None and not self.rcore is None:
-                        self.rvir = astrophysics.rvir_from_rho(self.z,self.rhos,self.rcore,self.dm,cos_env)
-                        if self.mvir is None:
-                            self.mvir = cosmology.mvir_from_rvir(self.rvir,self.z,cos_env)
-                    if not self.rcore is None:
-                        self.cvir = self.rvir/self.rcore 
-                    rhos_adjust = False
-            norm = 1.0 
-            norm = astrophysics.rho_volume_int(self.rvir,self.rcore,1,self.dm,self.alpha)*self.rhos*cosmology.rho_crit(self.z,cos_env)#/self.mvir
-            #print("Halo mass normalisation: ",norm/self.mvir)
-            if not rhos_adjust: #if rhos is guaranteed to normalise we fix it to ensure the halo has mvir within rvir
-                self.rhos = self.rhos/norm*self.mvir #this ensures rhos normalises the density profile, as rhos method works best for NFW
+            self.rhoProfileCalc(cos_env)
             self.rfarc = self.da*np.tan(radians_per_arcmin)  #radius in Mpc arcmin^-1
             self.r_sample = [np.logspace(np.log10(self.rcore*1e-5),np.log10(2*self.rvir),sim.n),np.logspace(np.log10(self.rcore*1e-7),np.log10(2*self.rvir),sim.ngr)] #we go to 2rvir for diffusion reaons
             self.rho_dm_sample = astrophysics.rho_dm_halo(self,cos_env)#[cosmology.rho_dm(self.r_sample[0],self.rcore,self.dm,self.alpha),cosmology.rho_dm(self.r_sample[1],self.rcore,self.dm,self.alpha)]
@@ -761,6 +726,32 @@ class halo_env:
             self.ready = False
 
         return self.ready
+
+    def haloFromHeader(self,hdr):
+        #need: boost, radio_boost
+        self.r_sample[0] = np.array(hdr['CRSET3'].split(),dtype=np.float64)
+        self.dl = np.float64(hdr['DLUM'])
+        self.da = np.float64(hdr['DANG'])
+        self.profile = hdr['DMPROF']
+        if self.profile == "gnfw":
+            self.dm = np.float64(hdr['DMGNFW'])
+        else:
+            self.dm = int(self.profileDict[self.profile])
+            if self.dm == -1:
+                self.alpha = hdr["EINALPHA"]
+        self.weights = hdr['HALOWTS']
+        self.name = hdr['HNAME']
+        self.mode = hdr['WMODE']
+        if self.mode == "decay":
+            self.mode_exp = 1.0
+        else:
+            self.mode_exp = 2.0
+        self.mvir = np.float64(hdr['MVIR'])
+        self.cvir = np.float64(hdr['CVIR'])
+        self.rvir = np.float64(hdr['RVIR'])
+        self.rcore = np.float64(hdr['DMSCALE'])
+        self.rho0 = np.float64(hdr['DMRHO0'])
+        self.J_flag = int(hdr['JNORM'])
             
 #cosmo_spec = [('h',float32),('w_m',float32),('w_l',float32),('w_dm',float32),('n',float32),('w_nu',float32),('N_nu',float32),('sigma_8',float32),('w_b',float32),('G_newton',float32),('w_k',float32),('universe',np.array(char,1d,A)]     
 class cosmology_env:
@@ -794,6 +785,9 @@ class cosmology_env:
         self.sigma_8 = sigma_8 #matter power spectrum normalisation
         self.w_b = w_b #baryon fraction
         self.universe = uni #curved or flat
+        self.setup()
+
+    def setup(self):
         self.G_newton = 6.67408e-11*2e30*3.24078e-23**3 #Mpc^3 Msol^-1 s^-2
         if self.universe == "flat":
             self.w_k = 0 #curvature fraction
@@ -804,6 +798,18 @@ class cosmology_env:
         #cosmolopy dictionary object for compatibility -> no longer in use
         self.cosmo = {'omega_M_0':self.w_m, 'omega_lambda_0':self.w_l, 'omega_k_0':self.w_k, 'h':self.h, 'omega_dm_0':self.w_dm, 'omega_b_0':self.w_b, 'sigma_8':self.sigma_8, 'n':self.n, 'omega_n_0':self.w_nu, 'N_nu':self.N_nu, 'EW':np.array([2e11,107,1e15]),'QCD':np.array([2e8,55,1e12]),'EE':np.array([0.51e6,10.8,2e9])}
 
+    def cosmoFromHeader(self,hdr):
+        self.h = hdr['COSMOH']
+        self.w_dm = hdr['COSMOWDM']
+        self.w_l = hdr['COSMOWL']
+        self.w_m = hdr['COSMOWM']
+        self.w_b = hdr['COSMOWB']
+        self.w_nu = hdr['COSMOWNU']
+        self.n = hdr['COSMON']
+        self.N_nu = hdr['COSMONNU']
+        self.sigma_8 = hdr['COSMOSIG']
+        self.universe = hdr['COSMOUNI']
+        self.setup()
 #loop_spec = [('mmin',float32),('mmax',float32),('zmin',float32),('zmax',float32),('zn',float32),('nu',float32),('phys
 #old project, don't worry about this bit
 class loop_env:

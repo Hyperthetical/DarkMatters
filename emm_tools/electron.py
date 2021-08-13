@@ -47,6 +47,7 @@ def read_electrons_c(infile,halo,phys,sim):
     for i in range(0,k):
         for j in range(0,n):
             electrons[i][j] = eArray[i*n + j]
+    inf.close()
     return electrons
 
 #write input file for c executable

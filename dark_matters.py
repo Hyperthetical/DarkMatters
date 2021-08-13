@@ -1,4 +1,3 @@
-from output import calculation
 import sys,getopt,time,os
 from copy import deepcopy
 try:
@@ -7,33 +6,34 @@ except:
     print("Fatal Error: the numpy package is missing")
     sys.exit(2)
 try:
-    from wimp_tools import tools,cosmology_env,simulation_env,physical_env,loop_env,halo_env #wimp handling package
-except:
-    import wimp_tools.cosmology_env as cosmology_env
-    import wimp_tools.tools as tools
-    import wimp_tools.simulation_env as simulation_env
-    import wimp_tools.physical_env as physical_env
-    import wimp_tools.loop_env as loop_env
-    import wimp_tools.halo_env as halo_env
-try:
-    from emm_tools import electron,radio,high_e,neutrino #emmisivity package
-except:
-    import emm_tools.electron as electron
-    import emm_tools.radio as radio
-    import emm_tools.high_e as high_e
-    import emm_tools.neutrino as neutrino
-try:
-    import output
-except:
-    print("Fatal Error: file output.py is missing!")
-    sys.exit(2)
-from multiprocessing import Pool
-from os.path import join,isfile,isdir
-try:
     from scipy.interpolate import interp1d,interp2d
 except:
     print("Fatal Error: the scipy package is missing")
     sys.exit(2)
+try:
+    import astropy
+except:
+    print("Fatal Error: the astropy package is missing")
+    sys.exit(2)
+try:
+    from wimp_tools import tools,cosmology_env,simulation_env,physical_env,loop_env,halo_env #wimp handling package
+except:
+    print("Fatal Error: the wimp_tools sub-package of dark_matters is missing")
+    sys.exit(2)
+try:
+    import output #output module
+except:
+    print("Fatal Error: file output.py is missing!")
+    sys.exit(2)
+try:
+    import calc_manager #output module
+except:
+    print("Fatal Error: file calc_manager.py is missing!")
+    sys.exit(2)
+from multiprocessing import Pool
+from os.path import join,isfile,isdir
+
+from astropy.io import fits
 #==========================================
             #Preliminaries
 #==========================================
@@ -120,6 +120,7 @@ except:
 MHzToGeV = 1e6*4.136e-15*1e-9  #conversion factor
 calculations = []
 last_set = []
+spacerStr = "========================================================="
 #specdir = "/home/geoff/Coding/Wimps/data_input/susy/"
 
 def process_file(command_file,phys,sim,halo,cos_env,loop):
@@ -194,9 +195,9 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         None - evaluates script commands
     """
     global calculations
-    global last_set
-    calc_dict = {"dflux":"Gamma-ray flux from D-factor","rflux":"Radio flux","hflux":"High-frequency flux","flux":"All flux","jflux":"Gamma-ray flux from Jfactor","gflux":"Gamma-ray flux","nuflux":"Neutrino flux","nu_jflux":"Neutrino flux from J-factor","sb":"Radio surface brightness","gamma_sb":"gamma-ray surface brightness","emm":"Emmissivity","loop":"Radio loop","hloop":"High energy loop","electrons":"Electron distributions"}
-    diff_calc_set = ["rflux","hflux","flux","sb","emm","loop","hloop","electrons"]
+    global last_set,spacerStr
+    calc_dict = {"dflux":"Gamma-ray flux from D-factor","rflux":"Radio flux","hflux":"High-frequency flux","jflux":"Gamma-ray flux from Jfactor","gflux":"Gamma-ray flux","nuflux":"Neutrino flux","nu_jflux":"Neutrino flux from J-factor","sb":"Radio surface brightness","gamma_sb":"gamma-ray surface brightness","emm":"Radio Emmissivity","electrons":"Electron distributions","flux":"All fluxes"}
+    diff_calc_set = ["rflux","hflux","flux","sb","emm","electrons","flux"]
     sb_dict = {"sb":"rflux"}
     if "#" in command.strip() and not command.strip().startswith("#"):
         s = command.split("#")[0].split()
@@ -206,6 +207,15 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         pass
     elif command.strip() in ["clear calc","clear c","clear calculation","clear calculations"]:
         calculations = []
+    elif command.strip() in ["display calc", "display c","show c","show calc"]:
+        if not calculations == []:
+            print(spacerStr)
+            print("Displaying calculation set:")
+            print(spacerStr)
+            for i in range(len(calculations)):
+                print("Index:{} Label:{}".format(i,calculations[i].calcLabel))
+        else:
+            print("No calculations have been produced yet!")
     elif command.strip().lower() == "calc help":
         print("The calc command is used as follows: calc mode region")
         print("region -> full, theta, r_integrate")
@@ -213,25 +223,25 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         for c in calc_dict:
             print(c+" calculates "+calc_dict[c])
     elif s[0].lower() in ["out","o","output"]:
-        print("=========================================================")
+        print(spacerStr)
         print("Preparing to output flux data")
-        print("=========================================================")
+        print(spacerStr)
         if calculations == []:
             tools.fatal_error("no calculations have been produced to output yet!")
         try:
             if not s[1].lower() in calc_dict:
-                tools.fatal_error("command "+s[0].lower()+" must be supplied with a fluxmode from: "+calc_dict.keys)
+                tools.fatal_error("command "+s[0].lower()+" must be supplied with a fluxmode from: "+calc_dict.keys())
             else:
                 calc_mode = s[1].lower()
         except:
-            tools.fatal_error("command "+s[0].lower()+" must be supplied with a fluxmode from: "+calc_dict.keys)
+            tools.fatal_error("command "+s[0].lower()+" must be supplied with a fluxmode from: "+calc_dict.keys())
         try:
             theta_flag = s[2].lower()
         except:
             if not "jflux" in calc_mode: 
                 print("Warning: no region flag supplied with command \'"+s[0].lower()+"\' defaulting to \'full\'")
             theta_flag = "full"
-        indices = getIndex(s)
+        indices = getIndex(s) 
         if not "jflux" in calc_mode:
             print("Region: "+theta_flag)
         else:
@@ -251,32 +261,88 @@ def process_command(command,phys,sim,halo,cos_env,loop):
                 calculations[i].calcSB(sim.nu_sb,calc_mode,full_id=full_id,suppress_output=False)
             else:
                 calculations[i].calcFlux(calc_mode,regionFlag=theta_flag,full_id=full_id,suppress_output=False)
+    elif s[0].lower() in ["fromfits","ff"]:
+        #emm: add to sim,phys,halo,cosmo from the hdul[0].header then loop over calculations with elements of hdul[0].data, finally store as fits file
+        try:
+            hdul = fits.open(s[1])
+        except IOError:
+            tools.fatal_error("Fits file: {} was not found".format(s[1]))
+        hdr = hdul[0].header
+        hdd = hdul[0].data
+        halo.haloFromHeader(hdr)
+        phys.physFromHeader(hdr)
+        sim.simFromHeader(hdr)
+        cos_env.cosmoFromHeader(hdr)
+        mxSet = np.array(hdr['CRSET1'].split(),dtype=np.float64)
+        fluxMode = hdr['DMCALC'].split("_")[0]
+        readCalcSet = []
+        fluxCalcSet = []
+        try:
+            regionFlag = s[2]
+        except:
+            regionFlag = "full"
+        for i in range(len(hdd)):
+            phys.mx = mxSet[i]
+            readCalcSet.append(calc_manager.calculation(deepcopy(halo),deepcopy(phys),deepcopy(sim),deepcopy(cos_env)))
+        for c_run in readCalcSet:
+            c_run.calcFluxFromFits(hdd[i],fluxMode,regionFlag)
+            fluxCalcSet.append(deepcopy(c_run))
+        output.fitsFlux(fluxCalcSet,fluxMode,regionFlag,header=hdr)
     elif s[0].lower() in ["f","fits"]:
-        print("=========================================================")
+        print(spacerStr)
         print("Preparing to output fits data cubes")
-        print("=========================================================")
-        fitsModes = ["electrons","emmisivity"]
+        print(spacerStr)
+        fitsModes = ["electrons","emmisivity","emm","flux","sb"]
         if calculations == []:
             tools.fatal_error("no calculations have been produced to output yet!")
         try:
             if not s[1].lower() in fitsModes:
-                tools.fatal_error("command "+s[0].lower()+" must be supplied with a an output type from: "+fitsModes)
+                tools.fatal_error(("command "+s[0].lower()+" must be supplied with a an output type from: ").join(str(f) for f in fitsModes))
             else:
                 calc_mode = s[1].lower()
         except:
-            tools.fatal_error("command "+s[0].lower()+" must be supplied with an output type from: "+fitsModes)
-        indices = getIndex(s)
+            tools.fatal_error(("command "+s[0].lower()+" must be supplied with an output type from: ").join(str(f) for f in fitsModes))
+        try:
+            fitsName = s[3].lower()
+            try:
+                int(fitsName)
+                startIndex = 3
+                fitsName = None
+            except:
+                startIndex = 4
+        except:
+            fitsName = None
+            startIndex = 3
+        indices = getIndex(s,startIndex=startIndex)
         print("Output command: "+s[1])
         full_id = True
+        runSet = []
         if calc_mode == "electrons":
             for i in indices:
                 if calculations[i].halo.electrons is None:
                     tools.fatal_error("All runs must have had electron distributions calculated")
-            output.fitsElectron(calculations)
-        else:
+                else:
+                    runSet.append(deepcopy(calculations[i]))
+            output.fitsElectron(runSet)
+        elif calc_mode == "sb":
             try:
                 if not s[2].lower() in calc_dict:
-                    tools.fatal_error("command "+s[1].lower()+" must be supplied with a fluxmode from: "+calc_dict.keys)
+                    tools.fatal_error("command "+s[1].lower()+" must be supplied with a fluxmode from: "+calc_dict.keys())
+                else:
+                    calc_mode = s[1].lower()
+            except:
+                tools.fatal_error("command "+s[1].lower()+" must be supplied with a fluxmode from: "+calc_dict.keys())
+            for i in indices:
+                emmDict = {"rflux":"radio_emm","gflux":"gamma_emm","hflux":"he_emm","nuflux":"nu_emm"}
+                if getattr(calculations[i].halo,emmDict[s[2].lower()]) is None:
+                    tools.fatal_error("All runs must have had {} emmisivity computed".format(s[2].lower()))
+                else:
+                    runSet.append(deepcopy(calculations[i]))
+            output.fitsSB(runSet,s[2].lower(),fName=fitsName)
+        elif calc_mode == "flux":
+            try:
+                if not s[2].lower() in calc_dict:
+                    tools.fatal_error("command "+s[1].lower()+" must be supplied with a fluxmode from: "+calc_dict.keys())
                 else:
                     calc_mode = s[1].lower()
             except:
@@ -285,14 +351,32 @@ def process_command(command,phys,sim,halo,cos_env,loop):
                 emmDict = {"rflux":"radio_emm","gflux":"gamma_emm","hflux":"he_emm","nuflux":"nu_emm"}
                 if getattr(calculations[i].halo,emmDict[s[2].lower()]) is None:
                     tools.fatal_error("All runs must have had {} emmisivity computed".format(s[2].lower()))
-            output.fitsEmm(calculations,s[2].lower())
+                else:
+                    runSet.append(deepcopy(calculations[i]))
+            output.fitsSB(runSet,s[2].lower(),fName=fitsName)
+        else:
+            try:
+                if not s[2].lower() in calc_dict:
+                    tools.fatal_error("command "+s[1].lower()+" must be supplied with a fluxmode from: "+calc_dict.keys())
+                else:
+                    calc_mode = s[1].lower()
+            except:
+                tools.fatal_error("command "+s[1].lower()+" must be supplied with a fluxmode from: "+calc_dict.keys())
+            for i in indices:
+                emmDict = {"rflux":"radio_emm","gflux":"gamma_emm","hflux":"he_emm","nuflux":"nu_emm"}
+                if getattr(calculations[i].halo,emmDict[s[2].lower()]) is None:
+                    tools.fatal_error("All runs must have had {} emmisivity computed".format(s[2].lower()))
+                else:
+                    runSet.append(deepcopy(calculations[i]))
+            output.fitsEmm(runSet,s[2].lower())
+        del(runSet)
     elif s[0].lower() in ["c+o","calc+out","calc+output"]:
         try:
             print("Calculation Task Given: "+calc_dict[s[1]])
         except IndexError:
-            tools.fatal_error("calc+out must be supplied with an option: "+str(calc_dict.keys))
+            tools.fatal_error("calc+out must be supplied with an option: "+" ".join(key for key in calc_dict.keys()))
         except KeyError:
-            tools.fatal_error("calc+out must be supplied with a valid option from: "+str(calc_dict.keys))
+            tools.fatal_error("calc+out must be supplied with a valid option from: "+" ".join(key for key in calc_dict.keys()))
         try:
             calc_str = s[1]
             try:
@@ -305,9 +389,9 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         last_set = []
         batch_calc = 0
         batch_time = time.time()
-        print("=========================================================")
+        print(spacerStr)
         print("Initialising calculations data")
-        print("=========================================================")
+        print(spacerStr)
         for m in sim.mx_set:
             phys.clear_spectra()
             batch_calc += 1
@@ -333,13 +417,13 @@ def process_command(command,phys,sim,halo,cos_env,loop):
             halo.reset_avgs()
             if(not halo.setup(sim,phys,cos_env)):
                 tools.fatal_error("halo setup error")
-            last_set.append(output.calculation(deepcopy(halo),deepcopy(phys),deepcopy(sim),deepcopy(cos_env)))
+            last_set.append(calc_manager.calculation(deepcopy(halo),deepcopy(phys),deepcopy(sim),deepcopy(cos_env)))
             #print("c "+calc_str+" "+t_st)
         print("All input data consistency checks complete")
         for c_run in last_set:
-            print("=========================================================")
+            print(spacerStr)
             print("Beginning new Dark Matters calculation")
-            print("=========================================================")
+            print(spacerStr)
             if "sb" in calc_str:
                 c_run.calcWrite(fluxMode=sb_dict[calc_str])
             else:
@@ -378,9 +462,9 @@ def process_command(command,phys,sim,halo,cos_env,loop):
         last_set = []
         batch_calc = 0
         batch_time = time.time()
-        print("=========================================================")
+        print(spacerStr)
         print("Initialising calculations data")
-        print("=========================================================")
+        print(spacerStr)
         for m in sim.mx_set:
             phys.clear_spectra()
             batch_calc += 1
@@ -406,13 +490,13 @@ def process_command(command,phys,sim,halo,cos_env,loop):
             halo.reset_avgs()
             if(not halo.setup(sim,phys,cos_env)):
                 tools.fatal_error("halo setup error")
-            last_set.append(output.calculation(deepcopy(halo),deepcopy(phys),deepcopy(sim),deepcopy(cos_env)))
+            last_set.append(calc_manager.calculation(deepcopy(halo),deepcopy(phys),deepcopy(sim),deepcopy(cos_env)))
             #print("c "+calc_str+" "+t_st)
         print("All input data consistency checks complete")
         for c_run in last_set:
-            print("=========================================================")
+            print(spacerStr)
             print("Beginning new Dark Matters calculation")
-            print("=========================================================")
+            print(spacerStr)
             c_run.calcWrite(fluxMode=calc_str)
             if calc_str in diff_calc_set:
                 rmax = getRmax(t_str,c_run,command)
@@ -430,7 +514,7 @@ def process_command(command,phys,sim,halo,cos_env,loop):
             tools.help_menu()
     elif(s[0] == "load" or s[0] == "l"):
         try:
-            open(s[1],"r")
+            open(s[1],"r").close()
             process_file(s[1],phys,sim,halo,cos_env,loop)
         except IndexError:
             tools.fatal_error("the 'load' command requires a valid input file path to be supplied")
@@ -446,9 +530,9 @@ def process_command(command,phys,sim,halo,cos_env,loop):
     else:
         print("Invalid Command: "+command)
 
-def getIndex(s):
+def getIndex(s,startIndex=3):
     try:
-        indices = s[3:].lower()
+        indices = s[startIndex:].lower()
     except:
         try:
             if ":" in s[3]:
@@ -548,23 +632,23 @@ def process_set(line,phys,sim,halo,cos_env,loop):
                 sim.exec_electron_c = yl
             except IndexError:
                 tools.fatal_error("electrons_from_c requires true or false as first argument and the path to the c executable as the second")
-    elif s[1] == "radio_emm_from_c":
-        try:
-            yl = s[2]
-            if "T" in yl or "t" in yl:
-                sim.radio_emm_from_c = True
-            else:
-                sim.radio_emm_from_c = False
-        except IndexError:
-            tools.fatal_error("radio_emm_from_c requires true or false as first argument")
-        if sim.radio_emm_from_c:
-            try:
-                yl = s[3]
-                if not isfile(yl):
-                    tools.fatal_error("Cannot find the c executable: "+yl+"\nradio_emm_from_c requires true or false as first argument and the path to the c executable as the second")
-                sim.exec_emm_c = yl
-            except IndexError:
-                tools.fatal_error("radio_emm_from_c requires true or false as first argument and the path to the c executable as the second")
+    # elif s[1] == "radio_emm_from_c":
+    #     try:
+    #         yl = s[2]
+    #         if "T" in yl or "t" in yl:
+    #             sim.radio_emm_from_c = True
+    #         else:
+    #             sim.radio_emm_from_c = False
+    #     except IndexError:
+    #         tools.fatal_error("radio_emm_from_c requires true or false as first argument")
+    #     if sim.radio_emm_from_c:
+    #         try:
+    #             yl = s[3]
+    #             if not isfile(yl):
+    #                 tools.fatal_error("Cannot find the c executable: "+yl+"\nradio_emm_from_c requires true or false as first argument and the path to the c executable as the second")
+    #             sim.exec_emm_c = yl
+    #         except IndexError:
+    #             tools.fatal_error("radio_emm_from_c requires true or false as first argument and the path to the c executable as the second")
     else:
         try:
             if commands[s[1]][1] == "float":
@@ -593,7 +677,7 @@ def enumerate_set_commands(commands):
         if c not in ["electrons_from_c","radio_emm_from_c"]:
             print("set "+c+" "+commands[c][1]+" "+commands[c][3])
     print("set electrons_from_c boolean file_path (electrons_from_c requires true or false as first argument and the path to the c executable as the second)")
-    print("set radio_emm_from_c boolean file_path (radio_emm_from_c requires true or false as first argument and the path to the c executable as the second)")
+    #print("set radio_emm_from_c boolean file_path (radio_emm_from_c requires true or false as first argument and the path to the c executable as the second)")
 
 def read_spectrum(spec_file,gamma,branching,phys,sim):
     """
@@ -704,7 +788,7 @@ def readSpectrum(spec_file,phys,sim,mode="ann"):
                 eData = 10**(xLog[mIndices])*mxEff/phys.me
                 dnData = chData[mIndices]/np.log(10.0)/10**(xLog[mIndices])/mxEff*phys.me
                 intSpec = interp1d(eData,dnData)
-                checkSpectra(spec_file,phys,np.logspace(np.log10(eData[0]*1.00001),np.log10(eData[-1]*0.99999),num=spec_length))
+                checkSpectra(spec_file,phys,np.logspace(np.log10(eData[0]*1.00001),np.log10(eData[-1]*0.99999),num=spec_length)) #makes sure domain is correct
                 if "positrons" in spec_file:
                     newE = phys.spectrum[0]
                     dnData = intSpec(newE)
@@ -718,7 +802,7 @@ def readSpectrum(spec_file,phys,sim,mode="ann"):
                     dnData = intSpec(newE)
                     phys.nu_spectrum[1] += dnData*br
             else:
-                eData,dnData = interpolateInput(mxEff,mx,xLog,chData,spec_length)
+                eData,dnData = interpolateInputXDomain(mxEff,mx,xLog,chData,spec_length)
                 eData *= 1.0/phys.me
                 dnData *= phys.me
                 checkSpectra(spec_file,phys,eData)
@@ -733,14 +817,17 @@ def readSpectrum(spec_file,phys,sim,mode="ann"):
         mCol = 0
         xCol = 1
         nCol = 2
-        mxEff = phys.mx
+        if not "ann" in mode:
+            mxEff = phys.mx*0.5
+        else:
+            mxEff = phys.mx
         try:
             specData = np.loadtxt(spec_file,unpack=True)
         except IOError:
             tools.fatal_error("Spectrum File: "+spec_file+" does not exist at the specified location")
         mx = specData[mCol]
-        energyData = specData[xCol]/phys.me
-        chData = specData[nCol]*phys.me
+        xLog = specData[xCol]
+        chData = specData[nCol]
         if sim.e_bins is None:
             spec_length = 51
             sim.e_bins = 51
@@ -751,10 +838,10 @@ def readSpectrum(spec_file,phys,sim,mode="ann"):
             tools.fatal_error("Required WIMP mass {} GeV does not lie within the data set found in {}".format(mxEff,spec_file))
         elif mxEff in mx:
             mIndices = np.where(mx==mxEff)
-            eData = energyData[mIndices]
-            dnData = chData[mIndices]
+            eData = 10**(xLog[mIndices])*mxEff/phys.me
+            dnData = chData[mIndices]/np.log(10.0)/10**(xLog[mIndices])/mxEff*phys.me
             intSpec = interp1d(eData,dnData)
-            checkSpectra(spec_file,phys,np.logspace(np.log10(eData[0]*1.00001),np.log10(eData[-1]*0.99999),num=spec_length))
+            checkSpectra(spec_file,phys,np.logspace(np.log10(eData[0]*1.00001),np.log10(eData[-1]*0.99999),num=spec_length)) #makes sure domain is correct
             if "positrons" in spec_file:
                 newE = phys.spectrum[0]
                 dnData = intSpec(newE)
@@ -768,7 +855,35 @@ def readSpectrum(spec_file,phys,sim,mode="ann"):
                 dnData = intSpec(newE)
                 phys.nu_spectrum[1] = dnData
         else:
-            tools.fatal_error("Exact WIMP mass {} GeV not available in spectrum file {}, interpolation is not supported for custom models".format(phys.mx,spec_file))
+            specDomain = checkSpecDomain(specData)
+            if specDomain is None:
+                tools.fatal_error("Interpolation is not supported for custom models where either energy or x domains do not match for every mass")
+            elif specDomain == "e":
+                eData = 10**(xLog)*mx
+                dnData = chData/np.log(10.0)/10**(xLog)/mx
+                eData,dnData = interpolateInputEDomain(mxEff,mx,eData,dnData,spec_length)
+                eData *= 1.0/phys.me
+                dnData *= phys.me
+                checkSpectra(spec_file,phys,eData) #makes sure domain is correct
+                #print(phys.spectrum)
+                if "positrons" in spec_file:
+                    phys.spectrum[1] = dnData
+                elif "gamma" in spec_file:
+                    phys.gamma_spectrum[1] = dnData
+                elif "neutrino" in spec_file:
+                    phys.nu_spectrum[1] = dnData
+            elif specDomain == "x":
+                eData,dnData = interpolateInputXDomain(mxEff,mx,xLog,chData,spec_length)
+                eData *= 1.0/phys.me
+                dnData *= phys.me
+                checkSpectra(spec_file,phys,eData) #makes sure domain is correct
+                #print(phys.spectrum)
+                if "positrons" in spec_file:
+                    phys.spectrum[1] = dnData
+                elif "gamma" in spec_file:
+                    phys.gamma_spectrum[1] = dnData
+                elif "neutrino" in spec_file:
+                    phys.nu_spectrum[1] = dnData
 
 def checkSpectra(spec_file,phys,eData):
     if "positrons" in spec_file:
@@ -788,7 +903,25 @@ def checkSpectra(spec_file,phys,eData):
         setattr(phys,specMin,eData[0])
         setattr(phys,specMax,eData[-1])
 
-def interpolateInput(mx,mxSet,xLog,chData,specLength):
+def checkSpecDomain(specData):
+    xData = specData[1]
+    mxData = specData[0]
+    uMx = np.unique(mxData)
+    mXData1 = xData[np.where(mxData==uMx[0])]
+    mXData2 = xData[np.where(mxData==uMx[-1])]
+    if len(mXData2) == len(mXData1):
+        eDev = np.sum(10**(mXData1)*uMx[0]/10**(mXData2)/uMx[-1])/len(mXData1)
+        xDev = np.sum(mXData1/mXData2)/len(mXData1)
+        if eDev == 1.0:
+            return "e"
+        elif xDev == 1.0:
+            return "x"
+        else:
+            return None
+    else:
+        return None
+
+def interpolateInputXDomain(mx,mxSet,xLog,chData,specLength):
     chTable = []
     xTarget = np.linspace(min(xLog),max(xLog),num=specLength)
     for m in np.unique(mxSet):
@@ -798,6 +931,14 @@ def interpolateInput(mx,mxSet,xLog,chData,specLength):
         chTable.append(intSpec(xTarget))
     #print(interp2d(xTarget,unique(mxSet),np.array(chTable))(xTarget,mx))
     return 10**(xTarget)*mx,interp2d(xTarget,np.unique(mxSet),np.array(chTable))(xTarget,mx)/np.log(10.0)/10**(xTarget)/mx
+
+def interpolateInputEDomain(mx,mxSet,eData,dNData,specLength):
+    uEData = eData[np.where(mxSet==mxSet[0])]
+    uMxData = np.unique(mxSet)
+    intp = interp2d(uEData,uMxData,dNData.reshape((len(uMxData),len(uEData))))
+    eTarget = np.logspace(np.log10(np.unique(eData)[0]),np.log10(np.unique(eData)[-1]),num=specLength)
+    return eTarget,intp(eTarget,mx)
+
 
 def gather_spectrum(spec_dir,phys,sim,mode="ann"):
     """

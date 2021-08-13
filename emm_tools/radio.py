@@ -1,6 +1,7 @@
 #cython: language_level=3
 import scipy.interpolate as sp
 import sys
+from emm_tools import fluxes
 import numpy as np
 from scipy.integrate import simps as integrate
 from scipy.interpolate import interp1d,interp2d
@@ -142,7 +143,7 @@ def int_bessel_intp(t):
     return result
 
 
-def radio_emm(halo,phys,sim):
+def radio_emm(halo,phys,sim,grid=True):
     """
     Radio emmissivity 
         ---------------------------
@@ -156,9 +157,15 @@ def radio_emm(halo,phys,sim):
         ---------------------------
         2D float array (sim.num x sim.n) [cm^-3 s^-1]
     """
-    n = sim.n #number of r shells
-    k = len(phys.spectrum[0]) #number of E bins
-    num = sim.num  #number of frequency sampling points
+    if grid:
+        return radioEmmGrid(halo.electrons,sim.f_sample*(1+halo.z),halo.r_sample[0],phys.spectrum[0],halo.b_sample,halo.ne_sample)
+    else:
+        return radioEmmLoop(halo.electrons,sim.f_sample,halo.r_sample[0],phys.spectrum[0],halo.b_sample,halo.ne_sample,phys.mx,halo.z)
+
+def radioEmmLoop(electrons,fSample,rSample,gSample,bSample,neSample,mx,z):
+    n = len(rSample) #number of r shells
+    k = len(gSample) #number of E bins
+    num = len(fSample) #number of frequency sampling points
     ntheta = 60   #angular integration points
 
     emm = np.zeros((num,n),dtype=float)   #emmisivity
@@ -171,76 +178,93 @@ def radio_emm(halo,phys,sim):
     c = 3.0e10     #speed of light (cm s^-1)
 
     theta_set = np.linspace(1e-2,np.pi,num=ntheta)  #choose angles 0 -> pi
-    nu_cut = 1e12*phys.mx/3e3 #MHz -> cut-off to stop synchrotron calculations works up 3 TeV m_x
+    nu_cut = 1e12*mx/3e3 #MHz -> cut-off to stop synchrotron calculations works up 3 TeV m_x
     
     for i in range(0,num):  #loop over freq
-        nu = sim.f_sample[i]*(1+halo.z) 
-        if nu > nu_cut*(1+halo.z):
+        nu = fSample[i]*(1+z) 
+        if nu > nu_cut*(1+z):
             emm[i,:] = np.zeros(n)[:]
         else:
             for j in range(0,n):  #loop over r
-                bmu = halo.b_sample[j]
-                ne = halo.ne_sample[j]#*(1+halo.z)**3
+                bmu = bSample[j]
+                ne = neSample[j]#*(1+halo.z)**3
                 nu0 = 2.8*bmu*1e-6      #non-relativistic gyro freq
                 nup = 8980.0*np.sqrt(ne)*1e-6    #plasma freq 
                 a = 2.0*np.pi*np.sqrt(3.0)*r0*me/c*1e6*nu0  #gyro radius
                 for l in range(0,k):   #loop over energy
-                    g = phys.spectrum[0][l]
+                    g = gSample[l]
                     x = 2.0*nu/(3.0*nu0*g**2)*(1+(g*nup/nu)**2)**1.5 #dimensionless integration
                     theta_int = 0.5*np.sin(theta_set)*int_bessel(x/np.sin(theta_set))  #theta integrand vectorised
                     #print(theta_int)
                     #integrate over that and factor in electron densities
                     P_S = a*integrate(theta_int,theta_set)
-                    int_1[l] = halo.electrons[l][j]*P_S
+                    int_1[l] = electrons[l][j]*P_S
                    
                 #integrate over energies to get emmisivity
-                emm[i][j] = integrate(int_1,phys.spectrum[0])
+                emm[i][j] = integrate(int_1,gSample)
                 #print(emm[i][j])
         progress(i+1,num)
     sys.stdout.write("\n")
     emm = np.where(np.isnan(emm),0.0,emm)
     return emm
 
-def radio_flux(rf,halo,sim):
+def radioEmmGrid(electrons,fSample,rSample,gSample,bSample,neSample):
+    """
+    Radio emmissivity 
+        ---------------------------
+        Parameters
+        ---------------------------
+        halo       - Required : halo environment (halo_env)
+        phys       - Required : physical environment (physical_env)
+        sim        - Required : simulation environment (simulation_env)
+        ---------------------------
+        Output
+        ---------------------------
+        2D float array (sim.num x sim.n) [cm^-3 s^-1]
+    """
+    k = len(gSample) #number of E bins
+    num = len(fSample)  #number of frequency sampling points
+    ntheta = 60   #angular integration points
+    theta_set = np.linspace(1e-2,np.pi,num=ntheta)  #choose angles 0 -> pi
+
+    r0 = 2.82e-13  #electron radius (cm)
+    me = 0.511e-3  #electron mass (GeV)
+    c = 2.998e10     #speed of light (cm s^-1)
+
+    nuGrid,rGrid,eGrid,tGrid = np.meshgrid(fSample,rSample,gSample,theta_set,indexing="ij")
+    bGrid = np.tensordot(np.tensordot(np.ones(num),bSample,axes=0),np.ones((k,ntheta)),axes=0)
+    neGrid = np.tensordot(np.tensordot(np.ones(num),neSample,axes=0),np.ones((k,ntheta)),axes=0)
+    electronGrid = np.tensordot(np.tensordot(np.ones(num),electrons.transpose(),axes=0),np.ones(ntheta),axes=0)
+    nu0 = 2.8*bGrid*1e-6      #non-relativistic gyro freq
+    nup = 8980.0*np.sqrt(neGrid)*1e-6
+    x = 2.0*nuGrid/(3.0*nu0*eGrid**2)*(1+(eGrid*nup/nuGrid)**2)**1.5
+    a = 2.0*np.pi*np.sqrt(3.0)*r0*me/c*1e6*nu0
+    pGridFull = a*electronGrid*0.5*np.sin(tGrid)*int_bessel(x/np.sin(tGrid))
+    eGridS = np.tensordot(np.ones((num,len(rSample))),gSample,axes=0) #for integration once theta is integrated out
+    emmGrid = integrate(integrate(pGridFull,tGrid),eGridS)
+    return emmGrid #GeV cm^-3
+
+def radio_flux(rf,halo,sim,grid=True):
     """
     Radio flux from emmissivity 
         ---------------------------
         Parameters
         ---------------------------
-        rf         - Required : radial limit of flux integration (Mpc)
+        rf         - Required : radial limit of flux integration (float) [Mpc]
         halo       - Required : halo environment (halo_env)
         sim        - Required : simulation environment (simulation_env)
+        grid       - Optional : flag to use vectorised or loop-based calculation (bool)
         ---------------------------
         Output
         ---------------------------
-        1D float array (sim.num) [Jy]
+        1D float array of fluxes (sim.num) [Jy]
     """
-    n = sim.n
-    num = sim.num
-    jj = np.zeros(n,dtype=float)   #temporary integrand array
-    ff = np.zeros(num,dtype=float)    #flux density
-    if sim.sub_mode == "prada":
-        boost_mod = halo.radio_boost/halo.boost 
+    if grid:
+        return fluxes.fluxGrid(rf,halo.dl,sim.f_sample,halo.r_sample[0],halo.radio_emm,boostMod=halo.radio_boost/halo.boost)
     else:
-        boost_mod = 1.0
-    for i in range(0,num):
-        if rf < 0.9*halo.r_sample[0][n-1]:
-            halo_interp = sp.interp1d(halo.r_sample[0],halo.radio_emm[i])
-            rset = np.logspace(np.log10(halo.r_sample[0][0]),np.log10(rf),num=n)
-            emm_r = halo_interp(rset)
-        else:
-            emm_r = halo.radio_emm[i]
-            rset = halo.r_sample[0]
-        jj = rset**2*emm_r
-        #flux density as a function of frequency, integrate over r to get there
-        ff[i] = 4.0*np.pi*integrate(jj/(halo.dl**2+rset**2),rset)/(4.0*np.pi)
-    ff = ff*3.09e24   #flux density in GeV cm^-2
-    ff = ff*1.60e20    #flux density in Jy
-    ff = ff*boost_mod #accounts for reduced boost for radio flux when using Prada 2013 boosting
-    #results must be multiplied by the chi-chi cross section
-    return ff
+        return fluxes.fluxLoop(rf,halo.dl,sim.f_sample,halo.r_sample[0],halo.radio_emm,boostMod=halo.radio_boost/halo.boost)
 
-def radio_sb(nu_sb,halo,sim):
+def radio_sb(nu_sb,halo,sim,deltaOmega=4*np.pi):
     """
     Radio surface brightness as a function of angular diameter
         ---------------------------
@@ -251,27 +275,6 @@ def radio_sb(nu_sb,halo,sim):
         ---------------------------
         Output
         ---------------------------
-        1D float array (sim.n) [Jy sr^-1]
+        1D float array (sim.n) [Jy arcminute^-2]
     """
-    lum = np.zeros(sim.n,dtype=float)
-    sb = np.zeros(sim.n,dtype=float) #surface brightness (nu,r)
-    if nu_sb in sim.f_sample:
-        emm_nu = halo.radio_emm[sim.f_sample==nu_sb][0]
-    else:
-        emm = interp2d(sim.f_sample,halo.r_sample[0],halo.radio_emm)
-        emm_nu = emm(nu_sb,halo.r_sample[0])
-    print(emm_nu)
-    if any(np.isnan(emm_nu)):
-        nanIndex = np.abs(np.where(np.isnan(emm_nu))[0][0] - sim.n)
-    else:
-        nanIndex = 0
-    for j in range(0,sim.n-nanIndex):
-        rprime = halo.r_sample[0][j]
-        for k in range(0,sim.n-nanIndex):    
-            r = halo.r_sample[0][k]    
-            if(rprime >= r):
-                lum[k] = 0.0
-            else:
-                lum[k] = emm_nu[k]*r/np.sqrt(r**2-rprime**2)
-        sb[j] = 2.0*integrate(lum,halo.r_sample[0]) #the 2 comes from integrating over diameter not radius
-    return sb*3.09e24*1.6e20/(4*np.pi)/1.1818e7 #unit conversions and adjustment to angles 
+    return fluxes.surfaceBrightnessLoop(nu_sb,sim.f_sample,halo.r_sample[0],halo.radio_emm,deltaOmega)
