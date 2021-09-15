@@ -256,7 +256,7 @@ def process_command(command,phys,sim,halo,cos_env,loop):
                 calculations[i].halo.physical_averages(rmax)
             print("Calculation ID: "+output.getCalcID(calculations[i].sim,calculations[i].phys,calculations[i].cosmo,calculations[i].halo,short_id=(not full_id)))
             if theta_flag == "radial":
-                calculations[i].calFluxRadial(sim.nu_sb,calc_mode,full_id=full_id,suppress_output=False)
+                calculations[i].calcFluxRadial(sim.nu_sb,calc_mode,full_id=full_id,suppress_output=False)
             elif theta_flag == "sb":
                 calculations[i].calcSB(sim.nu_sb,calc_mode,full_id=full_id,suppress_output=False)
             else:
@@ -571,7 +571,12 @@ def getRmax(t_str,c_run,command):
     elif t_str == "radial":
         rmax = c_run.halo.rvir
     elif t_str == "sb":
-        rmax = c_run.halo.rvir
+        if not c_run.sim.theta is None:
+            rmax = c_run.halo.da*np.tan(c_run.sim.theta*2.90888e-4)
+        elif not c_run.sim.rintegrate is None:
+            rmax = c_run.sim.rintegrate
+        else:
+            rmax = c_run.halo.rvir
     else:
         rmax = c_run.halo.rvir
         print("Warning: region flag "+t_str+" in command "+command+" not recognised, defaulting to \'full\'")
@@ -1096,28 +1101,29 @@ def console_mode(phys,sim,halo,cosmo,loop):
         process_command(command_line,phys,sim,halo,cosmo,loop)
 
 
-try:
-    args = sys.argv[1:]
-    in_file = args[0]
-    test = open(in_file,"r")
-    console_flag = False
-    test.close()
-except IndexError:
-    console_flag = True
-except IOError:
-    tools.fatal_error("Invalid script file path {} supplied".format(in_file))
+if __name__ == "__main__":
+    try:
+        args = sys.argv[1:]
+        in_file = args[0]
+        test = open(in_file,"r")
+        console_flag = False
+        test.close()
+    except IndexError:
+        console_flag = True
+    except IOError:
+        tools.fatal_error("Invalid script file path {} supplied".format(in_file))
 
 
-#===============================================================
-#Code execution
-#===============================================================
-phys = physical_env() #set up default physical environment
-cosm = cosmology_env() #set up default cosmology environment
-sim = simulation_env() #set up default simulation environment
-loop = loop_env(zn=20,zmin=1.0e-5,zmax=1.0,nloop=40,mmin=1.1e-6,mmax=1e15) #loop env - old code
-loop_sim = simulation_env() #sets the common values for the loop
-halo = halo_env()  #set up default halo environment
-if not console_flag:
-    process_file(in_file,phys,sim,halo,cosm,loop) #execute all commands in the input file
-else:
-    console_mode(phys,sim,halo,cosm,loop)
+    #===============================================================
+    #Code execution
+    #===============================================================
+    phys = physical_env() #set up default physical environment
+    cosm = cosmology_env() #set up default cosmology environment
+    sim = simulation_env() #set up default simulation environment
+    loop = loop_env(zn=20,zmin=1.0e-5,zmax=1.0,nloop=40,mmin=1.1e-6,mmax=1e15) #loop env - old code
+    loop_sim = simulation_env() #sets the common values for the loop
+    halo = halo_env()  #set up default halo environment
+    if not console_flag:
+        process_file(in_file,phys,sim,halo,cosm,loop) #execute all commands in the input file
+    else:
+        console_mode(phys,sim,halo,cosm,loop)

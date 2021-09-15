@@ -52,7 +52,7 @@ class calculation:
             rSet,fluxData = self.__calcSB(nu,calcMode,suppress_output=suppress_output)
             self.calcLabel = fluxFile
             erg = fluxData*nu*1e-17
-            write = [];write.append(np.arctan(rSet/np.sqrt(self.halo.dl**2+rSet**2)));write.append(fluxData);write.append(erg)
+            write = [];write.append(3437.75*np.arctan(rSet/np.sqrt(self.halo.dl**2+rSet**2)));write.append(fluxData);write.append(erg) #conversion to output angles in arcmin
             if writeFileFlag:
                 open(join(self.sim.out_dir,fluxFile), 'w').close()
                 self.calcWrite(log=join(self.sim.out_dir,fluxFile),fluxMode=calcMode)

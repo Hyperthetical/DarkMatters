@@ -242,7 +242,7 @@ def radioEmmGrid(electrons,fSample,rSample,gSample,bSample,neSample):
     pGridFull = a*electronGrid*0.5*np.sin(tGrid)*int_bessel(x/np.sin(tGrid))
     eGridS = np.tensordot(np.ones((num,len(rSample))),gSample,axes=0) #for integration once theta is integrated out
     emmGrid = integrate(integrate(pGridFull,tGrid),eGridS)
-    return emmGrid #GeV cm^-3
+    return np.where(np.isnan(emmGrid),0.0,emmGrid) #GeV cm^-3
 
 def radio_flux(rf,halo,sim,grid=True):
     """

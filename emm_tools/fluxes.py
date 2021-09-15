@@ -2,7 +2,7 @@ import numpy as np
 from scipy.integrate import simps as integrate
 from scipy.interpolate import interp1d,interp2d
 
-def surfaceBrightnessLoop(nu_sb,fSample,rSample,emm,deltaOmega):
+def surfaceBrightnessLoop(nu_sb,fSample,rSample,emm,deltaOmega=4*np.pi):
     """
     Surface brightness from emmissivity 
         ---------------------------
@@ -13,8 +13,6 @@ def surfaceBrightnessLoop(nu_sb,fSample,rSample,emm,deltaOmega):
         fSample     - Required : frequency points for calculation (1d array-like length n) [MHz]
         rSample     - Required : radial points for calculation (1d array-like length m) [Mpc]
         emm         - Required : emmissivity (2d array-like, dimension (n,m)) []
-        boost       - Optional : flux boost factor (float) []
-        radio_boost - Optional : radio flux boost factor (float) []
         deltaOmega  - Optional : angular area of flux distribution (float) [sr]
         ---------------------------
         Output
