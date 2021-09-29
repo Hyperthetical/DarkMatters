@@ -208,7 +208,10 @@ def fitsSB(calcSet,fluxMode,fName=None):
         hdr["CUNIT1"] = "GeV"
         hdr['CRVAl2'] = c.sim.f_sample[0]
         hdr['CRPIX2'] = 0
-        hdr['CDELT2'] = np.log10(c.sim.f_sample[1]) - np.log10(c.sim.f_sample[0]) 
+        try:
+            hdr['CDELT2'] = np.log10(c.sim.f_sample[1]) - np.log10(c.sim.f_sample[0]) 
+        except:
+            hdr['CDELT2'] = 0.0
         hdr['CTYPE2'] = "Frequency"
         hdr["CUNIT2"] = "MHz"
         hdr['CRSET2'] = " ".join(str(x) for x in calcSet[0].sim.f_sample)

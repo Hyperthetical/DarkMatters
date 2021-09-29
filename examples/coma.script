@@ -16,9 +16,9 @@ set electrons_from_c t /home/geoff/Dropbox/Physics/Wimps/DarkMatters/emm_tools/e
 #to produce the executable you can use the compile_electrons.sh script in the emm_tools directory
 #
 #frequency limits in MHz
-set flim 1e1 1e4
+set flim 1.4e3 1.4e3
 #number of frequency samples
-set f_num 20
+set f_num 1
 #number of radial samples
 set r_num 51
 #number of radial samples in diffusion solution
@@ -27,6 +27,7 @@ set gr_num 201
 set e_bins 71
 #angular observation region in arcminutes, only used if theta flag is given at calculation step
 set theta 30.0
+set frequency 1.4e3
 #===============================================================
 #DM halo
 #===============================================================
