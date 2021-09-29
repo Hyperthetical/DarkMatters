@@ -5,7 +5,6 @@ from scipy.integrate import simps as integrate
 from emm_tools.tools_emm import progress
 #from numba import jit
 from subprocess import call
-from emm_tools.electrons_crank import getElectrons_numeric
 #@jit
 #def integrate(x,y):
 #    lx = np.log10(x)

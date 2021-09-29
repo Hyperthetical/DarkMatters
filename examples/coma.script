@@ -12,13 +12,13 @@
 #===============================================================
 #this command tells the code where the input particle physics spectra are stored
 #If the first argument of electrons_from_c is t then a c executable must be given as argument 2
-set electrons_from_c t /home/geoff/Dropbox/Physics/Wimps/dark_matters/emm_tools/electron.x
+set electrons_from_c t /home/geoff/Dropbox/Physics/Wimps/DarkMatters/emm_tools/electron.x
 #to produce the executable you can use the compile_electrons.sh script in the emm_tools directory
 #
 #frequency limits in MHz
-set flim 1e1 1e18
+set flim 1e1 1e4
 #number of frequency samples
-set f_num 200
+set f_num 20
 #number of radial samples
 set r_num 51
 #number of radial samples in diffusion solution
@@ -70,7 +70,7 @@ set qe 0.981
 #Diffusion, only needed if using flux, rflux, or hflux calculations with diff set to 1 (default is 0)
 #===============================================================
 #flag for diffusion, on = 1
-set diff 1
+set diff 0
 #the turbulence spectral index
 set delta 1.66666
 #minimum coherence length for turbulence in kpc (note kpc!)
@@ -94,5 +94,6 @@ set channel bb
 #3 parts to the command: calculation command, flux type, and region
 #flux types: flux (everything), rflux (radio), hflux (high energy), gflux (gamma-rays only), jflux (gamma-rays from a j-factor)
 #regions: theta (needs theta set), r_integrate (needs r_integrate set in Mpc), full (out to virial radius, note full is the default) 
-c+o flux theta
+c+o rflux sb
+f sb rflux
 exit
