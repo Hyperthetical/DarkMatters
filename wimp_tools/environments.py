@@ -77,10 +77,20 @@ class simulation_env:
         self.jnormed = False
         self.f_sample = None
         self.jNormRatio = None
+        self.f_spacing = "log"
 
     def sample_f(self):
-        if self.num > 1: #check if we want to do one frequency point or multiple
-            self.f_sample = np.logspace(np.log10(self.flim[0]),np.log10(self.flim[1]),num=self.num)
+        if not self.f_sample is None:
+            self.flim = [min(self.f_sample),max(self.f_sample)]
+            self.num = len(self.f_sample)
+        elif self.num > 1: #check if we want to do one frequency point or multiple
+            if "lin" in self.f_spacing:
+                spacerFunc = np.linspace
+                fMin = self.flim[0];fMax = self.flim[1]
+            else:
+                spacerFunc = np.logspace
+                fMin = np.log10(self.flim[0]);fMax = np.log10(self.flim[1])
+            self.f_sample = spacerFunc(fMin,fMax,num=self.num)
         else:
             self.f_sample = np.array([self.nu_sb])
 
@@ -114,11 +124,14 @@ class simulation_env:
         if not subCheck:
             print("Warning: submode must be one of [sc2006,prada,none]")
         flimCheck = self.flim[0] <= self.flim[1] and len(self.flim) == 2 #check the frequency limits make sense
-        if flimCheck:
+        fSampleCheck = not self.f_sample is None
+        if flimCheck or fSampleCheck:
             self.sample_f() #make a frequency sample
         else:
             print("Warning: flim must be specified by fmin and fmax, you gave: "+str(self.flim))
-        if flimCheck and subCheck and nuCheck and specCheck and outCheck: #must pass all checks to be a valid sim env
+
+        print(self.f_sample)
+        if (flimCheck or fSampleCheck) and subCheck and nuCheck and specCheck and outCheck: #must pass all checks to be a valid sim env
             return True
         else:
             return False

@@ -209,7 +209,16 @@ def fitsSB(calcSet,fluxMode,fName=None):
         hdr['CRVAl2'] = c.sim.f_sample[0]
         hdr['CRPIX2'] = 0
         try:
-            hdr['CDELT2'] = np.log10(c.sim.f_sample[1]) - np.log10(c.sim.f_sample[0]) 
+            fLogSpacing = np.log10(c.sim.f_sample[1:]) - np.log10(c.sim.f_sample[:-1])
+            fLinSpacing = c.sim.f_sample[1:] - c.sim.f_sample[:-1]
+            logTest = np.sum(fLogSpacing-fLogSpacing[0]) < fLogSpacing[0]*1e-4*c.sim.num
+            linTest = np.sum(fLinSpacing-fLinSpacing[0]) < fLinSpacing[0]*1e-4*c.sim.num
+            if logTest:
+                hdr['CDELT2'] = fLogSpacing[0]
+            elif linTest:
+                hdr['CDELT2'] = fLinSpacing[0]
+            else:
+                hdr["CDELT2"] = -1
         except:
             hdr['CDELT2'] = 0.0
         hdr['CTYPE2'] = "Frequency"
