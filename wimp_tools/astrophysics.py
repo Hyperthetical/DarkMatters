@@ -376,7 +376,6 @@ def rvir_from_rho(z,rhos,rc,dmmod,cos_env,alpha=0.17):
         rvir [Mpc] (float)
     """
     target = cosmology.delta_c(z,cos_env) #density contast we need
-    print(target)
     #print(average_rho(rc,rhos,rc,dmmod))
     #print(average_rho(rc*30,rhos,rc,dmmod))
     return bisect(average_rho,rc,rc*1e2,args=(rhos,rc,dmmod,alpha,target))

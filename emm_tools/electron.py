@@ -5,7 +5,6 @@ from scipy.integrate import simps as integrate
 from emm_tools.tools_emm import progress
 #from numba import jit
 from subprocess import call
-from emm_tools.electrons_crank import getElectrons_numeric
 #@jit
 #def integrate(x,y):
 #    lx = np.log10(x)
@@ -47,6 +46,7 @@ def read_electrons_c(infile,halo,phys,sim):
     for i in range(0,k):
         for j in range(0,n):
             electrons[i][j] = eArray[i*n + j]
+    inf.close()
     return electrons
 
 #write input file for c executable

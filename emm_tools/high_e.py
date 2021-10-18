@@ -1,9 +1,11 @@
 #cython: language_level=3
 import scipy.interpolate as sp
 import sys
+from emm_tools import fluxes
 from scipy.integrate import simps as integrate
 import numpy as np
 from emm_tools.tools_emm import progress
+from astropy import constants as const
 
 def int_bessel(t):
     """
@@ -41,7 +43,7 @@ def klein_nishina(E_g,E,g):
         Parameters
         ---------------------------
         E_g - Required : out-going photon energy [GeV] (float)
-        E   - Required : in-coming energy array-like [GeV] (float)
+        E   - Required : in-coming photon energy [GeV] (array-like float)
         g   - Required : electron gamma factor [] (float)
         ---------------------------
         Output
@@ -49,7 +51,7 @@ def klein_nishina(E_g,E,g):
         1D float array-like [GeV^-1 cm^2]
     """
     re = 2.82e-13  #electron radius (cm)
-    me = 0.511e-3 #electron mass c**2 (GeV)
+    me = (const.m_e*const.c**2).to('GeV').value #electron mass (GeV)
     E_e = g*me
     sig_thom = 8*np.pi/3.0*re**2 
     Le = 4*E*g/me
@@ -72,7 +74,7 @@ def sigma_brem(E_g,g):
         float [GeV^-1 cm^2]
     """
     re = 2.82e-13  #electron radius (cm)
-    me = 0.511e-3 #electron mass c**2 (GeV)
+    me = (const.m_e*const.c**2).to('GeV').value #electron mass (GeV)
     sig_thom = 8*np.pi/3.0*re**2 
     E = g*me
     a = 7.29735257e-3 
@@ -100,9 +102,9 @@ def black_body(E,T):
         float [GeV^-1 cm^-3]
     """
     #h = 6.62606957e-34 #h in J s
-    h = 4.13566751086e-24 #h in GeV s
-    c = 3.0e10     #speed of light (cm s^-1)
-    k = 1.3806488e-23*6.24150934e9 #k in J K^-1 to k in GeV K^-1
+    h = const.h.to('GeV s').value #h in GeV s
+    c = const.c.to('cm/s').value     #speed of light (cm s^-1)
+    k = const.k_B.to('GeV/K').value #k in GeV K^-1
     b = 1.0/(k*T)
     isnan = (1-np.exp(-E*b))
     return np.where(isnan == 0.0, 0.0, 2*4*np.pi*E**2/(h*c)**3*np.exp(-E*b)*(1-np.exp(-E*b))**(-1))
@@ -132,11 +134,9 @@ def high_E_emm(halo,phys,sim):
     e_int = np.zeros(ntheta,dtype=float) #angular integral sampling
     int_1 = np.zeros(k,dtype=float) #energy integral sampling
 
-    r0 = 2.82e-13  #electron radius (cm)
-    me = 0.511e-3  #electron mass (GeV)
-    c = 3.0e10     #speed of light (cm s^-1)
-    h = 4.13566751086e-24 #h in GeV s
-    kb = 1.3806488e-23*6.24150934e9 #k in J K^-1 to k in GeV K^-1
+    c = const.c.to('cm/s').value     #speed of light (cm s^-1)
+    h = const.h.to('GeV s').value
+    me = (const.m_e*const.c**2).to('GeV').value #electron mass (GeV)
      
     for i in range(0,num):  #loop over freq
         nu = sim.f_sample[i]*(1+halo.z) 
@@ -156,12 +156,12 @@ def high_E_emm(halo,phys,sim):
         progress(i+1,num*2)
     for i in range(0,num):
         for j in range(0,n):    
-            int_1 = halo.electrons[:,j]*(P_IC[i,:] + P_B[i,:]*halo.ne_sample[j]*(1+halo.z)**3)
+            int_1 = halo.electrons[:,j]*(P_IC[i,:] + P_B[i,:]*halo.ne_sample[j])
             #integrate over energies to get emmisivity
             emm[i][j] = integrate(int_1,phys.spectrum[0])
         progress(i+num+1,num*2)
     sys.stdout.write("\n")
-    return emm
+    return emm*h #h converts to GeV cm^-3
 
 def gamma_source(halo,phys,sim):
     """
@@ -177,8 +177,8 @@ def gamma_source(halo,phys,sim):
         ---------------------------
         2D float array (sim.num x sim.n) [cm^-3 s^-1]
     """
-    h = 4.13566751086e-24 #h in GeV s
-    me = 0.511e-3  #electron mass (GeV)
+    h = const.h.to('GeV s').value
+    me = (const.m_e*const.c**2).to('GeV').value #electron mass (GeV)
     #msun converted to kg, convert to GeV, convert Mpc to cm 
     nwimp0 = np.sqrt(1.458e-33)**halo.mode_exp/halo.mode_exp*(1.0/phys.mx)**halo.mode_exp  #non-thermal wimp density (cm^-3) (central)
     rhodm = nwimp0*halo.rho_dm_sample[0]
@@ -191,10 +191,10 @@ def gamma_source(halo,phys,sim):
         if E_g < phys.gamma_spectrum[0][0] or E_g > phys.gamma_spectrum[0][len(phys.gamma_spectrum[0])-1]:
             emm[i,:] = np.zeros(len(rhodm))
         else:
-            emm[i,:] = Q_func(E_g)*rhodm[:]*E_g #now in units of flux
+            emm[i,:] = Q_func(E_g)*rhodm[:]*E_g #now in units of (cm^-3 s^-1)
         progress(i+1,sim.num)
     sys.stdout.write("\n")
-    halo.gamma_emm = 2.0*emm #2 gamma-rays per event 
+    halo.gamma_emm = 2.0*emm*h #2 gamma-rays per event - h converts to GeV cm^-3
     return halo.gamma_emm
 
 def gamma_from_j(halo,phys,sim):
@@ -211,8 +211,8 @@ def gamma_from_j(halo,phys,sim):
         ---------------------------
         2D float array (sim.num x sim.n) [cm^-2 s^-1]
     """
-    h = 4.13566751086e-24 #h in GeV s
-    me = 0.511e-3  #electron mass (GeV)
+    h = const.h.to('GeV s').value
+    me = (const.m_e*const.c**2).to('GeV').value #electron mass (GeV)
     nwimp0 = 0.125/np.pi/phys.mx**2 #GeV^-2
     emm = np.zeros(sim.num,dtype=float)
     Q_func = sp.interp1d(phys.gamma_spectrum[0],phys.gamma_spectrum[1])
@@ -239,8 +239,8 @@ def gamma_from_d(halo,phys,sim):
         ---------------------------
         2D float array (sim.num x sim.n) [cm^-2 s^-1]
     """
-    h = 4.13566751086e-24 #h in GeV s
-    me = 0.511e-3  #electron mass (GeV)
+    h = const.h.to('GeV s').value
+    me = (const.m_e*const.c**2).to('GeV').value #electron mass (GeV)
     nwimp0 = 0.25/np.pi/phys.mx #GeV^-1
     emm = np.zeros(sim.num,dtype=float)
     Q_func = sp.interp1d(phys.gamma_spectrum[0],phys.gamma_spectrum[1])
@@ -249,11 +249,34 @@ def gamma_from_d(halo,phys,sim):
         if E_g < phys.gamma_spectrum[0][0] or E_g > phys.gamma_spectrum[0][len(phys.gamma_spectrum[0])-1]:
             emm[i] = 0.0
         else:
-            emm[i] = Q_func(E_g)*halo.Dfactor*nwimp0*E_g #units of flux
+            emm[i] = Q_func(E_g)*halo.Dfactor*nwimp0*E_g #units of flux 
             #print halo.J,Q_func(E_g)*nwimp0*E_g/(1+halo.z),1+halo.z
     return 2.0*emm #2 gamma-rays per event  
 
-def high_E_flux(rf,halo,sim,gamma_only=1):
+def high_E_flux(rf,halo,sim,gamma_only=1,grid=True):
+    """
+    High energy flux from emmissivity 
+        ---------------------------
+        Parameters
+        ---------------------------
+        rf         - Required : radial limit of flux integration (float) [Mpc]
+        halo       - Required : halo environment (halo_env)
+        sim        - Required : simulation environment (simulation_env)
+        gamma_only - Optional : 0 -> direct gamma only or 1 -> all mechanisms (int)
+        grid       - Optional : flag to use vectorised or loop-based calculation (bool)
+        ---------------------------
+        Output
+        ---------------------------
+        1D float array of fluxes (sim.num) [Jy]
+    """
+    if gamma_only == 1:
+        flux = fluxes.fluxGrid(rf,halo.dl,sim.f_sample,halo.r_sample[0],halo.he_emm)
+        flux += fluxes.fluxGrid(rf,halo.dl,sim.f_sample,halo.r_sample[0],halo.gamma_emm)
+    else:
+        flux = fluxes.fluxGrid(rf,halo.dl,sim.f_sample,halo.r_sample[0],halo.gamma_emm)
+    return flux #h is needed to fix units of the high-energy fluxes
+
+def high_E_flux_old(rf,halo,sim,gamma_only=1):
     """
     High energy flux 
         ---------------------------
@@ -269,7 +292,6 @@ def high_E_flux(rf,halo,sim,gamma_only=1):
         1D float array (sim.num) [Jy]
     """
     #if gamma_only = 0 do only the gamma flux
-    h = 4.13566751086e-24 #h in GeV s
     n = sim.n
     num = sim.num
     jj = np.zeros(n,dtype=float)   #temporary integrand array
@@ -298,13 +320,12 @@ def high_E_flux(rf,halo,sim,gamma_only=1):
             ff[i] = 4.0*np.pi*integrate(jj/(halo.dl**2+rset**2),rset)/(4.0*np.pi)
         else:
             ff[i] = 4.0*np.pi*integrate(jj/(halo.dl**2+rset**2),rset)/(4.0*np.pi)
-    ff = ff*3.09e24   #incident photon number density from Mpc cm^-3 s^-1 to cm^-2 s^-1
-    ff = ff*h #flux from cm^-2 s^-1 to GeV cm^-2
+    ff = ff*3.09e24   #incident photon number density from GeV Mpc cm^-3 to GeV cm^-2 
     ff = ff*1.6e20 #flux from GeV cm^-2 to Jy
     #results must be multiplied by the chi-chi cross section
     return ff
 
-def xray_sb(halo,sim):
+def xray_sb(nu,halo,sim,deltaOmega=4*np.pi):
     """
     X-ray surface brightness for the given frequency nu as function of angular diameter
         ---------------------------
@@ -317,20 +338,9 @@ def xray_sb(halo,sim):
         ---------------------------
         1D float array (sim.n) [Jy sr^-1]
     """
-    lum = np.zeros(sim.n,dtype=float)
-    sb = np.zeros(sim.n,dtype=float) #surface brightness (nu,r)
-    for j in range(0,sim.n):
-        rprime = halo.r_sample[0][j]
-        for k in range(0,sim.n):    
-            r = halo.r_sample[0][k]    
-            if(rprime >= r):
-                lum[k] = 0.0
-            else:
-                lum[k] = halo.he_emm_nu[k]*r/np.sqrt(r**2-rprime**2)
-        sb[j] = 2.0*integrate(lum,halo.r_sample[0]) #the 2 comes from integrating over diameter not radius
-    return sb*3.09e24*1.6e20/(4*np.pi)/1.1818e7 #unit conversions and adjustment to angles 
+    return fluxes.surfaceBrightnessLoop(nu,sim.f_sample,halo.r_sample[0],halo.he_emm,deltaOmega)
 
-def gamma_sb(halo,sim):
+def gamma_sb(nu,halo,sim,deltaOmega=4*np.pi):
     """
     Gamma-ray surface brightness for the given frequency nu as function of angular diameter
         ---------------------------
@@ -343,15 +353,4 @@ def gamma_sb(halo,sim):
         ---------------------------
         1D float array (sim.n) [Jy sr^-1]
     """
-    lum = np.zeros(sim.n,dtype=float)
-    sb = np.zeros(sim.n,dtype=float) #surface brightness (nu,r)
-    for j in range(0,sim.n):
-        rprime = halo.r_sample[0][j]
-        for k in range(0,sim.n):
-            r = halo.r_sample[0][k]
-            if(rprime >= r):
-                lum[k] = 0.0
-            else:
-                lum[k] = halo.gamma_emm_nu[k]*r/np.sqrt(r**2-rprime**2)
-        sb[j] = 2.0*integrate(lum,halo.r_sample[0]) #the 2 comes from integrating over diameter not radius
-    return sb*3.09e24*1.6e20/(4*np.pi)/1.1818e7 #unit conversions and adjustment to angles 
+    return fluxes.surfaceBrightnessLoop(nu,sim.f_sample,halo.r_sample[0],halo.gamma_emm,deltaOmega)

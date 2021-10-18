@@ -10,89 +10,70 @@
 #===============================================================
 #Simulation set up and input data
 #===============================================================
-#this command tells the code where the input particle physics spectra are stored
-#If the first argument of electrons_from_c is t then a c executable must be given as argument 2
-set electrons_from_c t /home/geoff/Dropbox/Physics/Wimps/dark_matters/emm_tools/electron.x
-#to produce the executable you can use the compile_electrons.sh script in the emm_tools directory
-#
-#frequency limits in MHz
-set flim 1e1 1e18
-#number of frequency samples
-set f_num 200
-#number of radial samples
-set r_num 51
-#number of radial samples in diffusion solution
-set gr_num 201
-#number of energy bins (applies to  input spectra)
-set e_bins 71
-#angular observation region in arcminutes, only used if theta flag is given at calculation step
-set theta 30.0
+
+set electrons_from_c t /home/geoff/Dropbox/Physics/Wimps/DarkMatters/emm_tools/electron.x #If the first argument of electrons_from_c is t then a c executable must be given as argument 2
+
+#Two options for frequencies:
+set flim 1.4e3 1.6e3 #frequency limits in MHz
+set f_num 3 #number of frequency samples
+set f_spacing "log" #can have log or linear
+#or
+#set frequency_samples 1e2 1.4e3 1.6e3 4.7e3
+
+set r_num 51 #number of radial samples, should be >= 51 - also specifies surface brightness coordinates
+set gr_num 201 #number of radial samples in diffusion solution > 3*r_num
+set e_bins 71 #number of energy bins (applies to  input spectra) 
+
+set theta 30.0 #angular observation region in arcminutes, only used if theta flag is given at calculation step
+
+set frequency 1.6e3 #will be used for surface brightness if f_num = 1
 #===============================================================
 #DM halo
 #===============================================================
-set name coma
-#this is DM halo profile model, options: nfw,gnfw,burkert,einasto,isothermal
-set profile nfw
-#einasto parameter where applicable
-set alpha 1.8e-1
-#virial concentration
-set cvir 9.0
-#virial radius in Mpc
-set rvir 3.0  
-#whether or not we want subtructure, options are none,sc2006,prada
-set submode none
-#virial mass in Msol
-set mvir 1.24e15
-#halo redshift
-set z 0.0231
+#Need enough info to full recover rho(r)
 #unsupplied halo data is calculated according to the halo model
+#===============================================================
+set name coma #label used for the halo
+set profile nfw #this is DM halo profile model, options: nfw,gnfw,burkert,einasto,isothermal
+set alpha 1.8e-1 #einasto parameter where applicable
+set cvir 9.0 #virial concentration
+set rvir 3.0 #virial radius in Mpc
+set submode none #whether or not we want subtructure, options are none,sc2006,prada
+set mvir 1.24e15 #virial mass in Msol
+set z 0.0231 #halo redshift
 #===============================================================
 #B-field, only needed if using flux, rflux, or hflux calculations
 #===============================================================
-#magnetic field normalisation in microGauss
-set B 4.7
-#b-field parameter, function depends on b-field model, exponent in power-law, king, and follow_ne but length scale in m31,m31exp, and exp
-set qb 0.5
-#magnetic field model code options are king,follow_ne,flat,power-law,equipartition,sc2006,m31,m31exp
-set b_model follow_ne
+set B 4.7 #magnetic field normalisation in microGauss
+set qb 0.5 #b-field parameter, function depends on b-field model, exponent in power-law, king, and follow_ne but length scale in m31,m31exp, and exp
+set b_model follow_ne #magnetic field model code options are king,follow_ne,flat,power-law,equipartition,sc2006,m31,m31exp
 #===============================================================
 #Gas, only needed if using flux, rflux, or hflux calculations
 #===============================================================
-#characteristic length for gas distribution in Mpc
-set ne_scale 0.253 #rescaled to H0 = 67
-#gas model code, options are king,exp,flat,power-law
-set ne_model king
-#gas normalisation in cm^-3
-set ne 3.49e-3
-#gas profile exponent only needed for king and power-law models
-set qe 0.981
+set ne_scale 0.253 #rescaled to H0 = 67, characteristic length for gas distribution in Mpc
+set ne_model king #gas model code, options are king,exp,flat,power-law
+set ne 3.49e-3 #gas normalisation in cm^-3
+set qe 0.981 #gas profile exponent only needed for king and power-law models
 #===============================================================
 #Diffusion, only needed if using flux, rflux, or hflux calculations with diff set to 1 (default is 0)
 #===============================================================
-#flag for diffusion, on = 1
-set diff 1
-#the turbulence spectral index
-set delta 1.66666
-#minimum coherence length for turbulence in kpc (note kpc!)
-set d 2.0
+set diff 0 #flag for diffusion, on = 1
+set delta 1.66666 #the turbulence spectral index
+set d 2.0 #minimum coherence length for turbulence in kpc (note kpc!)
 #===============================================================
 #Particle physics
 #===============================================================
-#WIMP masses to be used in GeV, a list separated by spaces
-set mx_set 10 100 1000 10000
-#set to either annihilate or decay
-set wimp_mode ann
-#if set to 1 we use the PPPCB4DM, 0 to use custom models
-set model_independent 1
-#set neutrino flavour, options: e,mu,tau (only relevant if calculating neutrino fluxes)
-set nu_flavour e
-#set annihilation/decay channel for model independent cases
-set channel bb
+set mx_set 10 100 1000 10000 #WIMP masses to be used in GeV, a list separated by spaces
+set wimp_mode ann #set to either annihilate or decay
+set model_independent 1 #if set to 1 we use the PPPCB4DM, 0 to use custom models
+set nu_flavour e #set neutrino flavour, options: e,mu,tau (only relevant if calculating neutrino fluxes)
+set channel bb #set annihilation/decay channel for model independent cases
 #===============================================================
 #Run calculations
 #===============================================================
 #3 parts to the command: calculation command, flux type, and region
 #flux types: flux (everything), rflux (radio), hflux (high energy), gflux (gamma-rays only), jflux (gamma-rays from a j-factor)
 #regions: theta (needs theta set), r_integrate (needs r_integrate set in Mpc), full (out to virial radius, note full is the default) 
-c+o flux theta
+c+o rflux sb
+f sb rflux #same as above but outputs a fits file
 exit
