@@ -25,7 +25,7 @@ set z 6.8e-6
 set theta 20
 #set jfactor 8e18 reticulum2
 set name reticulum2
-set jflag 0 #this forces the halo density to normalise to the input Jfactor 
+set jflag 0 #value of 1 forces the halo density to normalise to the input Jfactor 
 set nu_flavour mu
 set wimp_mode ann
 set model_independent 1

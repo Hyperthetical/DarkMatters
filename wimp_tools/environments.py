@@ -100,7 +100,7 @@ class simulation_env:
         specCheck = isdir(self.specdir) #check the directory exists
         if not specCheck:
             print("Error: could not find directory "+self.specdir)
-        if self.nu_flavour in ["e","el","ee","electron"]:
+        if self.nu_flavour in ["el","ee","electron"]:
             self.nu_flavour = "e"
         if self.nu_flavour in ["m","mm","muon","mumu"]:
             self.nu_flavour = "mu"
@@ -130,7 +130,6 @@ class simulation_env:
         else:
             print("Warning: flim must be specified by fmin and fmax, you gave: "+str(self.flim))
 
-        print(self.f_sample)
         if (flimCheck or fSampleCheck) and subCheck and nuCheck and specCheck and outCheck: #must pass all checks to be a valid sim env
             return True
         else:
@@ -272,7 +271,7 @@ class physical_env:
                     print("Warning: number of branching ratios doesn't match channels, setting all equal!")
                     self.branching = np.ones(len(self.channel),dtype=float)/len(self.channel)
                 for ch,br in zip(self.channel,self.branching): #build a string of channels and branching ratios
-                    print(("%3.2f"%br)[-1])
+                    #print(("%3.2f"%br)[-1])
                     if float(("%3.2f"%br)[-1]) == 0.0: 
                         self.particle_model += "%2.1f"%br+str(ch)
                     else:

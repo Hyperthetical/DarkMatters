@@ -77,7 +77,6 @@ class calculation:
         """ 
         halo_id = output.getCalcID(self.sim,self.phys,self.cosmo,self.halo,short_id=(not full_id))
         fluxFile = halo_id+"_"+self.outLabel[calcMode]+"_radial_{:02.1e}MHz.out".format(self.sim.nu_sb)
-        print(fluxFile)
         fluxData = self.__calcFluxRadial(nu,calcMode,suppress_output=suppress_output)
         erg = fluxData*nu*1e-17
         write = [];write.append(self.halo.r_sample[0]);write.append(fluxData);write.append(erg)

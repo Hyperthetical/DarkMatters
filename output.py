@@ -194,7 +194,7 @@ def fitsSB(calcSet,fluxMode,fName=None):
         for nu in c.sim.f_sample:
             cGrid.append(c.calcSB(nu,fluxMode,full_id=True,suppress_output=False,writeFileFlag=False)[1])
         cGrid = np.array(cGrid,dtype=np.float64)
-        print(c.calcLabel,cGrid.shape)
+        #print(c.calcLabel,cGrid.shape)
         if hdul == []:
             hdu = fits.PrimaryHDU(cGrid)
         else:
