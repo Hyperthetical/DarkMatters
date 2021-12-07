@@ -522,7 +522,36 @@ def rho_dm_halo(halo,cos_env):
         return rho_einasto(halo,cos_env)
     else:
         tools.fatal_error("Halo profile "+halo.profile+" is not valid")
-    
+
+
+def haloDensityBuilder(haloDict):
+    """
+    Calculates the density profile over r_set
+        ---------------------------
+        Parameters
+        ---------------------------
+        r_set - Required : radial sample values [Mpc] (float)
+        rc    - Required : halo radial scale length [Mpc] (float)
+        dmmod - Required : halo profile code (int)
+        alpha - Optional : Einasto parameter (float)
+        ---------------------------
+        Output
+        ---------------------------
+        Radial density profile values (float len(r_set))
+    """
+    if haloDict['haloProfile'] == "nfw":
+        return lambda x: haloDict['rhoNorm']/(x/haloDict['haloScale'])/(1+x/haloDict['haloScale'])**2
+    elif haloDict['haloProfile'] == "burkert":
+        return lambda x: haloDict['rhoNorm']/(1+x/haloDict['haloScale'])/(1+(x/haloDict['haloScale'])**2)
+    elif haloDict['haloProfile'] == "gnfw":
+        return lambda x: haloDict['rhoNorm']/(x/haloDict['haloScale'])**haloDict['haloIndex']/(1+x/haloDict['haloScale'])**(3-haloDict['haloIndex'])
+    elif haloDict['haloProfile'] == "einasto":
+        return lambda x: haloDict['rhoNorm']*np.exp(-2/haloDict['HaloAlpha']*((x/haloDict['haloSCale'])**haloDict['haloAlpha']-1))
+    elif haloDict['haloProfile'] == "isothermal":
+        return lambda x: haloDict['rhoNorm']/(1+(x/haloDict['haloScale'])**2)
+    else:
+        tools.fatal_error("haloProfile {} not recognised".format(haloDict['haloProfile']))
+
 
 def rho_dm(r_set,rc,dmmod,alpha=0.17):
     """
@@ -670,11 +699,36 @@ def ne_distribution(phys,halo,ne_model):
         ne_set = phys.ne0*np.ones(len(halo.r_sample[0]))
     return np.array(ne_set)
 
+def gasDensityBuilder(gasDict):
+    if gasDict['gasProfile'] in ["pl","powerlaw"]:
+        return lambda x: gasDict['gasNorm']*(x/gasDict['gasScale'])**gasDict['gasIndex']
+    elif gasDict['gasProfile'] == "beta":
+        return lambda x: gasDict['gasNorm']*(1 +(x/gasDict['gasScale'])**2)**(3*gasDict['gasIndex'])
+    elif gasDict['gasProfile'] == "doublebeta":
+        return lambda x: gasDict['gasNorm']*(1 +(x/gasDict['gasScale'])**2)**(3*gasDict['gasIndex']) + gasDict['gasNorm2']*(1 +(x/gasDict['gasScale2'])**2)**(3*gasDict['gasIndex2'])
+    elif gasDict['gasProfile'] == "exp":
+        return lambda x: gasDict['gasNorm']*np.exp(-x/gasDict['gasScale'])
+    elif gasDict['gasProfile'] == "flat":
+        return lambda x: gasDict['gasNorm']*np.ones_like(x)
 
 #==========================================================================================
 # Magnetic field profiles
 #==========================================================================================
-        
+
+def magneticFieldBuilder(magDict):
+    if magDict['magProfile'] in ["pl","powerlaw"]:
+        return lambda x: magDict['magNorm']*(x/magDict['magScale'])**magDict['magIndex']
+    elif magDict['magProfile'] == "beta":
+        return lambda x: magDict['magNorm']*(1 +(x/magDict['magScale'])**2)**(3*magDict['magIndex'])
+    elif magDict['magProfile'] == "doublebeta":
+        return lambda x: magDict['magNorm']*(1 +(x/magDict['magScale'])**2)**(3*magDict['magIndex']) + magDict['magNorm2']*(1 +(x/magDict['magScale2'])**2)**(3*magDict['magIndex2'])
+    elif magDict['magProfile'] == "exp":
+        return lambda x: magDict['magNorm']*np.exp(-x/magDict['magScale'])
+    elif magDict['magProfile'] == "m31":
+        return lambda x: (magDict['magNorm']*magDict['magScale'] + 64e-3)/(magDict['magScale'] + x)
+    elif magDict['magProfile'] == "flat":
+        return lambda x: magDict['magNorm']*np.ones_like(x)
+
 def bfield(phys,halo,cos_env,b_flag):
     """
     Select and calculate magnetic field strength profile

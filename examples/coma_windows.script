@@ -12,13 +12,13 @@
 #===============================================================
 #this command tells the code where the input particle physics spectra are stored
 #If the first argument of electrons_from_c is t then a c executable must be given as argument 2
-set electrons_from_c t C:/Users/Geoff/Dropbox/Physics/Wimps/dark_matters/emm_tools/electron.exe
+set electrons_from_c t C:/Users/Geoff/Dropbox/Physics/Wimps/DarkMatters_dev/emm_tools/electron.exe
 #to produce the executable you can use the compile_electrons_windows.bat script in the emm_tools directory
 #
 #frequency limits in MHz
-set flim 1e1 1e5
+set flim 1e1 1e21
 #number of frequency samples
-set f_num 20
+set f_num 200
 #number of radial samples
 set r_num 71
 #number of radial samples in diffusion solution
@@ -37,6 +37,8 @@ set profile nfw
 set cvir 9.0
 #virial radius in Mpc
 set rvir 3.0  
+set rhos 14592.68
+set rcore 0.333333
 #whether or not we want subtructure, options are none,sc2006,prada
 set submode none
 #virial mass in Msol
@@ -77,9 +79,9 @@ set d 2.0
 #Particle physics
 #===============================================================
 #WIMP masses to be used in GeV, a list separated by spaces
-set mx_set 100
+set mx_set 1000 2000
 #set to either annihilate or decay
-set wimp_mode ann
+set wimp_mode decay
 #if set to 1 we use the PPPCB4DM, 0 to use custom models
 set model_independent 1
 #set particle_model madala_22_spin0
@@ -87,14 +89,14 @@ set model_independent 1
 set nu_flavour e
 #set annihilation/decay channel for model independent cases
 set channel bb
+set r_integrate 1
 #===============================================================
 #Run calculations
 #===============================================================
 #3 parts to the command: calculation command, flux type, and region
 #flux types: flux (everything), rflux (radio), hflux (high energy), gflux (gamma-rays only), jflux (gamma-rays from a j-factor)
 #regions: theta (needs theta set), r_integrate (needs r_integrate set in Mpc), full (out to virial radius, note full is the default) 
-c+o flux sb
-display c
-f sb rflux
+c+o flux r_integrate
+#f sb rflux
 #ff coma_bb_b4.7q0.5_follow_ne_d0_nfw_none_weights-rhosq_sync_emm.fits theta
 exit

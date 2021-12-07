@@ -20,11 +20,11 @@ try:
 except:
     print("Fatal Error: the wimp_tools sub-package of dark_matters is missing")
     sys.exit(2)
-try:
-    import output #output module
-except:
-    print("Fatal Error: file output.py is missing!")
-    sys.exit(2)
+# try:
+import output #output module
+# except:
+#     print("Fatal Error: file output.py is missing!")
+#     sys.exit(2)
 try:
     import calc_manager #output module
 except:
