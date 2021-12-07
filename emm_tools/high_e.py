@@ -109,6 +109,60 @@ def black_body(E,T):
     isnan = (1-np.exp(-E*b))
     return np.where(isnan == 0.0, 0.0, 2*4*np.pi*E**2/(h*c)**3*np.exp(-E*b)*(1-np.exp(-E*b))**(-1))
 
+def secondaryEmmHighE(electrons,z,gSample,fSample,neSample):
+    """
+    High energy emmisivity from ICS and Bremsstrahlung
+        ---------------------------
+        Parameters
+        ---------------------------
+        halo - Required : halo environment (halo_env)
+        phys - Required : physical environment (physical_env)
+        sim  - Required : simulation environment (simulation_env)
+        ---------------------------
+        Output
+        ---------------------------
+        2D float array (sim.num x sim.n) [cm^-3 s^-1]
+    """
+    n = len(neSample) #number of r shells
+    k = len(gSample) #number of E bins
+    num = len(fSample)  #number of frequency sampling points
+    ntheta = 100   #angular integration points
+
+    emm = np.zeros((num,n),dtype=float)   #emmisivity
+    P_IC = np.zeros((num,k),dtype=float)
+    P_B = np.zeros((num,k),dtype=float)
+    e_int = np.zeros(ntheta,dtype=float) #angular integral sampling
+    int_1 = np.zeros(k,dtype=float) #energy integral sampling
+
+    c = const.c.to('cm/s').value     #speed of light (cm s^-1)
+    h = const.h.to('GeV s').value
+    me = (const.m_e*const.c**2).to('GeV').value #electron mass (GeV)
+     
+    for i in range(0,num):  #loop over freq
+        nu = fSample[i]*(1+z) 
+        E_g = nu*h*1e6 #MHz to GeV
+        for l in range(0,k):   #loop over energy
+            g = gSample[l]
+            if(E_g > me*g):
+                P_IC[i][l] = 0.0
+                P_B[i][l] = 0.0
+            else:
+                emax = E_g*g*me/(me*g - E_g)
+                emin = emax/(4*g**2)
+                e_set = np.logspace(np.log10(emin),np.log10(emax),num=ntheta)
+                e_int = black_body(e_set,2.73*(1+z))*klein_nishina(E_g,e_set,g)
+                P_IC[i][l] = c*E_g*integrate(e_int,e_set)
+                P_B[i][l] = c*E_g*sigma_brem(E_g,g)
+        progress(i+1,num*2)
+    for i in range(0,num):
+        for j in range(0,n):    
+            int_1 = electrons[:,j]*(P_IC[i,:] + P_B[i,:]*neSample[j])
+            #integrate over energies to get emmisivity
+            emm[i][j] = integrate(int_1,gSample)
+        progress(i+num+1,num*2)
+    sys.stdout.write("\n")
+    return emm*h #h converts to GeV cm^-3
+
 def high_E_emm(halo,phys,sim):
     """
     High energy emmisivity from ICS and Bremsstrahlung
@@ -196,6 +250,70 @@ def gamma_source(halo,phys,sim):
     sys.stdout.write("\n")
     halo.gamma_emm = 2.0*emm*h #2 gamma-rays per event - h converts to GeV cm^-3
     return halo.gamma_emm
+
+def primaryEmmHighE(rhoSample,z,gSample,qSample,fSample,mode_exp):
+    """
+    High energy emmisivity from direct gamma-rays via halo model
+        ---------------------------
+        Parameters
+        ---------------------------
+        halo - Required : halo environment (halo_env)
+        phys - Required : physical environment (physical_env)
+        sim  - Required : simulation environment (simulation_env)
+        ---------------------------
+        Output
+        ---------------------------
+        2D float array (sim.num x sim.n) [cm^-3 s^-1]
+    """
+    n = len(rhoSample)
+    num = len(fSample)
+    h = const.h.to('GeV s').value
+    me = (const.m_e*const.c**2).to('GeV').value #electron mass (GeV)
+    #msun converted to kg, convert to GeV, convert Mpc to cm 
+    nwimp0 = np.sqrt(1.458e-33)**mode_exp/mode_exp*(1.0/mx)**mode_exp  #non-thermal wimp density (cm^-3) (central)
+    rhodm = nwimp0*rhoSample**mode_exp
+    emm = np.zeros((num,n),dtype=float)
+    Q_func = sp.interp1d(gSample,qSample)
+    for i in range(0,num):
+        E_g = h*fSample[i]*1e6*(1+z)/me
+        #Q_set = np.where(phys.gamma_spectrum[0] < E_g,0.0,phys.gamma_spectrum[1])
+        #emm[i,:] = integrate(Q_set,phys.gamma_spectrum[0])*rhodm[:] 
+        if E_g < gSample[0] or E_g > gSample[0][-1]:
+            emm[i,:] = np.zeros(len(rhodm))
+        else:
+            emm[i,:] = Q_func(E_g)*rhodm[:]*E_g #now in units of (cm^-3 s^-1)
+        progress(i+1,num)
+    sys.stdout.write("\n")
+    return 2.0*emm*h #2 gamma-rays per event - h converts to GeV cm^-3
+
+def gammaFluxFromJ(mx,z,jFactor,fSample,gSample,qSample):
+    """
+    High energy emmisivity from direct gamma-rays via J-factor
+        ---------------------------
+        Parameters
+        ---------------------------
+        halo - Required : halo environment (halo_env)
+        phys - Required : physical environment (physical_env)
+        sim  - Required : simulation environment (simulation_env)
+        ---------------------------
+        Output
+        ---------------------------
+        2D float array (sim.num x sim.n) [cm^-2 s^-1]
+    """
+    num = len(fSample)
+    h = const.h.to('GeV s').value
+    me = (const.m_e*const.c**2).to('GeV').value #electron mass (GeV)
+    nwimp0 = 0.125/np.pi/mx**2 #GeV^-2
+    emm = np.zeros(num,dtype=float)
+    Q_func = sp.interp1d(gSample,qSample)
+    for i in range(0,num):
+        E_g = h*fSample[i]*1e6*(1+z)/me
+        if E_g < gSample[0] or E_g > gSample[-1]:
+            emm[i] = 0.0
+        else:
+            emm[i] = Q_func(E_g)*jFactor*nwimp0*E_g #units of flux
+            #print halo.J,Q_func(E_g)*nwimp0*E_g/(1+halo.z),1+halo.z
+    return 2.0*emm #2 gamma-rays per event 
 
 def gamma_from_j(halo,phys,sim):
     """

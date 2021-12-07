@@ -2,9 +2,11 @@ set profile einasto
 set alpha 4e-1
 set submode none
 set B 1.0
-set flim 5e1 1e5
+set flim 890 1650
 set f_num 40 
-set electrons_from_c t /home/geoff/Dropbox/Physics/Wimps/dark_matters/emm_tools/electron.x
+set f_spacing lin
+#set electrons_from_c t /home/geoff/Dropbox/Physics/Wimps/DarkMatters_dev/emm_tools/electron.x
+set electrons_from_c t C:/Users/Geoff/Dropbox/Physics/Wimps/DarkMatters_dev/emm_tools/electron.exe
 set submode none
 set rcore 0.2e-3
 set rho0 7e16
@@ -31,9 +33,6 @@ set wimp_mode ann
 set model_independent 1
 #set particle_model madala_22_spin0
 set channel bb
-c+o rflux theta
-set channel mumu
-c+o rflux theta
-set channel tautau
-c+o rflux theta
+c+o rflux sb
+f sb rflux
 exit

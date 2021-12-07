@@ -279,7 +279,7 @@ class calculation:
                     if not suppress_output:
                         print("Finding Flux Within angular radius of: "+str(self.sim.theta)+" arcmin")
                     hFlux = high_e.high_E_flux(self.halo.da*np.tan(self.sim.theta*2.90888e-4),self.halo,self.sim,gammaFlag)
-                elif regionFlag == "r_integrate" and not self.self.sim.rintegrate is None:
+                elif regionFlag == "r_integrate" and not self.sim.rintegrate is None:
                     if not suppress_output:
                         print("Finding Flux Within radius of: "+str(self.sim.rintegrate)+" Mpc")
                     hFlux = high_e.high_E_flux(self.sim.rintegrate,self.halo,self.sim,gammaFlag)
@@ -461,7 +461,7 @@ class calculation:
             c_file = "temp_electrons_c.in"
             wd = os.getcwd()
             self.halo.electrons = electron.electrons_from_c(join(wd,py_file),join(wd,c_file),self.halo,self.phys,self.sim)
-            os.remove(join(wd,py_file))
+            #os.remove(join(wd,py_file))
             #os.remove(join(wd,c_file))
             if self.halo.electrons is None:
                 tools.fatal_error("The electron executable is not compiled/location not specified correctly")

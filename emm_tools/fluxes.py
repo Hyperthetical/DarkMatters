@@ -2,7 +2,7 @@ import numpy as np
 from scipy.integrate import simps as integrate
 from scipy.interpolate import interp1d,interp2d
 
-def surfaceBrightnessLoop(nu_sb,fSample,rSample,emm,deltaOmega=4*np.pi):
+def surfaceBrightnessLoopOld(nu_sb,fSample,rSample,emm,deltaOmega=4*np.pi):
     """
     Surface brightness from emmissivity 
         ---------------------------
@@ -42,6 +42,39 @@ def surfaceBrightnessLoop(nu_sb,fSample,rSample,emm,deltaOmega=4*np.pi):
         sb[j] = 2.0*integrate(lum,rSample) #the 2 comes from integrating over diameter not radius
     deltaOmega *= 1.1818e7 #convert sr to arcminute^2
     return rSample,sb*3.09e24*1.6e20/deltaOmega #unit conversions and adjustment to angles 
+
+
+def surfaceBrightnessLoop(nu_sb,fSample,rSample,emm,deltaOmega=4*np.pi):
+    """
+    Surface brightness from emmissivity 
+        ---------------------------
+        Parameters
+        ---------------------------
+        nu          - Required : frequency value for calculation (float) [MHz]
+        rvir        - Required : virial radius of target (float) [Mpc]
+        fSample     - Required : frequency points for calculation (1d array-like length n) [MHz]
+        rSample     - Required : radial points for calculation (1d array-like length m) [Mpc]
+        emm         - Required : emmissivity (2d array-like, dimension (n,m)) []
+        deltaOmega  - Optional : angular area of flux distribution (float) [sr]
+        ---------------------------
+        Output
+        ---------------------------
+        1D float array of surface-brightness (length n) [Jy arcminute^-2]
+    """
+    n = len(rSample)
+    sb = np.zeros(n,dtype=float) #surface brightness (nu,r)
+    emm = interp2d(rSample,fSample,emm)
+    
+    for j in range(0,n):
+        rprime = rSample[j]
+        lSet = np.logspace(np.log10(rSample[0]),np.log10(np.sqrt(rSample[-1]**2-rprime**2)),num=n)
+        rSet = np.sqrt(lSet**2+rprime**2)
+        sb[j] = 2.0*integrate(emm(rSet,nu_sb),lSet)
+    deltaOmega *= 1.1818e7 #convert sr to arcminute^2
+    if np.isnan(sb[-1]):
+        sb[-1] = 0.0
+    return rSample,sb*3.09e24*1.6e20/deltaOmega #unit conversions and adjustment to angles 
+
 
 def fluxGrid(rf,dl,fSample,rSample,emm,boostMod=1.0):
     """
