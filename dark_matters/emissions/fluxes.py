@@ -1,6 +1,8 @@
 import numpy as np 
 from scipy.integrate import simps as integrate
 from scipy.interpolate import interp1d,interp2d
+from astropy import constants as const
+import warnings
 
 def surfaceBrightnessLoopOld(nu_sb,fSample,rSample,emm,deltaOmega=4*np.pi):
     """
@@ -61,18 +63,20 @@ def surfaceBrightnessLoop(nu_sb,fSample,rSample,emm,deltaOmega=4*np.pi):
         ---------------------------
         1D float array of surface-brightness (length n) [Jy arcminute^-2]
     """
+    # with warnings.catch_warnings():
+    #     warnings.simplefilter("ignore")
+
     n = len(rSample)
     sb = np.zeros(n,dtype=float) #surface brightness (nu,r)
     emm = interp2d(rSample,fSample,emm)
     
-    for j in range(0,n):
+    for j in range(0,n-1):
         rprime = rSample[j]
-        lSet = np.logspace(np.log10(rSample[0]),np.log10(np.sqrt(rSample[-1]**2-rprime**2)),num=n)
+        lSet = np.logspace(np.log10(rSample[0]),np.log10(np.sqrt(rSample[-1]**2-rprime**2)),num=3*n)
         rSet = np.sqrt(lSet**2+rprime**2)
         sb[j] = 2.0*integrate(emm(rSet,nu_sb),lSet)
     deltaOmega *= 1.1818e7 #convert sr to arcminute^2
-    if np.isnan(sb[-1]):
-        sb[-1] = 0.0
+
     return rSample,sb*3.09e24*1.6e20/deltaOmega #unit conversions and adjustment to angles 
 
 
@@ -138,3 +142,32 @@ def fluxLoop(rf,dl,fSample,rSample,emm,boostMod=1.0):
     ff = ff*boostMod #accounts for reduced boost for radio flux when using Prada 2013 boosting
     #results must be multiplied by the chi-chi cross section
     return ff
+
+def fluxFromJFactor(mx,z,jFactor,fSample,gSample,qSample,mode_exp):
+    """
+    High energy emmisivity from direct gamma-rays via J-factor
+        ---------------------------
+        Parameters
+        ---------------------------
+        halo - Required : halo environment (halo_env)
+        phys - Required : physical environment (physical_env)
+        sim  - Required : simulation environment (simulation_env)
+        ---------------------------
+        Output
+        ---------------------------
+        2D float array (sim.num x sim.n) [cm^-2 s^-1]
+    """
+    num = len(fSample)
+    h = const.h.to('GeV s').value
+    me = (const.m_e*const.c**2).to('GeV').value #electron mass (GeV)
+    nwimp0 = 0.25/np.pi/mx**mode_exp/mode_exp #GeV^-2
+    emm = np.zeros(num,dtype=float)
+    Q_func = interp1d(gSample,qSample)
+    for i in range(0,num):
+        E_g = h*fSample[i]*1e6*(1+z)/me
+        if E_g < gSample[0] or E_g > gSample[-1]:
+            emm[i] = 0.0
+        else:
+            emm[i] = Q_func(E_g)*jFactor*nwimp0*E_g #units of flux
+            #print halo.J,Q_func(E_g)*nwimp0*E_g/(1+halo.z),1+halo.z
+    return 2.0*emm #2 gamma-rays per event 

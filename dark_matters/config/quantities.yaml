@@ -1,0 +1,34 @@
+angle:
+- calcAngmax
+density:
+- haloNorm
+distance:
+- haloDistance
+- haloScale
+- haloRvir
+- magScale
+- magScale2
+- gasScale
+- gasScale2
+- calcRmax
+- coherenceScale
+- haloCoreScale
+energy:
+- mWIMP
+frequency:
+- fSampleLimits
+- fSampleValues
+jFactor:
+- haloJFactor
+dFactor:
+- haloDFactor
+magnetic:
+- magNorm
+- magNorm2
+mass:
+- haloMvir
+numDensity:
+- gasNorm
+- gasNorm2
+diffConstant:
+- diffConstant

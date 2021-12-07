@@ -1,0 +1,18 @@
+beta:
+- gasScale
+- gasIndex
+- gasNorm
+doublebeta:
+- gasScale
+- gasIndex
+- gasNorm
+- gasScale2
+- gasIndex2
+- gasNorm2
+exp:
+- gasScale
+- gasNorm
+powerlaw:
+- gasScale
+- gasIndex
+- gasNorm

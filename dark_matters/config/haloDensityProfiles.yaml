@@ -1,0 +1,15 @@
+burkert:
+- none
+einasto:
+- haloIndex
+flat:
+- none
+gnfw:
+- haloIndex
+isothermal:
+- none
+nfw:
+- none
+cgnfw:
+- haloIndex
+- haloCoreScale

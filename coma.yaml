@@ -1,0 +1,49 @@
+haloData:
+  haloName: "coma"
+  haloProfile: "nfw"
+  haloScale:
+    value: 0.333
+    unit: "Mpc"
+#  haloCvir: 9.0
+#  haloRvir:
+    # value: 3.0
+    # unit: "Mpc"
+#  haloMvir: 1.24e+15
+  haloZ: 0.0231
+  haloNorm:
+    value: 1.86e+06
+    unit: "Msun/kpc^3"
+  # haloJFactor:
+  #   value: 1.e+16
+  #   unit: "GeV^2/cm^5"
+  # haloDFactor:
+  #   value: 1.e+15
+  #   unit: "GeV/cm^2"
+
+gasData:
+  gasProfile: "beta"
+  gasNorm: 
+    value: 3.49e-3
+    unit: "1/cm^3"
+  gasScale:
+    value: 253
+    unit: "kpc"
+  gasIndex: -0.327
+  
+magData:
+  magProfile: "beta"
+  magNorm:
+    value: 4.7e-6
+    unit: "gauss"
+  magIndex: -0.1635
+  magScale:
+    value: 0.253
+    unit: "Mpc"
+
+diffData:
+  lossOnly: False
+  coherenceScale:
+    value: 2.0
+    unit: "kpc"
+  diffIndex: 1.66666666
+
