@@ -495,7 +495,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         E_set = 10**E_set*mxEff/(constants.m_e*constants.c**2).to("GeV").value
         r_sample = [takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum']),takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rGreenSampleNum'])]
         rho_dm_sample = [haloData['haloDensityFunc'](r_sample[0])**mode_exp,haloData['haloDensityFunc'](r_sample[1])**mode_exp]
-        calcData['results']['electronData'][mIndex] = electron.equilibriumElectronsGridPartial(E_set,Q_set,r_sample,rho_dm_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF)
+        calcData['results']['electronData'][mIndex] = electron.equilibrium_electrons(E_set,Q_set,r_sample,rho_dm_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF)
     else:
         print("=========================================================")
         print("Calculating Electron Equilibriumn Distributions with C")
