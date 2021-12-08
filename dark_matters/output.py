@@ -10,8 +10,9 @@ from astropy.io import fits
 
 
 def checkQuant(key):
-    with os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/quantities.yaml") as f:
-        quantDict = yaml.load(open(f,"r"),Loader=yaml.SafeLoader)
+    inFile =open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/quantities.yaml"),"r")
+    quantDict = yaml.load(inFile,Loader=yaml.SafeLoader)
+    inFile.close()
     for h in quantDict:
         if key in quantDict[h]:
             return h

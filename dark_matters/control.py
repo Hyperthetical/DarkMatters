@@ -74,8 +74,9 @@ def checkMagnetic(magDict):
     """
     if not type(magDict) is dict:
         fatal_error("control.checkMagnetic() must be passed a dictionary as its argument")
-    with os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/magFieldProfiles.yaml") as f:
-        profileDict = yaml.load(open(f,"r"),Loader=yaml.SafeLoader)
+    inFile = open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/magFieldProfiles.yaml"),"r")
+    profileDict = yaml.load(inFile,Loader=yaml.SafeLoader)
+    inFile.close()
     if 'magFieldFunc' in magDict.keys() and magDict['magFuncLock']:
         magDict['magProfile'] = "custom"
         return magDict
@@ -114,8 +115,9 @@ def checkHalo(haloDict,cosmoDict):
     """
     if not type(haloDict) is dict:
         fatal_error("control.checkHalo() must be passed a dictionary as its argument")
-    with os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/haloDensityProfiles.yaml") as f:
-        haloParams = yaml.load(open(f,"r"),Loader=yaml.SafeLoader)
+    inFile = open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/haloDensityProfiles.yaml"),"r")
+    haloParams = yaml.load(inFile,Loader=yaml.SafeLoader)
+    inFile.close()
     def rhoNorm(haloDict,cosmoDict):
         if (not "haloNorm" in haloDict.keys()) and ("haloNormRelative" in haloDict.keys()):
             haloDict['haloNorm'] = haloDict['haloNormRelative']*cosmology.rho_crit(haloDict['haloZ'],cosmoDict)
@@ -217,8 +219,9 @@ def checkGas(gasDict):
     """
     if not type(gasDict) is dict:
         fatal_error("control.checkGas() must be passed a dictionary as its argument")
-    with os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/gasDensityProfiles.yaml") as f:
-        gasParams = yaml.load(open(f,"r"),Loader=yaml.SafeLoader)
+    inFile = open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/gasDensityProfiles.yaml"),"r")
+    gasParams = yaml.load(inFile,Loader=yaml.SafeLoader)
+    inFile.close()
     if not 'gasProfile' in gasDict.keys():
         gasDict['gasProfile'] = "flat"
     else:
