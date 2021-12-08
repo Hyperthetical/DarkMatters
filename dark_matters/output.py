@@ -1,6 +1,6 @@
 import numpy as np
 import sys
-import pickle,yaml
+import pickle,yaml,json
 import os
 from scipy.interpolate import interp2d,interp1d
 from astropy import wcs
@@ -10,7 +10,8 @@ from astropy.io import fits
 
 
 def checkQuant(key):
-    quantDict = yaml.load(open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/quantities.yaml"),"r"),Loader=yaml.SafeLoader)
+    with os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/quantities.yaml") as f:
+        quantDict = yaml.load(open(f,"r"),Loader=yaml.SafeLoader)
     for h in quantDict:
         if key in quantDict[h]:
             return h
@@ -82,8 +83,16 @@ def getCalcID(calcData,haloData,partData):
     else:
         wimp_str = "annihilation_"
 
+    mxStr = "mx-"
+    for mx in calcData['mWIMP']:
+        mxStr += "{}".format(int(mx))
+        if not mx == calcData['mWIMP'][-1]:
+            mxStr += "-"
+        else:
+            mxStr += "GeV_"
+
     model_str = partData['partModel']+"_"
-    return haloData['haloName']+"_"+model_str+wimp_str+dm_str+w_str+dist_str
+    return haloData['haloName']+"_"+model_str+mxStr+wimp_str+dm_str+w_str+dist_str
 
 def fluxLabel(calcData):
     if calcData['freqMode'] == "radio":
@@ -103,6 +112,13 @@ def fluxLabel(calcData):
 def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,outMode="yaml",fName=None,emOnly=False):
     if np.any(calcData['results']['finalData'] is None):
         fatal_error("output.fitsMap() cannot be invoked without a full set of calculated results, some masses have not had calculations run")
+    def default(obj):
+        if type(obj).__module__ == np.__name__:
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            else:
+                return obj.item()
+        raise TypeError('Unknown type:', type(obj))
     writeHalo = {key: value for key, value in haloData.items() if not key == 'haloDensityFunc'}
     writeMag = {key: value for key, value in magData.items() if not key == 'magFieldFunc'}
     writeGas = {key: value for key, value in gasData.items() if not key == 'gasDensityFunc'}
@@ -114,6 +130,8 @@ def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,out
             print("Warning from output.makeOutput(): jflux calculations have no emissivity, emOnly = True cannot be used!, reverting to emOnly = False")
             writeCalc['results'] = {key: value for key, value in calcData['results'].items()}
             emOnly = False
+    else:
+        writeCalc['results'] = {key: value for key, value in calcData['results'].items()}
     outData = {'calcData':writeCalc,'haloData':writeHalo,'partData':writePart,'magData':writeMag,'gasData':writeGas,'diffData':diffData,'cosmoData':cosmoData}
     if fName is None:
         fName = getCalcID(calcData,haloData,partData)+fluxLabel(calcData)
@@ -124,9 +142,15 @@ def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,out
     if outMode == "yaml":
         outFile = open(fName+".yaml","w")
         yaml.dump(outData, outFile)
+        outFile.close()
     elif outMode == "pickle":
         outFile = open(fName+".pkl","w")
         pickle.dump(outData,outFile)
+        outFile.close()
+    elif outMode == "json":
+        outFile = open(fName+".json","w")
+        json.dump(outData,outFile,default=default)
+        outFile.close()
 
 def wimpWrite(mx,partData,target=None):
     class stringStream:

@@ -1,3 +1,4 @@
+from genericpath import isfile
 import numpy as np
 from os.path import join
 import sys,os,yaml
@@ -73,7 +74,8 @@ def checkMagnetic(magDict):
     """
     if not type(magDict) is dict:
         fatal_error("control.checkMagnetic() must be passed a dictionary as its argument")
-    profileDict = yaml.load(open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/magFieldProfiles.yaml"),"r"),Loader=yaml.SafeLoader)
+    with os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/magFieldProfiles.yaml") as f:
+        profileDict = yaml.load(open(f,"r"),Loader=yaml.SafeLoader)
     if 'magFieldFunc' in magDict.keys() and magDict['magFuncLock']:
         magDict['magProfile'] = "custom"
         return magDict
@@ -112,7 +114,8 @@ def checkHalo(haloDict,cosmoDict):
     """
     if not type(haloDict) is dict:
         fatal_error("control.checkHalo() must be passed a dictionary as its argument")
-    haloParams = yaml.load(open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/haloDensityProfiles.yaml"),"r"),Loader=yaml.SafeLoader)
+    with os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/haloDensityProfiles.yaml") as f:
+        haloParams = yaml.load(open(f,"r"),Loader=yaml.SafeLoader)
     def rhoNorm(haloDict,cosmoDict):
         if (not "haloNorm" in haloDict.keys()) and ("haloNormRelative" in haloDict.keys()):
             haloDict['haloNorm'] = haloDict['haloNormRelative']*cosmology.rho_crit(haloDict['haloZ'],cosmoDict)
@@ -214,7 +217,8 @@ def checkGas(gasDict):
     """
     if not type(gasDict) is dict:
         fatal_error("control.checkGas() must be passed a dictionary as its argument")
-    gasParams = yaml.load(open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/gasDensityProfiles.yaml"),"r"),Loader=yaml.SafeLoader)
+    with os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/gasDensityProfiles.yaml") as f:
+        gasParams = yaml.load(open(f,"r"),Loader=yaml.SafeLoader)
     if not 'gasProfile' in gasDict.keys():
         gasDict['gasProfile'] = "flat"
     else:
@@ -686,8 +690,12 @@ def calcFlux(mx,calcData,haloData):
     print("=========================================================")
     print("Frequency mode: {}".format(calcData['freqMode']))
     if 'calcRmax' in calcData.keys():
-        print("Integration radius: {} Mpc".format(calcData['calcRmax']))
-        rmax = calcData['calcRmax']
+        if calcData['calcRmax'] == "Rmax" or calcData['Rmax'] == -1:
+            rmax = haloData['haloRvir']
+        else:
+            rmax = calcData['calcRmax']
+        print("Integration radius: {} Mpc".format(rmax))
+        
     else:
         rmax = np.tan(calcData['calcAngmax']/180/60*np.pi)*haloData['haloDistance']
         print("Integration radius: {} arcmins = {} Mpc".format(calcData['calcAngmax'],rmax))
@@ -866,6 +874,13 @@ def runCalculation(calcData,haloData,partData,magData,gasData,diffData,cosmoData
                 calcData = calcSB(mx,calcData,haloData)
         else:
             calcData = calcJFlux(mx,calcData,haloData,partData)
+    py_file = "temp_electrons_py.out"
+    c_file = "temp_electrons_c.in"
+    wd = os.getcwd()
+    if isfile(join(wd,py_file)):
+        os.remove(join(wd,py_file))
+    if isfile(join(wd,c_file)):
+        os.remove(join(wd,c_file))
     return calcData,haloData,partData,magData,gasData,diffData,cosmoData
 
 

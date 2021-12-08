@@ -1,5 +1,5 @@
 import numpy as np
-import yaml
+import yaml,json
 from astropy import units
 from scipy.interpolate import interp2d
 import os
@@ -83,7 +83,7 @@ def readSpectrum(spec_file,partModel,mode="annihilation",pppcb4dm=True):
         intp = interp2d(mx,xLog,dnData,fill_value=0.0)
     return intp    
 
-def readInputFile(inputFile):
+def readInputFile(inputFile,inMode="yaml"):
     """
     Reads a yaml file and builds dictionaries 
 
@@ -102,7 +102,13 @@ def readInputFile(inputFile):
     All dictionaries are returned, empty dictionaries indicate no properties were set in the file
     """
     stream = open(inputFile, 'r')
-    inputData = yaml.load(stream,Loader=yaml.SafeLoader)
+    if inMode == "yaml":
+        inputData = yaml.load(stream,Loader=yaml.SafeLoader)
+    elif inMode == "json":
+        inputData = json.loads(stream)
+    else:
+        fatal_error("The argument inMode = {} given to input.readInputFile() does not match any valid input modes".format(inMode))
+    stream.close()
     validKeys = ["haloData","magData","gasData","diffData","partData","calcData","cosmoData"]
     dmUnits = {"distance":"Mpc","mass":"Msun","density":"Msun/Mpc^3","numDensity":"1/cm^3","magnetic":"microGauss","energy":"GeV","frequency":"MHz","angle":"arcmin","jFactor":"GeV^2/cm^5","dFactor":"GeV/cm^2","diffConstant":"cm^2/s"}
     dataSets = {}
@@ -145,5 +151,6 @@ def readDMOutput(fName):
     """
     stream = open(fName, 'r')
     inData = yaml.load(stream,Loader=yaml.UnsafeLoader)
+    stream.close()
     return inData['calcData'],inData['haloData'],inData['partData'],inData['magData'],inData['gasData'],inData['diffData'],inData['cosmoData']
 
