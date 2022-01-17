@@ -20,7 +20,7 @@ def getSpectralData(spec_dir,partModel,specSet,mode="annihilation"):
     mode : str, optional 
         Annihilation or decay
     pppcdb4dm : bool
-        Flag for using PPPCB4DM tables
+        Flag for using pppc4dmid tables
 
     Returns
     ---------------------------
@@ -30,12 +30,12 @@ def getSpectralData(spec_dir,partModel,specSet,mode="annihilation"):
     specDict = {}
     for f in specSet:
         if partModel in ["bb","qq","ww","ee","hh","tautau","mumu","tt","zz"]:
-            specDict[f] = readSpectrum(os.path.join(spec_dir,"AtProduction_{}.dat".format(f)),partModel,mode=mode,pppcb4dm=True)
+            specDict[f] = readSpectrum(os.path.join(spec_dir,"AtProduction_{}.dat".format(f)),partModel,mode=mode,pppc4dmid=True)
         else:
-            specDict[f] = readSpectrum(os.path.join(spec_dir,"AtProduction_{}.dat".format(f)),partModel,mode=mode,pppcb4dm=False)
+            specDict[f] = readSpectrum(os.path.join(spec_dir,"AtProduction_{}.dat".format(f)),partModel,mode=mode,pppc4dmid=False)
     return specDict
 
-def readSpectrum(spec_file,partModel,mode="annihilation",pppcb4dm=True):
+def readSpectrum(spec_file,partModel,mode="annihilation",pppc4dmid=True):
     """
     Reads file to get particle yield spectra for a given model and set of WIMP masses
 
@@ -47,8 +47,8 @@ def readSpectrum(spec_file,partModel,mode="annihilation",pppcb4dm=True):
         Label of particle physics model
     mode : float, optional 
         Flag, 2.0 for annihilation or 1.0 for decay
-    pppcdb4dm : bool, optional 
-        Flag for using PPPCDB4DM tables
+    pppc4dmid : bool, optional 
+        Flag for using PPPC4DMID tables
 
     Returns
     ---------------------------
@@ -63,7 +63,7 @@ def readSpectrum(spec_file,partModel,mode="annihilation",pppcb4dm=True):
     """
     #mDM      Log[10,x]   eL         eR         e          \[Mu]L     \[Mu]R     \[Mu]      \[Tau]L    \[Tau]R    \[Tau]     q            c            b            t            WL          WT          W           ZL          ZT          Z           g            \[Gamma]    h           \[Nu]e     \[Nu]\[Mu]   \[Nu]\[Tau]   V->e       V->\[Mu]   V->\[Tau]
     chCols = {"ee":4,"mumu":7,"tautau":10,"qq":11,"bb":13,"tt":14,"ww":17,"zz":20,"gamma":22,'hh':23}
-    if pppcb4dm:
+    if pppc4dmid:
         nCol = chCols[partModel]
     else:
         nCol = 2

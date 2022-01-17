@@ -25,6 +25,6 @@ calcData:
   rOutputSpacing: "log" 
   eSampleNum: 71
   rGreenSampleNum: 121
-#  electronExecFile: "C:/Users/Geoff/Dropbox/Physics/Wimps/DarkMatters/dark_matters/emissions/electron.exe"
-  electronExecFile: "dark_matters/emissions/electron.x"
+  electronExecFile: "C:/Users/Geoff/Dropbox/Physics/Wimps/DarkMatters/dark_matters/emissions/electron.exe"
+#  electronExecFile: "dark_matters/emissions/electron.x"
   electronMode: "c"
