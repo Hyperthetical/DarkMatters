@@ -286,20 +286,21 @@ def checkCalculation(calcDict):
 
     if not 'eSampleNum' in calcDict.keys():
         calcDict['eSampleNum'] = 71
-    elif calcDict['eSampleNum'] < 20:
-        fatal_error("eSampleNum cannot be set below 70 without incurring errors")
+    elif calcDict['eSampleNum'] < 71:
+        fatal_error("eSampleNum cannot be set below 71 without incurring errors")
     if not 'log10ESampleMinFactor' in calcDict.keys():
         calcDict['log10ESampleMinFactor'] = -9
 
-    if calcDict['calcMode'] != "jflux":
+    if calcDict['calcMode'] == "flux":
         if (not 'calcRmax' in calcDict.keys()) and (not 'calcAngmax' in calcDict.keys()):
             fatal_error("calcDict requires one of the variables {} or {} for the selected mode: {}".format('calcRmax','calcAngmax',calcDict['calcMode']))
         elif ('calcRmax' in calcDict.keys()) and ('calcAngmax' in calcDict.keys()):
             fatal_error("calcDict requires ONLY one of the variables {} or {} for the selected mode: {}".format('calcRmax','calcAngmax',calcDict['calcMode']))
+    if not calcDict['calcMode'] == "jflux":
         if not 'rSampleNum' in calcDict.keys():
-            calcDict['rSampleNum'] = 71
+            calcDict['rSampleNum'] = 61
         if not 'rGreenSampleNum' in calcDict.keys():
-            calcDict['rGreenSampleNum'] = 3*calcDict['rSampleNum']
+            calcDict['rGreenSampleNum'] = 121
         if not 'log10RSampleMinFactor' in calcDict.keys():
             calcDict['log10RSampleMinFactor'] = -5
     else:
@@ -316,7 +317,7 @@ def checkParticles(partDict,calcDict):
     partDict : dictionary
         Particle physics information
     calcDict : dictionary
-        Calculsation information, must have been checkCalculation'd first
+        Calculation information, must have been checkCalculation'd first
 
     Returns
     ---------------------------
@@ -324,7 +325,7 @@ def checkParticles(partDict,calcDict):
         Particle physics in compliance with DarkMatters requirements, code will exit if this cannot be achieved
     """
     if not type(calcDict) is dict or not type(partDict) is dict:
-        fatal_error("control.checkParticles() must be passed a dictionaries as its arguments")
+        fatal_error("control.checkParticles() must be passed a dictionaries as its argument")
     if not 'partModel' in partDict.keys():
         fatal_error("partDict requires a partModel value")
     if not 'emModel' in partDict.keys():
@@ -359,7 +360,7 @@ def checkDiffusion(diffDict):
         Diffusion information in compliance with DarkMatters requirements, code will exit if this cannot be achieved
     """
     if not type(diffDict) is dict:
-        fatal_error("control.checkDiffusion() must be passed a dictionaries as its arguments")
+        fatal_error("control.checkDiffusion() must be passed a dictionaries as its argument")
     if not 'ISRF' in diffDict.keys():
         diffDict['ISRF'] = False
     if not 'lossOnly' in diffDict.keys():
@@ -385,7 +386,7 @@ def takeSamples(xmin,xmax,nx,spacing="log"):
     ---------------------------
     xmin : float
         Starting value
-    xmax : flota
+    xmax : float
         Ending value
     nx : int
         Number of samples
@@ -486,7 +487,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         lc = diffData['coherenceScale']*1e3 #kpc
         delta = diffData['diffIndex']
         d0 = diffData['diffConstant']
-        if calcData['rSampleNum'] < 21:
+        if calcData['rSampleNum'] < 51:
             fatal_error("You have specified rSampleNum = {}, this will yield inaccurate electron density results with lossOnly = False.\n Set rSampleNum > 70".format(calcData['rSampleNum'])) 
         if calcData['rGreenSampleNum'] < 101:
             fatal_error("You have specified rGreenSampleNum = {}, this will yield inaccurate electron density results with lossOnly = False.\n Set rGreenSampleNum > 200".format(calcData['rGreenSampleNum'])) 
@@ -527,7 +528,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         #os.remove(join(wd,py_file))
         #os.remove(join(wd,c_file))
         if calcData['results']['electronData'][mIndex] is None:
-            fatal_error("The electron executable {} is not compiled/location not specified correctly".format(calcData['electronExecFile']))
+            fatal_error("The electron executable {} is not compiled or location not specified correctly".format(calcData['electronExecFile']))
     print("Process Complete")
     return calcData
 
@@ -613,7 +614,7 @@ def calcPrimaryEm(mx,calcData,haloData,partData):
         emmType = 'neutrinoEmData'
     mIndex = getIndex(calcData['mWIMP'],mx)
     if partData['emModel'] == "annihilation":
-        mode_exp=2.0
+        mode_exp = 2.0
     else:
         mode_exp = 1.0
     mxEff = mx*0.5*mode_exp #this takes into account decay when mode_exp = 1, annihilation mode_exp = 2 means mxEff = mx
@@ -657,7 +658,7 @@ def calcSecondaryEm(mx,calcData,haloData,partData,magData,gasData,diffData):
     print("Calculating Secondary Gamma-ray Emissivity")
     print("=========================================================")
     if partData['emModel'] == "annihilation":
-        mode_exp=2.0
+        mode_exp = 2.0
     else:
         mode_exp = 1.0
     mIndex = getIndex(calcData['mWIMP'],mx)
@@ -884,10 +885,10 @@ def runCalculation(calcData,haloData,partData,magData,gasData,diffData,cosmoData
     py_file = "temp_electrons_py.out"
     c_file = "temp_electrons_c.in"
     wd = os.getcwd()
-    if isfile(join(wd,py_file)):
-        os.remove(join(wd,py_file))
-    if isfile(join(wd,c_file)):
-        os.remove(join(wd,c_file))
+    # if isfile(join(wd,py_file)):
+    #     os.remove(join(wd,py_file))
+    # if isfile(join(wd,c_file)):
+    #     os.remove(join(wd,c_file))
     return calcData,haloData,partData,magData,gasData,diffData,cosmoData
 
 
