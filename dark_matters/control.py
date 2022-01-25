@@ -490,7 +490,11 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
             fatal_error("You have specified rSampleNum = {}, this will yield inaccurate electron density results with lossOnly = False.\n Set rSampleNum > 70".format(calcData['rSampleNum'])) 
         if calcData['rGreenSampleNum'] < 101:
             fatal_error("You have specified rGreenSampleNum = {}, this will yield inaccurate electron density results with lossOnly = False.\n Set rGreenSampleNum > 200".format(calcData['rGreenSampleNum'])) 
-    b_av,ne_av = physical_averages(calcData['calcRmax'],mode_exp,calcData,haloData,magData,gasData)
+    if 'calcRmax' in calcData.keys():
+        rmax = calcData['calcRmax']
+    else:
+        rmax = np.tan(calcData['calcAngmax']/180/60*np.pi)*haloData['haloDistance']
+    b_av,ne_av = physical_averages(rmax,mode_exp,calcData,haloData,magData,gasData)
     if calcData['electronMode'] == "python":
         print("=========================================================")
         print("Calculating Electron Equilibriumn Distributions with Python")
