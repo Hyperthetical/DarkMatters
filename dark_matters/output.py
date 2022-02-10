@@ -34,8 +34,7 @@ def fatal_error(err_string):
     print("################################################")
     print("                   Fatal Error")
     print("################################################")
-    print(err_string)
-    sys.exit(2)
+    raise SystemExit(err_string)
 
 def getCalcID(calcData,haloData,partData):
     """

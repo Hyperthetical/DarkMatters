@@ -83,8 +83,7 @@ def checkMagnetic(magDict):
     if not 'magProfile' in magDict.keys():
         magDict['magProfile'] = "flat"
     if not magDict['magProfile'] in profileDict.keys():
-        print("magData variable magProfile is required to be one of {}".format(profileDict.keys()))
-        sys.exit(2)
+        fatal_error("magData variable magProfile is required to be one of {}".format(profileDict.keys()))
     needVars = profileDict[magDict['magProfile']]
     for var in needVars:
         if not var in magDict.keys():
@@ -182,11 +181,12 @@ def checkHalo(haloDict,cosmoDict):
                     haloDict['haloCvir'] = haloDict['haloRvir']/haloDict['haloScale']
             haloDict = rhoNorm(haloDict,cosmoDict)
         elif rvirInfo and 'haloCvir' in haloDict.keys():
-            if 'haloRvir' in haloDict.keys():
-                if not 'haloScale' in haloDict.keys():
-                    haloDict['haloScale'] = haloDict['haloRvir']/haloDict['haloCvir']
             if not 'haloMvir' in haloDict.keys():
                 haloDict['haloMvir'] = cosmology.mvirFromRvir(haloDict['haloRvir'],haloDict['haloZ'],cosmoDict)
+            if not 'haloRvir' in haloDict.keys():
+                haloDict['haloRvir'] = cosmology.rvirFromMvir(haloDict['haloMvir'],haloDict['haloZ'],cosmoDict)
+            if not 'haloScale' in haloDict.keys():
+                haloDict['haloScale'] = haloDict['haloRvir']/haloDict['haloCvir']
             haloDict = rhoNorm(haloDict,cosmoDict)
         elif rvirInfo:
             if not 'haloMvir' in haloDict.keys():

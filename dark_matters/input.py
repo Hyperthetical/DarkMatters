@@ -110,7 +110,7 @@ def readInputFile(inputFile,inMode="yaml"):
         fatal_error("The argument inMode = {} given to input.readInputFile() does not match any valid input modes".format(inMode))
     stream.close()
     validKeys = ["haloData","magData","gasData","diffData","partData","calcData","cosmoData"]
-    dmUnits = {"distance":"Mpc","mass":"Msun","density":"Msun/Mpc^3","numDensity":"1/cm^3","magnetic":"microGauss","energy":"GeV","frequency":"MHz","angle":"arcmin","jFactor":"GeV^2/cm^5","dFactor":"GeV/cm^2","diffConstant":"cm^2/s"}
+    dmUnits = {"distance":"Mpc","mass":"solMass","density":"Msun/Mpc^3","numDensity":"1/cm^3","magnetic":"microGauss","energy":"GeV","frequency":"MHz","angle":"arcmin","jFactor":"GeV^2/cm^5","dFactor":"GeV/cm^2","diffConstant":"cm^2/s"}
     dataSets = {}
     for key in validKeys:
         dataSets[key] = {}
@@ -127,7 +127,9 @@ def readInputFile(inputFile,inMode="yaml"):
                 else:
                     fatal_error("{} property {} does not accept a unit argument".format(h,x))
                 try:
-                    dataSets[h][x] = (inputData[h][x]['value']*units.Unit(inputData[h][x]['unit'])).to(unitStr).value #convert the units to internal system
+                    dataSets[h][x] = ((inputData[h][x]['value']*units.Unit(inputData[h][x]['unit'])).to(unitStr)).value #convert the units to internal system
+                except AttributeError:
+                    dataSets[h][x] = (inputData[h][x]['value']*units.Unit(inputData[h][x]['unit'])).to(unitStr)
                 except:
                     fatal_error("Processing failed on {} property {} ".format(h,x))
     if len(dataSets['magData']) > 0:
