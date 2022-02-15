@@ -1,8 +1,9 @@
 from genericpath import isfile
 import numpy as np
 from os.path import join
-import sys,os,yaml
+import os,yaml
 from scipy.integrate import simps
+from scipy.optimize import newton
 from astropy import constants
 from .input import getSpectralData
 from .output import fatal_error,calcWrite,wimpWrite
@@ -150,6 +151,14 @@ def checkHalo(haloDict,cosmoDict):
                 if not x == "none":
                     if not x in haloDict.keys():
                         fatal_error("haloProfile {} requires property {} be set".format(haloDict['haloProfile'],x))
+        if haloDict["haloProfile"] == "burkert":
+            #rescale to reflect where dlnrho/dlnr = -2 (required as cvir = rvir/r_{-2})
+            #isothermal, nfw, einasto all have rs = r_{-2}
+            scaleMod = 1.5214
+        elif haloDict["haloProfile"] == "gnfw":
+            scaleMod = 2.0 - haloDict['haloIndex']
+        else:
+            scaleMod = 1.0
         rsInfo = "haloScale" in haloDict.keys() 
         rhoInfo = "haloNorm" in haloDict.keys() or "haloNormRelative" in haloDict.keys()
         rvirInfo = "haloRvir" in haloDict.keys() or "haloMvir" in haloDict.keys()
@@ -166,19 +175,19 @@ def checkHalo(haloDict,cosmoDict):
                 haloDict['haloRvir']= astrophysics.rvirFromRho(haloDict,cosmoDict)
                 haloDict['haloMvir'] = cosmology.mvirFromRvir(haloDict['haloRvir'],haloDict['haloZ'],cosmoDict)
             if not "haloCvir" in haloDict.keys():
-                haloDict['haloCvir'] = haloDict['haloRvir']/haloDict['haloScale']
+                haloDict['haloCvir'] = haloDict['haloRvir']/haloDict['haloScale']/scaleMod
         elif rvirInfo and rsInfo:
             if not 'haloRvir' in haloDict.keys():
                 haloDict['haloRvir'] = cosmology.rvirFromMvir(haloDict['haloMvir'],haloDict['haloZ'],cosmoDict)
             if not 'haloCvir' in haloDict.keys():
-                haloDict['haloCvir'] = haloDict['haloRvir']/haloDict['haloScale']
+                haloDict['haloCvir'] = haloDict['haloRvir']/haloDict['haloScale']/scaleMod
             if not 'haloMvir' in haloDict.keys():
                 haloDict['haloMvir'] = cosmology.mvirFromRvir(haloDict['haloRvir'],haloDict['haloZ'],cosmoDict)
             else:
                 if not 'haloRvir' in haloDict.keys():
                     haloDict['haloRvir'] = cosmology.rvirFromMvir(haloDict['haloMvir'],haloDict['haloZ'],cosmoDict)
                 if not 'haloCvir' in haloDict.keys():
-                    haloDict['haloCvir'] = haloDict['haloRvir']/haloDict['haloScale']
+                    haloDict['haloCvir'] = haloDict['haloRvir']/haloDict['haloScale']/scaleMod
             haloDict = rhoNorm(haloDict,cosmoDict)
         elif rvirInfo and 'haloCvir' in haloDict.keys():
             if not 'haloMvir' in haloDict.keys():
@@ -186,7 +195,7 @@ def checkHalo(haloDict,cosmoDict):
             if not 'haloRvir' in haloDict.keys():
                 haloDict['haloRvir'] = cosmology.rvirFromMvir(haloDict['haloMvir'],haloDict['haloZ'],cosmoDict)
             if not 'haloScale' in haloDict.keys():
-                haloDict['haloScale'] = haloDict['haloRvir']/haloDict['haloCvir']
+                haloDict['haloScale'] = haloDict['haloRvir']/haloDict['haloCvir']/scaleMod
             haloDict = rhoNorm(haloDict,cosmoDict)
         elif rvirInfo:
             if not 'haloMvir' in haloDict.keys():
@@ -194,7 +203,7 @@ def checkHalo(haloDict,cosmoDict):
             else:
                 haloDict['haloRvir'] = cosmology.rvirFromMvir(haloDict['haloMvir'],haloDict['haloZ'],cosmoDict)
             haloDict['haloCvir'] = cosmology.cvir_p12_param(haloDict['haloMvir'],haloDict['haloZ'],cosmoDict)
-            haloDict['haloScale'] = haloDict['haloRvir']/haloDict['haloCvir']
+            haloDict['haloScale'] = haloDict['haloRvir']/haloDict['haloCvir']/scaleMod
             haloDict = rhoNorm(haloDict,cosmoDict)
         else:
             fatal_error("haloData is underspecified by {}".format(haloDict))

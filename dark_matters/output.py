@@ -56,7 +56,7 @@ def getCalcID(calcData,haloData,partData):
     """
     dm_str = haloData['haloProfile']
     if 'haloIndex' in haloData.keys():
-        dm_str += "-"+haloData['haloIndex']
+        dm_str += "-{:.1f}".format(haloData['haloIndex'])
     dm_str += "_"
 
     if not calcData['calcMode'] == "jflux":

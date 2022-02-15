@@ -32,7 +32,7 @@ def getSpectralData(spec_dir,partModel,specSet,mode="annihilation"):
         if partModel in ["bb","qq","ww","ee","hh","tautau","mumu","tt","zz"]:
             specDict[f] = readSpectrum(os.path.join(spec_dir,"AtProduction_{}.dat".format(f)),partModel,mode=mode,pppc4dmid=True)
         else:
-            specDict[f] = readSpectrum(os.path.join(spec_dir,"AtProduction_{}.dat".format(f)),partModel,mode=mode,pppc4dmid=False)
+            specDict[f] = readSpectrum(os.path.join(spec_dir,"{}_AtProduction_{}.dat".format(partModel,f)),partModel,mode=mode,pppc4dmid=False)
     return specDict
 
 def readSpectrum(spec_file,partModel,mode="annihilation",pppc4dmid=True):

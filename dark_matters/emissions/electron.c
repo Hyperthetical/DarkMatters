@@ -164,13 +164,13 @@ std::vector<double> equilibrium_p(int const k,std::vector<double> &E_set,std::ve
                                 int_v1[i2] = 0.0;  //integral runs over E3 from lower lim E (v prime)
                             }
                             else{
-                                int_v1[i2] = pow(E3*me,2.0-delta)/loss[i2];
+                                int_v1[i2] = pow(E3*me,2.0-delta)*pow(b_av,delta-2)*pow(lc,delta-1)/loss[i2];
                             }
                             if (E3 < E2){
                                 int_v2[i2] = 0.0;  //integral runs over E3 from lower lim E2 (v)
                             }
                             else{
-                                int_v2[i2] = pow(E3*me,2.0-delta)/loss[i2];
+                                int_v2[i2] = pow(E3*me,2.0-delta)*pow(b_av,delta-2)*pow(lc,delta-1)/loss[i2];
                             }
                         }
                         double v1 = simps_3_8(k,E_set,int_v1);
@@ -195,7 +195,7 @@ std::vector<double> equilibrium_p(int const k,std::vector<double> &E_set,std::ve
             printf("\rProgress: %d%%", int((steps_done+1)*1.0/(n*k)*100.0));
             fflush(stdout);
         }
-    }
+    }    
     printf("\n");
     return electrons;              
 }
