@@ -200,7 +200,7 @@ def checkHalo(haloDict,cosmoDict):
         elif rvirInfo:
             if not 'haloMvir' in haloDict.keys():
                 haloDict['haloMvir'] = cosmology.mvirFromRvir(haloDict['haloRvir'],haloDict['haloZ'],cosmoDict)
-            else:
+            if not 'haloRvir' in haloDict.keys():
                 haloDict['haloRvir'] = cosmology.rvirFromMvir(haloDict['haloMvir'],haloDict['haloZ'],cosmoDict)
             haloDict['haloCvir'] = cosmology.cvir_p12_param(haloDict['haloMvir'],haloDict['haloZ'],cosmoDict)
             haloDict['haloScale'] = haloDict['haloRvir']/haloDict['haloCvir']/scaleMod
@@ -342,6 +342,10 @@ def checkParticles(partDict,calcDict):
     elif not partDict['emModel'] in ["annihilation","decay"]:
         fatal_error("emModel must be set to either annihilation or decay")
     if not 'spectrumDirectory' in partDict.keys():
+        partDict['spectrumDirectory'] = os.path.join(os.path.dirname(os.path.realpath(__file__)),"particle_physics")
+    try:
+        open(partDict['spectrumDirectory'],"r")
+    except:
         partDict['spectrumDirectory'] = os.path.join(os.path.dirname(os.path.realpath(__file__)),"particle_physics")
     specSet = []
     if "neutrinos" in calcDict['freqMode']:
@@ -503,7 +507,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
     if 'calcRmax' in calcData.keys():
         rmax = calcData['calcRmax']
     else:
-        rmax = np.tan(calcData['calcAngmax']/180/60*np.pi)*haloData['haloDistance']
+        rmax = np.tan(calcData['calcAngmax']/180/60*np.pi)*haloData['haloDistance']/(1+haloData['haloZ'])**2
     b_av,ne_av = physical_averages(rmax,mode_exp,calcData,haloData,magData,gasData)
     if calcData['electronMode'] == "python":
         print("=========================================================")
@@ -707,14 +711,14 @@ def calcFlux(mx,calcData,haloData):
     print("=========================================================")
     print("Frequency mode: {}".format(calcData['freqMode']))
     if 'calcRmax' in calcData.keys():
-        if calcData['calcRmax'] == "Rmax" or calcData['Rmax'] == -1:
+        if calcData['calcRmax'] == "Rmax" or calcData['calcRmax'] == -1:
             rmax = haloData['haloRvir']
         else:
             rmax = calcData['calcRmax']
         print("Integration radius: {} Mpc".format(rmax))
         
     else:
-        rmax = np.tan(calcData['calcAngmax']/180/60*np.pi)*haloData['haloDistance']
+        rmax = np.tan(calcData['calcAngmax']/180/60*np.pi)*haloData['haloDistance']/(1+haloData['haloZ'])**2
         print("Integration radius: {} arcmins = {} Mpc".format(calcData['calcAngmax'],rmax))
     mIndex = getIndex(calcData['mWIMP'],mx)
     if calcData['freqMode'] == "all":
@@ -776,7 +780,7 @@ def calcSB(mx,calcData,haloData):
     for nu in fSample:
         nuSB.append(fluxes.surfaceBrightnessLoop(nu,fSample,rSample,emm)[1])
     calcData['results']['finalData'][mIndex] = np.array(nuSB)
-    calcData['angSampleValues'] = np.arctan(takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum'])/haloData['haloDistance'])/np.pi*180*60
+    calcData['angSampleValues'] = np.arctan(takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum'])/haloData['haloDistance']*(1+haloData['haloZ'])**2)/np.pi*180*60
     print("Process Complete")
     return calcData  
 

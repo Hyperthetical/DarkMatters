@@ -240,6 +240,8 @@ def calcWrite(calcData,haloData,partData,magData,gasData,diffData,target=None):
         outstream.write((prefix+'Redshift z: {:.2e}'+end).format(haloData['haloZ']))
         outstream.write((prefix+'Luminosity Distance: {:.2f} Mpc'+end).format(haloData['haloDistance']))
         outstream.write(prefix+'Halo profile: '+str(haloData['haloProfile'])+end)
+        if haloData['haloProfile'] in ["einasto","gnfw","cgnfw"]:
+            outstream.write(prefix+'Halo index parameter: '+str(haloData['haloIndex'])+end)
         outstream.write((prefix+"Virial Mass: {:.2e} Solar Masses"+end).format(haloData['haloMvir']))
         outstream.write((prefix+'Virial Radius: {:.2e} Mpc'+end).format(haloData['haloRvir']))
         outstream.write((prefix+'Halo scale radius: {:.2e} Mpc'+end).format(haloData['haloScale']))
