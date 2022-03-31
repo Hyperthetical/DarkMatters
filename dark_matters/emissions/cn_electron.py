@@ -4,17 +4,21 @@ import time
 import logging 
 logger = logging.getLogger("CN_diffusion")
 
+from ..astro_cosmo import astrophysics
+
 #global conversion factors
 Mpc_to_cm = 1e6*(3.0857e16)*(1e2)
 cm_to_Mpc = 1/Mpc_to_cm
 yr_to_s = 365.25*24*60*60
 s_to_yr = 1/yr_to_s
 
-class eqns_env:
-    #Contains calculations on halo properties and the solution of the transport equation
+#for reference, this is the call to electron.py's calculation
+#        calcData['results']['electronData'][mIndex] = electron.equilibrium_electrons(E_set,Q_set,r_sample,rho_dm_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF)
+
+class cn_scheme:
     
     def __init__(self,effect,max_t_part=100,benchmark_flag=False,const_Delta_t=False,animation_flag=False):
-        self.effect = effect            #which effects to include in the solution of the transport equation (in set {"loss","diffusion","all"})
+        self.effect = effect    #which effects to include in the solution of the transport equation (in set {"loss","diffusion","all"})
 
         self.Q = None           #source function (2D np array, size r_bins x E_bins) [pc, GeV^-1]
         self.electrons = None   #equilibrium electron distribution (2D np array, size r_bins x E_bins) [pc, GeV]
@@ -50,18 +54,18 @@ class eqns_env:
         self.animation_flag = animation_flag      #flag for whether animations take place or not
         self.snapshots = None   #stores snapshots of psi and Delta_t at each iteration for animation
         
-    def setup(self,halo,wimp):
+    def setup(self,haloData,gasData,magData,E_set,r_sample):
         logger.info("=========================\nEquation environment details\n=========================")
         
         """ Grid setup and log transforms """
-        self.r_bins = halo.r_bins
-        self.E_bins = wimp.E_bins
-        self.r_grid = halo.r_arr*(Mpc_to_cm)        #[cm]
-        self.E_grid = wimp.E_arr                    #[GeV]
+        self.r_bins = len(r_sample)
+        self.E_bins = len(E_set)
+        self.r_grid = r_sample        #[cm] -> check conversion
+        self.E_grid = E_set           #[GeV] -> check conversion
         
         #variable transformations:  r --> r~ ; E --> E~
-        self.r0 = (halo.rvir/halo.cvir)*(Mpc_to_cm)      #scale variable [cm]
-        self.E0 = 1.0                                    #scale variable [GeV]
+        self.r0 = haloData['haloRvir']/haloData['haloCvir']     #scale variable [cm]
+        self.E0 = 1.0        #scale variable [GeV]
         def logr(r):             
             return np.log10(r/self.r0)
         def logE(E):             
@@ -71,19 +75,27 @@ class eqns_env:
         self.logr_grid = logr(self.r_grid)           #[/]
         self.logE_grid = logE(self.E_grid)           #[/]
         
-        """ Diffusion/energy loss functions """
-        self.set_Q(wimp)
-        self.constants = {'ICISRF':6.08e-16 + 0.25e-16*(1+halo.z)**4, 'ICCMB': 0.25e-16*(1+halo.z)**4, 'sync':0.0254e-16, 'coul':6.13e-16, 'brem':4.7e-16}
+        """ Diffusion/energy loss functions 
+        
+        Options 
+            - set these within this module
+            - set these in control.py, and pass them in
+        """
+        self.set_Q()
+        self.constants = {'ICISRF':6.08e-16 + 0.25e-16*(1+haloData['haloZ'])**4, 'ICCMB': 0.25e-16*(1+haloData['haloZ'])**4, 'sync':0.0254e-16, 'coul':6.13e-16, 'brem':4.7e-16}
 
+        B = astrophysics.magneticFieldBuilder(magData)  # -> lambda func
+        ne = astrophysics.gasDensityBuilder(gasData)    # -> lambda func
+        dBdr = B #needs to be fixed - hard code definitions for these? use sympy?   
+        
         Etens = np.tensordot(np.ones(self.r_bins),self.E_grid,axes=0)
-        Btens = np.tensordot(halo.B, np.ones(self.E_bins),axes=0)           
-        netens = np.tensordot(halo.ne, np.ones(self.E_bins),axes=0)          
-        dBdrtens = np.tensordot(halo.dBdr, np.ones(self.E_bins),axes=0)        
+        Btens = np.tensordot(B, np.ones(self.E_bins),axes=0)           
+        netens = np.tensordot(ne, np.ones(self.E_bins),axes=0)          
+        dBdrtens = np.tensordot(dBdr, np.ones(self.E_bins),axes=0)        
 
         self.D = self.set_D(Btens,Etens)
         self.dDdr = self.set_dDdr(Btens,dBdrtens,Etens)
         self.b = self.set_b(Btens,netens,Etens)
-        self.dbdE = self.set_dbdE(Btens,netens,Etens)
         
         """ Timescales """
         self.loss_ts = self.E_grid/self.b
@@ -134,7 +146,7 @@ class eqns_env:
     """ 
     Function definitions 
     """
-    def set_Q(self, wimp):
+    def set_Q(self, wimp): 
         #set WIMP annihilation particle source function; 2D array (r_grid, E_grid); final units [cm^-3 s^-1] 
         Nx = np.tensordot(wimp.wpair_density,np.ones(self.E_bins),axes=0)   #[cm^-6]
         dnde = np.tensordot(np.ones(self.r_bins),wimp.spec,axes=0)          #[GeV^-1]
@@ -160,7 +172,6 @@ class eqns_env:
 
         #prefactor (pf) needed for log-transformed derivative 
         pf = np.tile(self.r_prefactor(np.arange(self.r_bins)),(self.E_bins,1)).transpose()
-        # gen_2Dgraph(pf)
         dDdr = -(1.0/pf*D0*alpha)*(d0)**(1-alpha)*(B)**(-alpha-1)*dBdr*(E)**alpha
 
         self.dDdr = dDdr
@@ -174,14 +185,6 @@ class eqns_env:
 
         self.b = eloss 
         return eloss
-    
-    def set_dbdE(self,B,ne,E,ISRF=0):
-        #set and return energy derivative of energy loss function [s^-1]
-        b = self.constants    
-        dbdE = 2*b['ICISRF']*(E) + 2*b['sync']*(E)*B**2 + (b['coul']*ne)/(E*75.0) + b['brem']*ne
-        
-        self.dbdE = dbdE        
-        return dbdE
     
     
     """ 
@@ -202,42 +205,35 @@ class eqns_env:
     Inputs are indices which represent the grid positions of either radius (i) or energy (j)
     """         
     def r_alpha1(self,i,j):
-        #for block matrix solution
-        if isinstance(i, np.ndarray):
-            alpha = np.zeros(i.shape)
-            alpha[:] = self.Delta_t*self.r_prefactor(i)**2*(-(np.log10(10)*self.D[i,j] + self.dDdr[i,j])/(2*self.Delta_r) + self.D[i,j]/self.Delta_r**2)
+        alpha = np.zeros(i.shape)
+        alpha[:] = self.Delta_t*self.r_prefactor(i)**2*(-(np.log10(10)*self.D[i,j] + self.dDdr[i,j])/(2*self.Delta_r) + self.D[i,j]/self.Delta_r**2)
         
         return alpha
             
     def r_alpha2(self,i,j):
-        if isinstance(i,np.ndarray):
-            alpha = np.zeros(i.shape)
-            alpha[1:] = self.Delta_t*self.r_prefactor(i[1:])**2*(2*self.D[i[1:],j]/self.Delta_r**2)
-            alpha[0] = self.Delta_t*self.r_prefactor(0)**2*4*self.D[0,j]/self.Delta_r**2
+        alpha = np.zeros(i.shape)
+        alpha[1:] = self.Delta_t*self.r_prefactor(i[1:])**2*(2*self.D[i[1:],j]/self.Delta_r**2)
+        alpha[0] = self.Delta_t*self.r_prefactor(0)**2*4*self.D[0,j]/self.Delta_r**2
         
         return alpha
             
     def r_alpha3(self,i,j):
-        if isinstance(i, np.ndarray):  
-            alpha = np.zeros(i.shape)
-            alpha[0] = self.Delta_t*self.r_prefactor(0)**2*4*self.D[0,j]/self.Delta_r**2 
-            alpha[1:] = self.Delta_t*self.r_prefactor(i[1:])**2*((np.log10(10)*self.D[i[1:],j] + self.dDdr[i[1:],j])/(2*self.Delta_r) + self.D[i[1:],j]/self.Delta_r**2)
+        alpha = np.zeros(i.shape)
+        alpha[0] = self.Delta_t*self.r_prefactor(0)**2*4*self.D[0,j]/self.Delta_r**2 
+        alpha[1:] = self.Delta_t*self.r_prefactor(i[1:])**2*((np.log10(10)*self.D[i[1:],j] + self.dDdr[i[1:],j])/(2*self.Delta_r) + self.D[i[1:],j]/self.Delta_r**2)
 
         return alpha
          
     def E_alpha1(self,i,j):
-        if isinstance(j, np.ndarray):
-            return np.zeros(np.size(j))     
+        return np.zeros(np.size(j))     
     
     def E_alpha2(self,i,j):
-        if isinstance(j, np.ndarray) or isinstance(j,np.int64):
-            return self.Delta_t*self.E_prefactor(j)*self.b[i,j]/self.Delta_E
+        return self.Delta_t*self.E_prefactor(j)*self.b[i,j]/self.Delta_E
     
     def E_alpha3(self,i,j):
-        if isinstance(j,np.ndarray):
-            alpha = np.zeros(j.shape)
-            alpha[:-1] = self.Delta_t*np.array([self.E_prefactor(j[:-1]+1)*self.b[i,j[:-1]+1]/self.Delta_E]) 
-            alpha[-1] = self.Delta_t*np.array([self.E_prefactor(j[-1])*self.b[i,j[-1]]/self.Delta_E])
+        alpha = np.zeros(j.shape)
+        alpha[:-1] = self.Delta_t*np.array([self.E_prefactor(j[:-1]+1)*self.b[i,j[:-1]+1]/self.Delta_E]) 
+        alpha[-1] = self.Delta_t*np.array([self.E_prefactor(j[-1])*self.b[i,j[-1]]/self.Delta_E])
 
         return alpha
         
