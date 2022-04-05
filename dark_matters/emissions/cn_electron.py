@@ -1,8 +1,7 @@
+import time
 import numpy as np
 from scipy import sparse
-import time
-import logging 
-logger = logging.getLogger("CN_diffusion")
+from astropy import units, constants as const
 
 from ..astro_cosmo import astrophysics
 
@@ -17,8 +16,8 @@ s_to_yr = 1/yr_to_s
 
 class cn_scheme:
     
-    def __init__(self,effect,max_t_part=100,benchmark_flag=False,const_Delta_t=False,animation_flag=False):
-        self.effect = effect    #which effects to include in the solution of the transport equation (in set {"loss","diffusion","all"})
+    def __init__(self,benchmark_flag=False,const_Delta_t=False,animation_flag=False):
+        self.effect = None      #which effects to include in the solution of the transport equation (in set {"loss","diffusion","all"})
 
         self.Q = None           #source function (2D np array, size r_bins x E_bins) [pc, GeV^-1]
         self.electrons = None   #equilibrium electron distribution (2D np array, size r_bins x E_bins) [pc, GeV]
@@ -46,16 +45,19 @@ class cn_scheme:
         self.loss_ts = None     #loss timescale
         self.diff_ts = None     #diffusion timescale
 
-        self.benchmark_flag = benchmark_flag      #flag for whether run should use benchmark convergence condition  
-        self.const_Delta_t = const_Delta_t  #flag for using a constant step size or not. If False, Delta_t is reduced during method (accelerated method), if True Delta_t remains constant.
-        self.smallest_Delta_t = None #smallest value of Delta_t before final convergence (for accelerated timestep switching method)
-        self.max_t_part = max_t_part #maximum number of iterations for each value of Delta_t in accelerated method
+        self.benchmark_flag = benchmark_flag    #flag for whether run should use benchmark convergence condition  
+        self.const_Delta_t = const_Delta_t    #flag for using a constant step size or not. If False, Delta_t is reduced during method (accelerated method), if True Delta_t remains constant.
+        self.smallest_Delta_t = None    #smallest value of Delta_t before final convergence (for accelerated timestep switching method)
+        self.max_t_part = None    #maximum number of iterations for each value of Delta_t in accelerated method
+        self.Delta_t_reduction = None    #factor by which to reduce Delta_t during timestep-switching in accelerated method
         
         self.animation_flag = animation_flag      #flag for whether animations take place or not
         self.snapshots = None   #stores snapshots of psi and Delta_t at each iteration for animation
         
-    def setup(self,haloData,gasData,magData,E_set,r_sample):
-        logger.info("=========================\nEquation environment details\n=========================")
+    def setup(self,haloData,gasData,magData,diffData,E_set,r_sample,Delta_ti=1e9,max_t_part=100,Delta_t_reduction=0.5):
+        print("=========================\nEquation environment details\n=========================")
+        
+        self.effect = "loss" if diffData['lossOnly'] else "all"  #check if option for diffusion only should be removed 
         
         """ Grid setup and log transforms """
         self.r_bins = len(r_sample)
@@ -89,9 +91,9 @@ class cn_scheme:
         dBdr = B #needs to be fixed - hard code definitions for these? use sympy?   
         
         Etens = np.tensordot(np.ones(self.r_bins),self.E_grid,axes=0)
-        Btens = np.tensordot(B, np.ones(self.E_bins),axes=0)           
-        netens = np.tensordot(ne, np.ones(self.E_bins),axes=0)          
-        dBdrtens = np.tensordot(dBdr, np.ones(self.E_bins),axes=0)        
+        Btens = np.tensordot(B(r_sample), np.ones(self.E_bins),axes=0)           
+        netens = np.tensordot(ne(r_sample), np.ones(self.E_bins),axes=0)          
+        dBdrtens = np.tensordot(dBdr(r_sample), np.ones(self.E_bins),axes=0)        
 
         self.D = self.set_D(Btens,Etens)
         self.dDdr = self.set_dDdr(Btens,dBdrtens,Etens)
@@ -99,7 +101,7 @@ class cn_scheme:
         
         """ Timescales """
         self.loss_ts = self.E_grid/self.b
-        self.diff_ts = (self.r_grid[1]-self.r_grid[0])**2/self.D  #check this
+        self.diff_ts = (self.r_grid[1]-self.r_grid[0])**2/self.D  
         loss_min = np.min(self.loss_ts)
         diff_min = np.min(self.diff_ts)
 
@@ -112,8 +114,10 @@ class cn_scheme:
             
         if self.const_Delta_t is False:
             #accelerated method
-            self.Delta_ti = 2e9*yr_to_s                             #large initial timestep to cover all possible timescales
-            self.smallest_Delta_t = 1e1*yr_to_s                     #value of Delta_t at which iterations stop when convergence is reached
+            self.Delta_ti = Delta_ti*yr_to_s    #large initial timestep to cover all possible timescales
+            self.smallest_Delta_t = 1e1*yr_to_s    #value of Delta_t at which iterations stop when convergence is reached
+            self.max_t_part = max_t_part
+            self.Delta_t_reduction = Delta_t_reduction
         elif self.const_Delta_t is True:    
             #choose smallest (relevant) timescale as the initial timestep
             if self.effect == "loss":
@@ -128,19 +132,18 @@ class cn_scheme:
         adi_factor = 0.5 if self.effect in {"all"} else 1.0             #factor to account for multiple dimensions in source function updating (ADI method)
         self.Delta_t = self.Delta_ti*adi_factor*stability_factor        #[s]     
 
-        logger.info(f"Included effects: {self.effect}")
-        logger.info(f"Solution method: {self.sol_method}")
-        logger.info(f"Domain grid sizes: r_bins: {self.r_bins}, E_bins: {self.E_bins}")
-        logger.info(f"Step sizes: Delta_r = {self.Delta_r:.2g}, Delta_E = {self.Delta_E:.2g}")
-        logger.info(f"Initial time step: Delta_t = {self.Delta_t*s_to_yr:.2g} yr")
-        logger.info(f"Constant time step: {self.const_Delta_t}\n")
+        print(f"Included effects: {self.effect}")
+        print(f"Domain grid sizes: r_bins: {self.r_bins}, E_bins: {self.E_bins}")
+        print(f"Step sizes: Delta_r = {self.Delta_r:.2g}, Delta_E = {self.Delta_E:.2g}")
+        print(f"Initial time step: Delta_t = {self.Delta_t*s_to_yr:.2g} yr")
+        print(f"Constant time step: {self.const_Delta_t}\n")
         
         """ CN method """
-        logger.info("=========================\nCN run details\n=========================")
+        print("=========================\nCN run details\n=========================")
         self.electrons = self.cn_2D(self.Q)        
 
-        logger.info("\n=========================\nResults\n=========================")        
-        logger.info(f"Final electron distribution = \n{self.electrons}")
+        print("\n=========================\nResults\n=========================")        
+        print(f"Final electron distribution = \n{self.electrons}")
 
         
     """ 
@@ -317,34 +320,35 @@ class cn_scheme:
         #create A,B matrices for initial timestep        
         if self.effect in {"loss","all"}:
             (loss_A,loss_B) = self.spmatrices_loss()
-            logger.info(f"Sparsity of loss matrices A, B: {(np.prod(loss_A.shape)-loss_A.nnz)*100/(np.prod(loss_A.shape)):.3f}%")     
+            print(f"Sparsity of loss matrices A, B: {(np.prod(loss_A.shape)-loss_A.nnz)*100/(np.prod(loss_A.shape)):.3f}%")     
         if self.effect in {"diffusion","all"}:
             (diff_A,diff_B) = self.spmatrices_diff()        
-            logger.info(f"Sparsity of diffusion matrices A, B: {(np.prod(diff_A.shape)-diff_A.nnz)*100/(np.prod(diff_A.shape)):.3f}%")
+            print(f"Sparsity of diffusion matrices A, B: {(np.prod(diff_A.shape)-diff_A.nnz)*100/(np.prod(diff_A.shape)):.3f}%")
             
         #set initial and boundary conditions
         psi = np.array(Q)  
         psi[-1,:] = 0.0
 
         #set convergence and timescale parameters
-        convergence_check = False               #main convergence flag
-        stability_check = False                 #flag for stability condition between distribution snapshots
+        convergence_check = False               #main convergence flag to break loop
+        stability_check = False                 #flag for stability condition between iterations
         loss_ts_check = False                   #psi_ts > loss_ts check
         diff_ts_check = False                   #psi_ts > diff_ts check
         ts_check = False                        #combination of ts_losscheck and ts_diffcheck
         benchmark_check = False                 #np.all(dpsidt==0), only for benchmarking runs
         psi_ts = np.empty(psi.shape)            #for calculating psi_ts
         psi_prev = np.empty(psi.shape)          #copy of psi at t-1, for determining stability and convergence checks
-        Delta_t_reduction = 0.5                 #factor by which to reduce Delta_t during timestep-switching
-        stability_tol = 1.0e-3                  #relative difference (stability) tolerance
-        logger.info(f"Stability tolerance: {stability_tol}")
+        Delta_t_reduction = self.Delta_t_reduction    #factor by which to reduce Delta_t during timestep-switching in accelerated method
+        if self.const_Delta_t:
+            stability_tol = 1.0e-3              #relative difference tolerance between iterations (for stability_check)
+            print(f"Stability tolerance: {stability_tol}")
 
         #other loop items
         t = 0                                   #total iteration counter 
         t_part = 0                              #iteration counter for each Delta_t 
+        t_elapsed = 0                           #total amount of time elapsed during solution (t_part*Delta_t for each Delta_t)       
         max_t = 5e5                             #maximum total number of iterations (fallback if convergence not reached - roughly 300 iterations per second) 
         max_t_part = self.max_t_part            #maximum number of iterations for each value of Delta_t 
-        t_elapsed = 0                           #total amount of time elapsed during solution (t_part*Delta_t for each Delta_t)       
         
         I = self.r_bins
         J = self.E_bins
@@ -403,7 +407,6 @@ class cn_scheme:
                 if self.benchmark_flag is True:
                     with np.errstate(divide="ignore"):
                         benchmark_check = np.all(np.abs(dpsidt) == 0)
-                    #stability_check = stability_check and benchmark_check
                 
                 #set relevent timescale conditions for each effect
                 loss_ts_check = np.all(psi_ts > self.loss_ts[:-1])
@@ -418,24 +421,24 @@ class cn_scheme:
             #check for convergence if iterations are stable (s1, s2)
             if stability_check:
                 if self.benchmark_flag:
-                    #benchmark case
+                    #benchmark case (b1 + c1)
                     if ts_check and benchmark_check:
                         convergence_check = True
                         break
                 else:
                     #non-benchmark cases
                     if self.const_Delta_t:
-                        #constant time step
+                        #constant time step (c1)
                         if ts_check: 
                             convergence_check = True
                             break
                     else:
-                        #accelerated method
+                        #accelerated method (a1)
                         if self.Delta_t > self.smallest_Delta_t:
                             #reduce Delta_t and start again
                             self.Delta_t *= Delta_t_reduction
-                            logger.info(f"Timescale switching activated, Delta t changing to: {self.Delta_t*s_to_yr:.2g} yr")
-                            logger.info(f"Numer of iterations since previous Delta t: {t_part}\n")
+                            print(f"Timescale switching activated, Delta t changing to: {self.Delta_t*s_to_yr:.2g} yr")
+                            print(f"Numer of iterations since previous Delta t: {t_part}\n")
                             t_part = 0
                             
                             #reconstruct A, B matrices with new Delta_t
@@ -444,10 +447,10 @@ class cn_scheme:
                             if self.effect in {"diffusion","all"}:
                                 (diff_A,diff_B) = self.spmatrices_diff()  
                         
-                        elif self.Delta_t < self.smallest_Delta_t and ts_check: 
+                        elif self.Delta_t < self.smallest_Delta_t and ts_check:    #(a1 + c1)
                             #psi has satisfied c1 condition with the lowest timestep - end iterations
-                            logger.info(f"Delta t at lowest value: {self.Delta_t*s_to_yr:.2g} yr")
-                            logger.info(f"Numer of iterations since previous Delta t: {t_part}\n")
+                            print(f"Delta t at lowest value: {self.Delta_t*s_to_yr:.2g} yr")
+                            print(f"Numer of iterations since previous Delta t: {t_part}\n")
                             convergence_check = True
                             break
                     
@@ -462,12 +465,12 @@ class cn_scheme:
             """
             if self.effect in {"loss","all"}: 
                 rhs = loss_B.dot(psi.flatten('C')) + (Q.flatten('C')*self.Delta_t)
-                psi = sparse.linalg.spsolve(loss_A,rhs)   
-                psi = np.reshape(psi,(I,J),order='C')
+                psi = sparse.linalg.spsolve(loss_A, rhs)   
+                psi = np.reshape(psi, (I,J), order='C')
                 
             if self.effect in {"diffusion","all"}: 
                 rhs = diff_B.dot(psi.flatten('F')) + (Q.flatten('F')*self.Delta_t)
-                psi = sparse.linalg.spsolve(diff_A,rhs)                   
+                psi = sparse.linalg.spsolve(diff_A, rhs)                   
                 psi = np.reshape(psi, (I,J), order='F')
                 
             """ Implement boundary condition and update counters """             
@@ -485,35 +488,19 @@ class cn_scheme:
             if self.animation_flag is True:
                 snapshot = (psi.copy()[:-1],self.Delta_t)
                 self.snapshots.append(snapshot)
-
-            # """ 
-            # check neumann boundary condition at psi[0,:]
-            # r_grid[0] (the centre of the halo) should have psi r-derivative == 0
-            # to check this, calculate the finite forward difference of psi between the r = 0 and r = 1 grid positions.
-            # """
-            # ntol = 1e-3
-            # neumann = (psi[1,:]-psi[0,:])/self.Delta_r
-            # if np.all(neumann/psi[0,:] < ntol):
-            #     print(f"neumann condition working to within {ntol}")
-            # else:
-            #     print(f"neumann condition not working to within {ntol}")
-
-            #breakpoints for debugging
-            if t%5e3 == 0:
-                print(f"iteration {t}")                
-
-            #end while
+        
+        #end while loop
             
         self.electrons = psi.copy()        #final equilibrium solution
 
-        logger.info("CN loop completed.")
-        logger.info(f"Convergence: {convergence_check}")
-        logger.info(f"Total number of iterations: {t}")
-        logger.info(f"Total elapsed time at final iteration: {t_elapsed*s_to_yr:2g} yr")        
+        print("CN loop completed.")
+        print(f"Convergence: {convergence_check}")
+        print(f"Total number of iterations: {t}")
+        print(f"Total elapsed time at final iteration: {t_elapsed*s_to_yr:2g} yr")        
 
         if self.benchmark_flag is True:
-            logger.info("\n=========================\nBenchmark Run!\n=========================") 
-            logger.info(f"Benchmark test - all(dpsi/dt == 0): {benchmark_check}")        
+            print("\n=========================\nBenchmark Run!\n=========================") 
+            print(f"Benchmark test - all(dpsi/dt == 0): {benchmark_check}")        
 
         print("CN solution complete.")
         print(f"Total CN method run time: {time.perf_counter() - cn_start:.4g} s")
