@@ -2,12 +2,16 @@ haloData:
   haloName: "coma"
   haloProfile: "nfw"
   haloScale:
-    value: 0.333
+    value: 0.287
     unit: "Mpc"
+  haloCvir: 9.4
+  haloRvir:
+    value: 2.7
+    unit: "Mpc"
+  haloMvir: 
+    value: 1.2e+15
+    unit: "solMass"
   haloZ: 0.0231
-  haloNorm:
-    value: 1.86e+06
-    unit: "Msun/kpc^3"
 
 gasData:
   gasProfile: "beta"

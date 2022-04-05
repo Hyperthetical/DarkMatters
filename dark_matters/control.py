@@ -277,6 +277,8 @@ def checkCalculation(calcDict):
         fatal_error("calcDict requires the variable {} with options: {}".format('freqMode',calcParams['allFreqs']))
     if not 'electronMode' in calcDict.keys():
         calcDict['electronMode'] = "python"    
+    if not 'threadNumber' in calcDict.keys():
+        calcDict['threadNumber'] = 4
     if not 'fSampleValues' in calcDict.keys(): 
         if not 'fSampleLimits' in calcDict.keys():
             fatal_error("calcDict requires the variable {}, giving the minimum and maximum frequencies to be studied".format('fSampleLimits'))
@@ -515,7 +517,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         print("=========================================================")
         print('Magnetic Field Average Strength: {:.2e} micro Gauss'.format(b_av))
         print('Gas Average Density: {:.2e} cm^-3'.format(ne_av))
-        E_set = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin'")
+        E_set = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
         Q_set = partData['dNdxInterp']['positrons'](mxEff,E_set).flatten()/np.log(1e1)/10**E_set/mxEff*(constants.m_e*constants.c**2).to("GeV").value
         E_set = 10**E_set*mxEff/(constants.m_e*constants.c**2).to("GeV").value
         r_sample = [takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum']),takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rGreenSampleNum'])]
@@ -527,7 +529,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         print("=========================================================")
         print('Magnetic Field Average Strength: {:.2e} micro Gauss'.format(b_av))
         print('Gas Average Density: {:.2e} cm^-3'.format(ne_av))
-        E_set = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin'")
+        E_set = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
         Q_set = partData['dNdxInterp']['positrons'](mxEff,E_set).flatten()/np.log(1e1)/10**E_set/mxEff*(constants.m_e*constants.c**2).to("GeV").value
         E_set = 10**E_set*mxEff/(constants.m_e*constants.c**2).to("GeV").value
         r_sample = [takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum']),takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rGreenSampleNum'])]
@@ -537,7 +539,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         py_file = "temp_electrons_py.out"
         c_file = "temp_electrons_c.in"
         wd = os.getcwd()
-        calcData['results']['electronData'][mIndex] = electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calcData['electronExecFile'],E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF)
+        calcData['results']['electronData'][mIndex] = electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calcData['electronExecFile'],E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,num_threads=calcData['threadNumber'])
         #os.remove(join(wd,py_file))
         #os.remove(join(wd,c_file))
         if calcData['results']['electronData'][mIndex] is None:

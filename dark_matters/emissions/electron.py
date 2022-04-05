@@ -40,7 +40,7 @@ def read_electrons_c(infile,E_set,r_sample):
     return electrons
 
 #write input file for c executable
-def write_electrons_c(outfile,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF):
+def write_electrons_c(outfile,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads):
     """
     Write the input file for the c executable that finds equilibrium electon distributions
         ---------------------------
@@ -82,11 +82,11 @@ def write_electrons_c(outfile,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sam
         outf.write(str(x)+" ")
     outf.write("\n")
     outf.write(str(z)+" "+str(mx)+" "+str(lc)+" "+str(delta)+" "+str(b_av)+" "+str(ne_av)+"\n")
-    outf.write(str(diff)+" "+str(int(ISRF))+" "+str(d0)+" "+str(mode_exp))
+    outf.write(str(diff)+" "+str(int(ISRF))+" "+str(d0)+" "+str(mode_exp)+" "+str(num_threads))
     outf.close()
 
 #run the c executable with a written infile and retrieve output
-def electrons_from_c(outfile,infile,exec_electron_c,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF):
+def electrons_from_c(outfile,infile,exec_electron_c,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads=1):
     """
     Prepare the input file, run the c executable that finds equilibrium electon distributions and retrieve the output
         ---------------------------
@@ -102,7 +102,7 @@ def electrons_from_c(outfile,infile,exec_electron_c,E_set,Q_set,r_sample,rho_dm_
         ---------------------------
         2D array of floats, electron equilibrium distributions (phys.e_bins x sim.n)
     """
-    write_electrons_c(outfile,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF)
+    write_electrons_c(outfile,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads)
     if not os.path.isfile(exec_electron_c):
         return None
     try:
@@ -136,7 +136,7 @@ def eloss_vector(E_vec,B,ne,z,ISRF=0):
     coeffs = np.array([6.08e-16+0.25e-16*(1+z)**4,0.0254e-16,6.13e-16,4.7e-16],dtype=float)
     if ISRF == 0:
         coeffs[0] = 0.25e-16*(1+z)**4 #only CMB used so it scales with z
-    if ne == 0.0: 
+    if not ne == 0.0: 
         eloss_tot = coeffs[0]*(me*E_vec)**2 + coeffs[1]*(me*E_vec)**2*B**2 + coeffs[2]*ne*(1+np.log(E_vec/ne)/75.0)+ coeffs[3]*ne*E_vec*me
     else:
         eloss_tot = coeffs[0]*(me*E_vec)**2 + coeffs[1]*(me*E_vec)**2*B**2 
