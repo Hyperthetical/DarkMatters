@@ -27,4 +27,4 @@ calcData:
   rGreenSampleNum: 121
 #  electronExecFile: "C:/Users/Geoff/Dropbox/Physics/Wimps/DarkMatters/dark_matters/emissions/electron.exe"
   electronExecFile: "dark_matters/emissions/electron.x"
-  electronMode: "c"
+  electronMode: "crank-python"

@@ -86,7 +86,7 @@ class cn_scheme:
         self.constants = {'ICISRF':6.08e-16 + 0.25e-16*(1+z)**4, 'ICCMB': 0.25e-16*(1+z)**4, 'sync':0.0254e-16, 'coul':6.13e-16, 'brem':4.7e-16}
 
         rho_sample = (rho_sample*units.Unit("Msun/Mpc^3")*const.c**2).to("GeV/cm^3").value
-        self.Q = 1/mode_exp*(rho_sample/mx)**mode_exp*Q_sample
+        self.Q = 1/mode_exp*(np.tensordot(rho_sample,np.ones_like(self.E_grid),axes=0)/mx)**mode_exp*np.tensordot(np.ones_like(rho_sample),Q_sample,axes=0)*1e-26
         
         Etens = np.tensordot(np.ones(self.r_bins),self.E_grid,axes=0)
         Btens = np.tensordot(b_sample, np.ones(self.E_bins),axes=0)           
@@ -112,8 +112,8 @@ class cn_scheme:
             
         if self.const_Delta_t is False:
             #accelerated method
-            self.Delta_ti = (Delta_ti*units.Unit("yr")).to("s").value   #large initial timestep to cover all possible timescales
-            self.smallest_Delta_t = (1e1**units.Unit("yr")).to("s").value    #value of Delta_t at which iterations stop when convergence is reached
+            self.Delta_ti = (Delta_ti*units.Unit('yr')).to('s').value   #large initial timestep to cover all possible timescales
+            self.smallest_Delta_t = (1e1*units.Unit('yr')).to('s').value    #value of Delta_t at which iterations stop when convergence is reached
             self.max_t_part = max_t_part
             self.Delta_t_reduction = Delta_t_reduction
         elif self.const_Delta_t is True:    
@@ -133,7 +133,7 @@ class cn_scheme:
         print(f"Included effects: {self.effect}")
         print(f"Domain grid sizes: r_bins: {self.r_bins}, E_bins: {self.E_bins}")
         print(f"Step sizes: Delta_r = {self.Delta_r:.2g}, Delta_E = {self.Delta_E:.2g}")
-        print(f"Initial time step: Delta_t = {(self.Delta_t*units.Unit("s")).to("yr").value:.2g} yr")
+        print(f"Initial time step: Delta_t = {(self.Delta_t*units.Unit('s')).to('yr').value:.2g} yr")
         print(f"Constant time step: {self.const_Delta_t}\n")
         
         """ CN method """
@@ -435,7 +435,7 @@ class cn_scheme:
                         if self.Delta_t > self.smallest_Delta_t:
                             #reduce Delta_t and start again
                             self.Delta_t *= Delta_t_reduction
-                            print(f"Timescale switching activated, Delta t changing to: {(self.Delta_t*units.Unit("s")).to("yr").value:.2g} yr")
+                            print(f"Timescale switching activated, Delta t changing to: {(self.Delta_t*units.Unit('s')).to('yr').value:.2g} yr")
                             print(f"Numer of iterations since previous Delta t: {t_part}\n")
                             t_part = 0
                             
@@ -447,7 +447,7 @@ class cn_scheme:
                         
                         elif self.Delta_t < self.smallest_Delta_t and ts_check:    #(a1 + c1)
                             #psi has satisfied c1 condition with the lowest timestep - end iterations
-                            print(f"Delta t at lowest value: {(self.Delta_t*units.Unit("s")).to("yr").value:.2g} yr")
+                            print(f"Delta t at lowest value: {(self.Delta_t*units.Unit('s')).to('yr').value:.2g} yr")
                             print(f"Numer of iterations since previous Delta t: {t_part}\n")
                             convergence_check = True
                             break
@@ -494,7 +494,7 @@ class cn_scheme:
         print("CN loop completed.")
         print(f"Convergence: {convergence_check}")
         print(f"Total number of iterations: {t}")
-        print(f"Total elapsed time at final iteration: {(t_elapsed**units.Unit("s")).to("yr").value:2g} yr")        
+        print(f"Total elapsed time at final iteration: {(t_elapsed*units.Unit('s')).to('yr').value:2g} yr")        
 
         if self.benchmark_flag is True:
             print("\n=========================\nBenchmark Run!\n=========================") 
