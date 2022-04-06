@@ -86,8 +86,8 @@ class cn_scheme:
         self.constants = {'ICISRF':6.08e-16 + 0.25e-16*(1+z)**4, 'ICCMB': 0.25e-16*(1+z)**4, 'sync':0.0254e-16, 'coul':6.13e-16, 'brem':4.7e-16}
 
         rho_sample = (rho_sample*units.Unit("Msun/Mpc^3")*const.c**2).to("GeV/cm^3").value
+        dBdr_sample = (dBdr_sample*units.Unit("1/Mpc")).to("1/cm").value
         self.Q = 1/mode_exp*(np.tensordot(rho_sample,np.ones_like(self.E_grid),axes=0)/mx)**mode_exp*np.tensordot(np.ones_like(rho_sample),Q_sample,axes=0)*1e-26
-        
         Etens = np.tensordot(np.ones(self.r_bins),self.E_grid,axes=0)
         Btens = np.tensordot(b_sample, np.ones(self.E_bins),axes=0)           
         netens = np.tensordot(ne_sample, np.ones(self.E_bins),axes=0)          
