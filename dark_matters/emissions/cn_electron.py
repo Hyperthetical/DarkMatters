@@ -6,10 +6,10 @@ from astropy import units, constants as const
 from ..astro_cosmo import astrophysics
 
 #global conversion factors
-Mpc_to_cm = 1e6*(3.0857e16)*(1e2)
-cm_to_Mpc = 1/Mpc_to_cm
-yr_to_s = 365.25*24*60*60
-s_to_yr = 1/yr_to_s
+# Mpc_to_cm = 1e6*(3.0857e16)*(1e2)
+# cm_to_Mpc = 1/Mpc_to_cm
+# yr_to_s = 365.25*24*60*60
+# s_to_yr = 1/yr_to_s
 
 #for reference, this is the call to electron.py's calculation
 #        calcData['results']['electronData'][mIndex] = electron.equilibrium_electrons(E_set,Q_set,r_sample,rho_dm_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF)
@@ -54,20 +54,20 @@ class cn_scheme:
         self.animation_flag = animation_flag      #flag for whether animations take place or not
         self.snapshots = None   #stores snapshots of psi and Delta_t at each iteration for animation
         
-    def setup(self,haloData,gasData,magData,diffData,E_set,r_sample,Delta_ti=1e9,max_t_part=100,Delta_t_reduction=0.5):
+    def solveElectrons(self,mx,z,E_sample,r_sample,rho_sample,Q_sample,b_sample,dBdr_sample,ne_sample,rScale,eScale,lossOnly=False,mode_exp=2,Delta_ti=1e9,max_t_part=100,Delta_t_reduction=0.5):
         print("=========================\nEquation environment details\n=========================")
         
-        self.effect = "loss" if diffData['lossOnly'] else "all"  #check if option for diffusion only should be removed 
+        self.effect = "loss" if lossOnly else "all" 
         
         """ Grid setup and log transforms """
         self.r_bins = len(r_sample)
-        self.E_bins = len(E_set)
-        self.r_grid = r_sample        #[cm] -> check conversion
-        self.E_grid = E_set           #[GeV] -> check conversion
+        self.E_bins = len(E_sample)
+        self.r_grid = (r_sample*units.Unit("Mpc")).to("cm").value       #[cm] -> check conversion
+        self.E_grid = E_sample          #[GeV] -> check conversion
         
         #variable transformations:  r --> r~ ; E --> E~
-        self.r0 = haloData['haloRvir']/haloData['haloCvir']     #scale variable [cm]
-        self.E0 = 1.0        #scale variable [GeV]
+        self.r0 = (rScale*units.Unit("Mpc")).to("cm").value    #scale variable [cm]
+        self.E0 = eScale        #scale variable [GeV]
         def logr(r):             
             return np.log10(r/self.r0)
         def logE(E):             
@@ -83,17 +83,15 @@ class cn_scheme:
             - set these within this module
             - set these in control.py, and pass them in
         """
-        self.set_Q()
-        self.constants = {'ICISRF':6.08e-16 + 0.25e-16*(1+haloData['haloZ'])**4, 'ICCMB': 0.25e-16*(1+haloData['haloZ'])**4, 'sync':0.0254e-16, 'coul':6.13e-16, 'brem':4.7e-16}
+        self.constants = {'ICISRF':6.08e-16 + 0.25e-16*(1+z)**4, 'ICCMB': 0.25e-16*(1+z)**4, 'sync':0.0254e-16, 'coul':6.13e-16, 'brem':4.7e-16}
 
-        B = astrophysics.magneticFieldBuilder(magData)  # -> lambda func
-        ne = astrophysics.gasDensityBuilder(gasData)    # -> lambda func
-        dBdr = B #needs to be fixed - hard code definitions for these? use sympy?   
+        rho_sample = (rho_sample*units.Unit("Msun/Mpc^3")*const.c**2).to("GeV/cm^3").value
+        self.Q = 1/mode_exp*(rho_sample/mx)**mode_exp*Q_sample
         
         Etens = np.tensordot(np.ones(self.r_bins),self.E_grid,axes=0)
-        Btens = np.tensordot(B(r_sample), np.ones(self.E_bins),axes=0)           
-        netens = np.tensordot(ne(r_sample), np.ones(self.E_bins),axes=0)          
-        dBdrtens = np.tensordot(dBdr(r_sample), np.ones(self.E_bins),axes=0)        
+        Btens = np.tensordot(b_sample, np.ones(self.E_bins),axes=0)           
+        netens = np.tensordot(ne_sample, np.ones(self.E_bins),axes=0)          
+        dBdrtens = np.tensordot(dBdr_sample, np.ones(self.E_bins),axes=0)        
 
         self.D = self.set_D(Btens,Etens)
         self.dDdr = self.set_dDdr(Btens,dBdrtens,Etens)
@@ -114,8 +112,8 @@ class cn_scheme:
             
         if self.const_Delta_t is False:
             #accelerated method
-            self.Delta_ti = Delta_ti*yr_to_s    #large initial timestep to cover all possible timescales
-            self.smallest_Delta_t = 1e1*yr_to_s    #value of Delta_t at which iterations stop when convergence is reached
+            self.Delta_ti = (Delta_ti*units.Unit("yr")).to("s").value   #large initial timestep to cover all possible timescales
+            self.smallest_Delta_t = (1e1**units.Unit("yr")).to("s").value    #value of Delta_t at which iterations stop when convergence is reached
             self.max_t_part = max_t_part
             self.Delta_t_reduction = Delta_t_reduction
         elif self.const_Delta_t is True:    
@@ -135,16 +133,16 @@ class cn_scheme:
         print(f"Included effects: {self.effect}")
         print(f"Domain grid sizes: r_bins: {self.r_bins}, E_bins: {self.E_bins}")
         print(f"Step sizes: Delta_r = {self.Delta_r:.2g}, Delta_E = {self.Delta_E:.2g}")
-        print(f"Initial time step: Delta_t = {self.Delta_t*s_to_yr:.2g} yr")
+        print(f"Initial time step: Delta_t = {(self.Delta_t*units.Unit("s")).to("yr").value:.2g} yr")
         print(f"Constant time step: {self.const_Delta_t}\n")
         
         """ CN method """
         print("=========================\nCN run details\n=========================")
-        self.electrons = self.cn_2D(self.Q)        
+        return self.cn_2D(self.Q).transpose()       
 
-        print("\n=========================\nResults\n=========================")        
-        print(f"Final electron distribution = \n{self.electrons}")
-
+        # print("\n=========================\nResults\n=========================")        
+        # print(f"Final electron distribution = \n{self.electrons}")
+        # return self.electrons
         
     """ 
     Function definitions 
@@ -437,7 +435,7 @@ class cn_scheme:
                         if self.Delta_t > self.smallest_Delta_t:
                             #reduce Delta_t and start again
                             self.Delta_t *= Delta_t_reduction
-                            print(f"Timescale switching activated, Delta t changing to: {self.Delta_t*s_to_yr:.2g} yr")
+                            print(f"Timescale switching activated, Delta t changing to: {(self.Delta_t*units.Unit("s")).to("yr").value:.2g} yr")
                             print(f"Numer of iterations since previous Delta t: {t_part}\n")
                             t_part = 0
                             
@@ -449,7 +447,7 @@ class cn_scheme:
                         
                         elif self.Delta_t < self.smallest_Delta_t and ts_check:    #(a1 + c1)
                             #psi has satisfied c1 condition with the lowest timestep - end iterations
-                            print(f"Delta t at lowest value: {self.Delta_t*s_to_yr:.2g} yr")
+                            print(f"Delta t at lowest value: {(self.Delta_t*units.Unit("s")).to("yr").value:.2g} yr")
                             print(f"Numer of iterations since previous Delta t: {t_part}\n")
                             convergence_check = True
                             break
@@ -496,7 +494,7 @@ class cn_scheme:
         print("CN loop completed.")
         print(f"Convergence: {convergence_check}")
         print(f"Total number of iterations: {t}")
-        print(f"Total elapsed time at final iteration: {t_elapsed*s_to_yr:2g} yr")        
+        print(f"Total elapsed time at final iteration: {(t_elapsed**units.Unit("s")).to("yr").value:2g} yr")        
 
         if self.benchmark_flag is True:
             print("\n=========================\nBenchmark Run!\n=========================") 
