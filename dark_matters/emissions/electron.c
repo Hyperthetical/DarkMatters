@@ -99,7 +99,7 @@ double Green(int const ngr,std::vector<double> &r_set_gr,double r,std::vector<do
     return G;
 }
 
-std::vector<double> equilibrium_p(int const k,std::vector<double> &E_set,std::vector<double> &Q_set,int const n,int const ngr,std::vector<double> &r_set,std::vector<double> &r_set_gr,std::vector<double> &rhosq,std::vector<double> &rhosq_gr,std::vector<double> &b_set,std::vector<double> &n_set,double z,double mchi,double lc,double delta,int diff,double b_av,double ne_av,double d0,int ISRF,double mode_exp){
+std::vector<double> equilibrium_p(int const k,std::vector<double> &E_set,std::vector<double> &Q_set,int const n,int const ngr,std::vector<double> &r_set,std::vector<double> &r_set_gr,std::vector<double> &rhosq,std::vector<double> &rhosq_gr,std::vector<double> &b_set,std::vector<double> &n_set,double z,double mchi,double lc,double delta,int diff,double b_av,double ne_av,double d0,int ISRF,double mode_exp,int num_threads){
     /*k is length of E_set and Q_set
     ngr is length of r_set_gr and rhosq_gr
     n is length of all other arrays
@@ -139,7 +139,7 @@ std::vector<double> equilibrium_p(int const k,std::vector<double> &E_set,std::ve
     //printf("%le \n",d0);
     //printf("%le \n",mode_exp);
     //printf("%le \n",d0);
-    omp_set_num_threads(16);
+    omp_set_num_threads(num_threads);
     int steps_done = 0;
     #pragma omp parallel for 
     for (int i=0;i<k;i++){ //loop over energies
@@ -216,7 +216,7 @@ line 10 is diff, ISRF, d0, mode_exp
 */
 int main(int argc, char *argv[]){
     FILE *fptr;
-    int num;
+    int num,num_threads;
     int lines = 4;
     int entries_per_line = 1;
     int k,n,n_gr,diff,ISRF;
@@ -227,7 +227,8 @@ int main(int argc, char *argv[]){
 
         if(fptr == NULL)
         {
-            printf("Error!");   
+            printf("Error! No input file found at: ");
+            printf(argv[1]);   
             exit(1);             
         }
         //read line 0 then assign
@@ -263,11 +264,11 @@ int main(int argc, char *argv[]){
         }
         //printf("%le %le \n",ne_set[0],ne_set[n-1]);
         fscanf(fptr,"%lf %lf %lf %lf %lf %lf",&z,&mchi,&lc,&delta,&b_av,&ne_av);
-        fscanf(fptr,"%d %d %lf %lf",&diff,&ISRF,&d0,&mode_exp);
+        fscanf(fptr,"%d %d %lf %lf %d",&diff,&ISRF,&d0,&mode_exp,&num_threads);
         fclose(fptr);
         //printf("%le %le %le %le %le %le \n",z,mchi,lc,delta,ne_av,b_av);
         //printf("%le \n",d0);
-        std::vector<double> electrons = equilibrium_p(k,e_set,q_set,n,n_gr,r_set,r_set_gr,rhosq,rhosq_gr,b_set,ne_set,z,mchi,lc,delta,diff,b_av,ne_av,d0,ISRF,mode_exp);
+        std::vector<double> electrons = equilibrium_p(k,e_set,q_set,n,n_gr,r_set,r_set_gr,rhosq,rhosq_gr,b_set,ne_set,z,mchi,lc,delta,diff,b_av,ne_av,d0,ISRF,mode_exp,num_threads);
         fptr = fopen(argv[2],"w");
         for (int i = 0;i<k;i++){
             for (int j = 0;j<n;j++){
