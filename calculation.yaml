@@ -7,7 +7,9 @@ calcData:
   freqMode: "radio"
   mWIMP:
     value:
+      - 10
       - 100
+      - 1000
     unit: "GeV"
   fSampleLimits:
     value:

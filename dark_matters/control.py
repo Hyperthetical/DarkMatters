@@ -277,7 +277,7 @@ def checkCalculation(calcDict):
     if not 'freqMode' in calcDict.keys() or (not calcDict['freqMode'] in calcParams['allFreqs']):
         fatal_error("calcDict requires the variable {} with options: {}".format('freqMode',calcParams['allFreqs']))
     if not 'electronMode' in calcDict.keys():
-        calcDict['electronMode'] = "green-python"  
+        calcDict['electronMode'] = "crank-python"  
     if calcDict['electronMode'] == "green-c":  
         if not 'threadNumber' in calcDict.keys():
             calcDict['threadNumber'] = 4
