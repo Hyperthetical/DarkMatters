@@ -110,7 +110,7 @@ def readInputFile(inputFile,inMode="yaml"):
         fatal_error("The argument inMode = {} given to input.readInputFile() does not match any valid input modes".format(inMode))
     stream.close()
     validKeys = ["haloData","magData","gasData","diffData","partData","calcData","cosmoData"]
-    dmUnits = {"distance":"Mpc","mass":"solMass","density":"Msun/Mpc^3","numDensity":"1/cm^3","magnetic":"microGauss","energy":"GeV","frequency":"MHz","angle":"arcmin","jFactor":"GeV^2/cm^5","dFactor":"GeV/cm^2","diffConstant":"cm^2/s"}
+    dmUnits = {"time":"yr","distance":"Mpc","mass":"solMass","density":"Msun/Mpc^3","numDensity":"1/cm^3","magnetic":"microGauss","energy":"GeV","frequency":"MHz","angle":"arcmin","jFactor":"GeV^2/cm^5","dFactor":"GeV/cm^2","diffConstant":"cm^2/s"}
     dataSets = {}
     for key in validKeys:
         dataSets[key] = {}

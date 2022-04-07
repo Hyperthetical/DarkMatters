@@ -13,6 +13,8 @@ distance:
 - calcRmax
 - coherenceScale
 - haloCoreScale
+time:
+- crankDeltaTi
 energy:
 - mWIMP
 frequency:

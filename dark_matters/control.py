@@ -5,13 +5,14 @@ import os,yaml
 from scipy.integrate import simps
 from scipy.optimize import newton
 from astropy import constants
+import sympy
+from sympy.utilities.lambdify import lambdify
 from .input import getSpectralData
 from .output import fatal_error,calcWrite,wimpWrite
 
 
-
 from .astro_cosmo import astrophysics,cosmology
-from .emissions import electron,fluxes,emissivity
+from .emissions import electron,fluxes,emissivity,cn_electron
 
 def getIndex(set,val):
     """
@@ -260,7 +261,7 @@ def checkCalculation(calcDict):
     """
     if not type(calcDict) is dict:
         fatal_error("control.checkCalculation() must be passed a dictionary as its argument")
-    calcParams = {'allModes':["jflux","flux","sb"],"allFreqs":["radio","all","gamma","pgamma","sgamma","neutrinos_e","neutrinos_mu","neutrinos_tau"]}
+    calcParams = {'allElectronModes':["crank-python","green-python","green-c"],'allModes':["jflux","flux","sb"],"allFreqs":["radio","all","gamma","pgamma","sgamma","neutrinos_e","neutrinos_mu","neutrinos_tau"]}
     if not 'mWIMP' in calcDict.keys():
         fatal_error("calcDict requires the variable {} be set".format('mWIMP'))
     else:
@@ -276,9 +277,23 @@ def checkCalculation(calcDict):
     if not 'freqMode' in calcDict.keys() or (not calcDict['freqMode'] in calcParams['allFreqs']):
         fatal_error("calcDict requires the variable {} with options: {}".format('freqMode',calcParams['allFreqs']))
     if not 'electronMode' in calcDict.keys():
-        calcDict['electronMode'] = "python"    
-    if not 'threadNumber' in calcDict.keys():
-        calcDict['threadNumber'] = 4
+        calcDict['electronMode'] = "green-python"  
+    if calcDict['electronMode'] == "green-c":  
+        if not 'threadNumber' in calcDict.keys():
+            calcDict['threadNumber'] = 4
+    elif calcDict['electronMode'] == "crank-python":
+        if not "crankDeltaTi" in calcDict.keys():
+            calcDict['crankDeltaTi'] = 1e9 
+        if not "crankDeltaTReduction" in calcDict.keys():
+            calcDict['crankDeltaTReduction'] = 0.5 
+        if not "crankMaxSteps" in calcDict.keys():
+            calcDict['crankMaxSteps'] = 100
+        if not "crankDeltaTConstant" in calcDict.keys():
+            calcDict['crankDeltaTConstant'] = False 
+        if not "crankBenchMarkMode" in calcDict.keys():
+            calcDict['crankBenchMarkMode'] = False  
+    elif calcDict['electronMode'] not in calcParams['allElectronModes']:
+        fatal_error("electronMode can only take the values: green-python, green-c, or crank-python. Your value of {} is invalid.".format(calcDict['electronMode'])) 
     if not 'fSampleValues' in calcDict.keys(): 
         if not 'fSampleLimits' in calcDict.keys():
             fatal_error("calcDict requires the variable {}, giving the minimum and maximum frequencies to be studied".format('fSampleLimits'))
@@ -511,9 +526,9 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
     else:
         rmax = np.tan(calcData['calcAngmax']/180/60*np.pi)*haloData['haloDistance']/(1+haloData['haloZ'])**2
     b_av,ne_av = physical_averages(rmax,mode_exp,calcData,haloData,magData,gasData)
-    if calcData['electronMode'] == "python":
+    if calcData['electronMode'] == "green-python":
         print("=========================================================")
-        print("Calculating Electron Equilibriumn Distributions with Python")
+        print("Calculating Electron Equilibriumn Distributions via Green's Function with Python")
         print("=========================================================")
         print('Magnetic Field Average Strength: {:.2e} micro Gauss'.format(b_av))
         print('Gas Average Density: {:.2e} cm^-3'.format(ne_av))
@@ -523,9 +538,9 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         r_sample = [takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum']),takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rGreenSampleNum'])]
         rho_dm_sample = [haloData['haloDensityFunc'](r_sample[0])**mode_exp,haloData['haloDensityFunc'](r_sample[1])**mode_exp]
         calcData['results']['electronData'][mIndex] = electron.equilibrium_electrons(E_set,Q_set,r_sample,rho_dm_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF)
-    else:
+    elif calcData['electronMode'] == "green-c":
         print("=========================================================")
-        print("Calculating Electron Equilibriumn Distributions with C")
+        print("Calculating Electron Equilibriumn Distributions via Green's Function with C")
         print("=========================================================")
         print('Magnetic Field Average Strength: {:.2e} micro Gauss'.format(b_av))
         print('Gas Average Density: {:.2e} cm^-3'.format(ne_av))
@@ -544,6 +559,20 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         #os.remove(join(wd,c_file))
         if calcData['results']['electronData'][mIndex] is None:
             fatal_error("The electron executable {} is not compiled or location not specified correctly".format(calcData['electronExecFile']))
+    elif calcData['electronMode'] == "crank-python":
+        print("=========================================================")
+        print("Calculating Electron Equilibriumn Distributions via Crank-Nicolson with Python")
+        print("=========================================================")
+        E_set = 10**takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")*mxEff
+        Q_set = partData['dNdxInterp']['positrons'](mxEff,np.log10(E_set/mxEff)).flatten()/np.log(1e1)/E_set
+        r_sample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum'])
+        rho_sample = astrophysics.haloDensityBuilder(haloData)(r_sample)
+        b_sample = magData['magFieldFunc'](r_sample)
+        ne_sample = gasData['gasDensityFunc'](r_sample)
+        r = sympy.symbols('r')
+        dBdr_sample = lambdify(r,sympy.diff(magData['magFieldFunc'](r),r))(r_sample)
+        cnSolver = cn_electron.cn_scheme(benchmark_flag=calcData['crankBenchMarkMode'],const_Delta_t=calcData['crankDeltaTConstant'])
+        calcData['results']['electronData'][mIndex] = cnSolver.solveElectrons(mx,haloData['haloZ'],E_set,r_sample,rho_sample,Q_set,b_sample,dBdr_sample,ne_sample,haloData['haloScale'],1.0,lossOnly=diffData['lossOnly'],mode_exp=mode_exp,Delta_ti=calcData['crankDeltaTi'],max_part_t=calcData['crankMaxSteps'],Delta_t_reduction=calcData['crankDeltaTReduction'])
     print("Process Complete")
     return calcData
 
@@ -900,10 +929,10 @@ def runCalculation(calcData,haloData,partData,magData,gasData,diffData,cosmoData
     py_file = "temp_electrons_py.out"
     c_file = "temp_electrons_c.in"
     wd = os.getcwd()
-    # if isfile(join(wd,py_file)):
-    #     os.remove(join(wd,py_file))
-    # if isfile(join(wd,c_file)):
-    #     os.remove(join(wd,c_file))
+    if isfile(join(wd,py_file)):
+        os.remove(join(wd,py_file))
+    if isfile(join(wd,c_file)):
+        os.remove(join(wd,c_file))
     return calcData,haloData,partData,magData,gasData,diffData,cosmoData
 
 
