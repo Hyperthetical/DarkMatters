@@ -54,7 +54,7 @@ class cn_scheme:
         self.animation_flag = animation_flag      #flag for whether animations take place or not
         self.snapshots = None   #stores snapshots of psi and Delta_t at each iteration for animation
         
-    def solveElectrons(self,mx,z,E_sample,r_sample,rho_sample,Q_sample,b_sample,dBdr_sample,ne_sample,rScale,eScale,lossOnly=False,mode_exp=2,Delta_ti=1e9,max_t_part=100,Delta_t_reduction=0.5):
+    def solveElectrons(self,mx,z,E_sample,r_sample,rho_sample,Q_sample,b_sample,dBdr_sample,ne_sample,rScale,eScale,d0,delta,diff0=3.1e28,lossOnly=False,mode_exp=2,Delta_ti=1e9,max_t_part=100,Delta_t_reduction=0.5):
         print("=========================\nEquation environment details\n=========================")
         
         self.effect = "loss" if lossOnly else "all" 
@@ -64,7 +64,9 @@ class cn_scheme:
         self.E_bins = len(E_sample)
         self.r_grid = (r_sample*units.Unit("Mpc")).to("cm").value       #[cm] -> check conversion
         self.E_grid = E_sample          #[GeV] -> check conversion
-        
+        self.delta = delta
+        self.d0 = (d0*units.Unit("Mpc")).to("kpc").value
+        self.D0 = diff0
         #variable transformations:  r --> r~ ; E --> E~
         self.r0 = (rScale*units.Unit("Mpc")).to("cm").value    #scale variable [cm]
         self.E0 = eScale        #scale variable [GeV]
@@ -157,24 +159,25 @@ class cn_scheme:
 
     def set_D(self,B,E):
         #set and return diffusion function [cm^2 s^-1]
-        D0 = 3.1e28     #[D0] = cm^2 s^-1
-        d0 = 2.0        #[d0] = kpc
-        alpha = 1.0/3.0
+        D0 = self.D0     #[D0] = cm^2 s^-1
+        d0 = self.d0        #[d0] = kpc
+        alpha = 2 - self.delta
         D = D0*(d0)**(1-alpha)*(B)**(-alpha)*(E)**alpha
-
+        #D = np.where(D>1e33,1e33,D)
         self.D = D
         return D
     
     def set_dDdr(self,B,dBdr,E):
         #set and return spatial derivative of diffusion function [cm s^-1]
-        D0 = 3.1e28     #[D0] = cm^2 s^-1
-        d0 = 2.0        #[d0] = kpc
-        alpha = 1.0/3.0
+        D0 = self.D0     #[D0] = cm^2 s^-1
+        d0 = self.d0        #[d0] = kpc
+        alpha = 2 - self.delta
 
         #prefactor (pf) needed for log-transformed derivative 
         pf = np.tile(self.r_prefactor(np.arange(self.r_bins)),(self.E_bins,1)).transpose()
         dDdr = -(1.0/pf*D0*alpha)*(d0)**(1-alpha)*(B)**(-alpha-1)*dBdr*(E)**alpha
-
+        #dDdr = np.where(dDdr>1e33, 1e33,dDdr)
+        print(dDdr)
         self.dDdr = dDdr
         return dDdr
         
@@ -345,7 +348,7 @@ class cn_scheme:
         t = 0                                   #total iteration counter 
         t_part = 0                              #iteration counter for each Delta_t 
         t_elapsed = 0                           #total amount of time elapsed during solution (t_part*Delta_t for each Delta_t)       
-        max_t = 5e5                             #maximum total number of iterations (fallback if convergence not reached - roughly 300 iterations per second) 
+        max_t = 5e4                            #maximum total number of iterations (fallback if convergence not reached - roughly 300 iterations per second) 
         max_t_part = self.max_t_part            #maximum number of iterations for each value of Delta_t 
         
         I = self.r_bins

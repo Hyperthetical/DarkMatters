@@ -28,7 +28,7 @@ def haloDensityBuilder(haloDict):
     elif haloDict['haloProfile'] == "gnfw":
         return lambda x: haloDict['haloNorm']/(x/haloDict['haloScale'])**haloDict['haloIndex']/(1+x/haloDict['haloScale'])**(3-haloDict['haloIndex'])
     elif haloDict['haloProfile'] == "einasto":
-        return lambda x: haloDict['haloNorm']*np.exp(-2/haloDict['haloIndex']*((x/haloDict['haloSCale'])**haloDict['haloIndex']-1))
+        return lambda x: haloDict['haloNorm']*np.exp(-2/haloDict['haloIndex']*((x/haloDict['haloScale'])**haloDict['haloIndex']-1))
     elif haloDict['haloProfile'] == "isothermal":
         return lambda x: haloDict['haloNorm']/(1+(x/haloDict['haloScale'])**2)
     elif haloDict['haloProfile'] == "cgnfw":
@@ -44,7 +44,7 @@ def magneticFieldBuilder(magDict):
     elif magDict['magProfile'] == "doublebeta":
         return lambda x: magDict['magNorm']*(1 +(x/magDict['magScale'])**2)**(3*magDict['magIndex']) + magDict['magNorm2']*(1 +(x/magDict['magScale2'])**2)**(3*magDict['magIndex2'])
     elif magDict['magProfile'] == "exp":
-        return lambda x: magDict['magNorm']*np.exp(-x/magDict['magScale'])
+        return lambda x: magDict['magNorm']*np.exp(1.0)**(-x/magDict['magScale'])
     elif magDict['magProfile'] == "m31":
         return lambda x: (magDict['magNorm']*magDict['magScale'] + 64e-3)/(magDict['magScale'] + x)
     elif magDict['magProfile'] == "flat":

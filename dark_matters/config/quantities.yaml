@@ -1,5 +1,5 @@
 angle:
-- calcAngmax
+- calcAngmaxIntegrate
 density:
 - haloNorm
 distance:
@@ -10,6 +10,7 @@ distance:
 - magScale2
 - gasScale
 - gasScale2
+- calcRmaxIntegrate
 - calcRmax
 - coherenceScale
 - haloCoreScale
@@ -17,6 +18,7 @@ time:
 - crankDeltaTi
 energy:
 - mWIMP
+- eSampleMin
 frequency:
 - fSampleLimits
 - fSampleValues

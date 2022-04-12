@@ -314,14 +314,16 @@ def checkCalculation(calcDict):
         calcDict['eSampleNum'] = 71
     elif calcDict['eSampleNum'] < 71:
         fatal_error("eSampleNum cannot be set below 71 without incurring errors")
-    if not 'log10ESampleMinFactor' in calcDict.keys():
+    if not 'log10ESampleMinFactor' in calcDict.keys() and not 'eSampleMin' in calcDict.keys():
         calcDict['log10ESampleMinFactor'] = -9
 
-    if calcDict['calcMode'] == "flux":
-        if (not 'calcRmax' in calcDict.keys()) and (not 'calcAngmax' in calcDict.keys()):
-            fatal_error("calcDict requires one of the variables {} or {} for the selected mode: {}".format('calcRmax','calcAngmax',calcDict['calcMode']))
-        elif ('calcRmax' in calcDict.keys()) and ('calcAngmax' in calcDict.keys()):
-            fatal_error("calcDict requires ONLY one of the variables {} or {} for the selected mode: {}".format('calcRmax','calcAngmax',calcDict['calcMode']))
+    if calcDict['calcMode'] in ["flux","sb"]:
+        if (not 'calcRmaxIntegrate' in calcDict.keys()) and (not 'calcAngmaxIntegrate' in calcDict.keys()):
+            fatal_error("calcDict requires one of the variables {} or {} for the selected mode: {}".format('calcRmaxIntegrate','calcAngmaxIntegrate',calcDict['calcMode']))
+        elif ('calcRmaxIntegrate' in calcDict.keys()) and ('calcAngmaxIntegrate' in calcDict.keys()):
+            fatal_error("calcDict requires ONLY one of the variables {} or {} for the selected mode: {}".format('calcRmaxIntegrate','calcAngmaxIntegrate',calcDict['calcMode']))
+    if not 'calcRmax' in calcDict.keys():
+        calcDict['calcRmax'] = "2*Rvir"
     if not calcDict['calcMode'] == "jflux":
         if not 'rSampleNum' in calcDict.keys():
             calcDict['rSampleNum'] = 61
@@ -521,10 +523,17 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
             fatal_error("You have specified rSampleNum = {}, this will yield inaccurate electron density results with lossOnly = False.\n Set rSampleNum > 70".format(calcData['rSampleNum'])) 
         if calcData['rGreenSampleNum'] < 101:
             fatal_error("You have specified rGreenSampleNum = {}, this will yield inaccurate electron density results with lossOnly = False.\n Set rGreenSampleNum > 200".format(calcData['rGreenSampleNum'])) 
-    if 'calcRmax' in calcData.keys():
-        rmax = calcData['calcRmax']
+    if 'calcRmaxIntegrate' in calcData.keys():
+        rmax = calcData['calcRmaxIntegrate']
+    elif 'calcAngmaxIntegrate' in calcData.keys():
+        rmax = np.tan(calcData['calcAngmaxIntegrate']/180/60*np.pi)*haloData['haloDistance']/(1+haloData['haloZ'])**2
     else:
-        rmax = np.tan(calcData['calcAngmax']/180/60*np.pi)*haloData['haloDistance']/(1+haloData['haloZ'])**2
+        rmax = haloData['haloRvir']
+
+    if calcData['calcRmax'] == "2*Rvir":
+        rLimit = 2*haloData['haloRvir']
+    else:
+        rLimit = calcData['calcRmax']
     b_av,ne_av = physical_averages(rmax,mode_exp,calcData,haloData,magData,gasData)
     if calcData['electronMode'] == "green-python":
         print("=========================================================")
@@ -563,16 +572,16 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         print("=========================================================")
         print("Calculating Electron Equilibriumn Distributions via Crank-Nicolson with Python")
         print("=========================================================")
-        E_set = 10**takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")*mxEff
+        E_set = 10**takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")*mxEff
         Q_set = partData['dNdxInterp']['positrons'](mxEff,np.log10(E_set/mxEff)).flatten()/np.log(1e1)/E_set
-        r_sample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum'])
+        r_sample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum'])
         rho_sample = astrophysics.haloDensityBuilder(haloData)(r_sample)
         b_sample = magData['magFieldFunc'](r_sample)
         ne_sample = gasData['gasDensityFunc'](r_sample)
         r = sympy.symbols('r')
         dBdr_sample = lambdify(r,sympy.diff(magData['magFieldFunc'](r),r))(r_sample)
         cnSolver = cn_electron.cn_scheme(benchmark_flag=calcData['crankBenchMarkMode'],const_Delta_t=calcData['crankDeltaTConstant'])
-        calcData['results']['electronData'][mIndex] = cnSolver.solveElectrons(mx,haloData['haloZ'],E_set,r_sample,rho_sample,Q_set,b_sample,dBdr_sample,ne_sample,haloData['haloScale'],1.0,lossOnly=diffData['lossOnly'],mode_exp=mode_exp,Delta_ti=calcData['crankDeltaTi'],max_t_part=calcData['crankMaxSteps'],Delta_t_reduction=calcData['crankDeltaTReduction'])
+        calcData['results']['electronData'][mIndex] = cnSolver.solveElectrons(mx,haloData['haloZ'],E_set,r_sample,rho_sample,Q_set,b_sample,dBdr_sample,ne_sample,haloData['haloScale'],1.0,diffData['coherenceScale'],diffData['diffIndex'],diff0=diffData['diffConstant'],lossOnly=diffData['lossOnly'],mode_exp=mode_exp,Delta_ti=calcData['crankDeltaTi'],max_t_part=calcData['crankMaxSteps'],Delta_t_reduction=calcData['crankDeltaTReduction'])
     print("Process Complete")
     return calcData
 
@@ -613,7 +622,10 @@ def calcRadioEm(mx,calcData,haloData,partData,magData,gasData,diffData):
     mIndex = getIndex(calcData['mWIMP'],mx)
     rSample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],2*haloData['haloRvir'],calcData['rSampleNum'])
     fSample = calcData['fSampleValues']
-    xSample = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
+    if not 'eSampleMin' in calcData.keys():
+        xSample = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
+    else:
+        xSample = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
     gSample = 10**xSample*mxEff/(constants.m_e*constants.c**2).to("GeV").value
     bSample = magData['magFieldFunc'](rSample)
     neSample = gasData['gasDensityFunc'](rSample)
@@ -664,7 +676,10 @@ def calcPrimaryEm(mx,calcData,haloData,partData):
     mxEff = mx*0.5*mode_exp #this takes into account decay when mode_exp = 1, annihilation mode_exp = 2 means mxEff = mx
     rSample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum'])
     fSample = calcData['fSampleValues']
-    xSample = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
+    if not 'eSampleMin' in calcData.keys():
+        xSample = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
+    else:
+        xSample = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
     gSample = 10**xSample*mxEff/(constants.m_e*constants.c**2).to("GeV").value
     rhoSample = haloData['haloDensityFunc'](rSample)
     qSample = partData['dNdxInterp'][specType](mxEff,xSample).flatten()/np.log(1e1)/10**xSample/mxEff*(constants.m_e*constants.c**2).to("GeV").value
@@ -709,7 +724,10 @@ def calcSecondaryEm(mx,calcData,haloData,partData,magData,gasData,diffData):
     mxEff = mx*0.5*mode_exp #this takes into account decay when mode_exp = 1, annihilation mode_exp = 2 means mxEff = mx
     rSample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum'])
     fSample = calcData['fSampleValues'] #frequency values
-    xSample = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin") 
+    if not 'eSampleMin' in calcData.keys():
+        xSample = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
+    else:
+        xSample = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
     gSample = 10**xSample*mxEff/(constants.m_e*constants.c**2).to("GeV").value
     neSample = gasData['gasDensityFunc'](rSample)
     if calcData['results']['electronData'][mIndex] is None:
@@ -741,16 +759,16 @@ def calcFlux(mx,calcData,haloData):
     print("Calculating Flux")
     print("=========================================================")
     print("Frequency mode: {}".format(calcData['freqMode']))
-    if 'calcRmax' in calcData.keys():
-        if calcData['calcRmax'] == "Rmax" or calcData['calcRmax'] == -1:
+    if 'calcRmaxIntegrate' in calcData.keys():
+        if calcData['calcRmaxIntegrate'] == "Rmax" or calcData['calcRmaxIntegrate'] == -1:
             rmax = haloData['haloRvir']
         else:
-            rmax = calcData['calcRmax']
+            rmax = calcData['calcRmaxIntegrate']
         print("Integration radius: {} Mpc".format(rmax))
         
     else:
-        rmax = np.tan(calcData['calcAngmax']/180/60*np.pi)*haloData['haloDistance']/(1+haloData['haloZ'])**2
-        print("Integration radius: {} arcmins = {} Mpc".format(calcData['calcAngmax'],rmax))
+        rmax = np.tan(calcData['calcAngmaxIntegrate']/180/60*np.pi)*haloData['haloDistance']/(1+haloData['haloZ'])**2
+        print("Integration radius: {} arcmins = {} Mpc".format(calcData['calcAngmaxIntegrate'],rmax))
     mIndex = getIndex(calcData['mWIMP'],mx)
     if calcData['freqMode'] == "all":
         emm = calcData['results']['radioEmData'][mIndex] + calcData['results']['primaryEmData'][mIndex] + calcData['results']['secondaryEmData'][mIndex]
@@ -857,7 +875,10 @@ def calcJFlux(mx,calcData,haloData,partData):
             specType = calcData['freqMode']
         mIndex = getIndex(calcData['mWIMP'],mx)
         fSample = calcData['fSampleValues']
-        xSample = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
+        if not 'eSampleMin' in calcData.keys():
+            xSample = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
+        else:
+            xSample = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
         gSample = 10**xSample*mxEff/(constants.m_e*constants.c**2).to("GeV").value  
         qSampleGamma = partData['dNdxInterp'][specType](mxEff,xSample).flatten()/np.log(1e1)/10**xSample/mxEff*(constants.m_e*constants.c**2).to("GeV").value
         calcData['results']['finalData'][mIndex] = fluxes.fluxFromJFactor(mx,haloData['haloZ'],jFac,fSample,gSample,qSampleGamma,mode_exp)
