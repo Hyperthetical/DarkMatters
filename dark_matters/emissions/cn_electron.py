@@ -54,7 +54,7 @@ class cn_scheme:
         self.animation_flag = animation_flag      #flag for whether animations take place or not
         self.snapshots = None   #stores snapshots of psi and Delta_t at each iteration for animation
         
-    def solveElectrons(self,mx,z,E_sample,r_sample,rho_sample,Q_sample,b_sample,dBdr_sample,ne_sample,rScale,eScale,d0,delta,diff0=3.1e28,lossOnly=False,mode_exp=2,Delta_ti=1e9,max_t_part=100,Delta_t_reduction=0.5):
+    def solveElectrons(self,mx,z,E_sample,r_sample,rho_sample,Q_sample,b_sample,dBdr_sample,ne_sample,rScale,eScale,d0,delta,diff0=3.1e28,lossOnly=False,mode_exp=2,Delta_t_min=1e1,Delta_ti=1e9,max_t_part=100,Delta_t_reduction=0.5):
         print("=========================\nEquation environment details\n=========================")
         
         self.effect = "loss" if lossOnly else "all" 
@@ -89,7 +89,7 @@ class cn_scheme:
 
         rho_sample = (rho_sample*units.Unit("Msun/Mpc^3")*const.c**2).to("GeV/cm^3").value
         dBdr_sample = (dBdr_sample*units.Unit("1/Mpc")).to("1/cm").value
-        self.Q = 1/mode_exp*(np.tensordot(rho_sample,np.ones_like(self.E_grid),axes=0)/mx)**mode_exp*np.tensordot(np.ones_like(rho_sample),Q_sample,axes=0)*1e-26
+        self.Q = 1/mode_exp*(np.tensordot(rho_sample,np.ones_like(self.E_grid),axes=0)/mx)**mode_exp*np.tensordot(np.ones_like(rho_sample),Q_sample,axes=0)
         Etens = np.tensordot(np.ones(self.r_bins),self.E_grid,axes=0)
         Btens = np.tensordot(b_sample, np.ones(self.E_bins),axes=0)           
         netens = np.tensordot(ne_sample, np.ones(self.E_bins),axes=0)          
@@ -115,7 +115,7 @@ class cn_scheme:
         if self.const_Delta_t is False:
             #accelerated method
             self.Delta_ti = (Delta_ti*units.Unit('yr')).to('s').value   #large initial timestep to cover all possible timescales
-            self.smallest_Delta_t = (1e1*units.Unit('yr')).to('s').value    #value of Delta_t at which iterations stop when convergence is reached
+            self.smallest_Delta_t = (Delta_t_min*units.Unit('yr')).to('s').value    #value of Delta_t at which iterations stop when convergence is reached
             self.max_t_part = max_t_part
             self.Delta_t_reduction = Delta_t_reduction
         elif self.const_Delta_t is True:    
@@ -348,7 +348,7 @@ class cn_scheme:
         t = 0                                   #total iteration counter 
         t_part = 0                              #iteration counter for each Delta_t 
         t_elapsed = 0                           #total amount of time elapsed during solution (t_part*Delta_t for each Delta_t)       
-        max_t = 5e4                            #maximum total number of iterations (fallback if convergence not reached - roughly 300 iterations per second) 
+        max_t = 1e4                            #maximum total number of iterations (fallback if convergence not reached - roughly 300 iterations per second) 
         max_t_part = self.max_t_part            #maximum number of iterations for each value of Delta_t 
         
         I = self.r_bins

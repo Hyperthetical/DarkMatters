@@ -16,6 +16,7 @@ distance:
 - haloCoreScale
 time:
 - crankDeltaTi
+- crankDeltaTMin
 energy:
 - mWIMP
 - eSampleMin
@@ -36,3 +37,5 @@ numDensity:
 - gasNorm2
 diffConstant:
 - diffConstant
+crossSection:
+- crossSection
