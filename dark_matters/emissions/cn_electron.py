@@ -5,15 +5,6 @@ from astropy import units, constants as const
 
 from ..astro_cosmo import astrophysics
 
-#global conversion factors
-# Mpc_to_cm = 1e6*(3.0857e16)*(1e2)
-# cm_to_Mpc = 1/Mpc_to_cm
-# yr_to_s = 365.25*24*60*60
-# s_to_yr = 1/yr_to_s
-
-#for reference, this is the call to electron.py's calculation
-#        calcData['results']['electronData'][mIndex] = electron.equilibrium_electrons(E_set,Q_set,r_sample,rho_dm_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF)
-
 class cn_scheme:
     
     def __init__(self,benchmark_flag=False,const_Delta_t=False,animation_flag=False):
@@ -79,12 +70,7 @@ class cn_scheme:
         self.logr_grid = logr(self.r_grid)           #[/]
         self.logE_grid = logE(self.E_grid)           #[/]
         
-        """ Diffusion/energy loss functions 
-        
-        Options 
-            - set these within this module
-            - set these in control.py, and pass them in
-        """
+        """ Diffusion/energy loss functions """
         self.constants = {'ICISRF':6.08e-16 + 0.25e-16*(1+z)**4, 'ICCMB': 0.25e-16*(1+z)**4, 'sync':0.0254e-16, 'coul':6.13e-16, 'brem':4.7e-16}
 
         rho_sample = (rho_sample*units.Unit("Msun/Mpc^3")*const.c**2).to("GeV/cm^3").value
@@ -141,22 +127,10 @@ class cn_scheme:
         """ CN method """
         print("=========================\nCN run details\n=========================")
         return self.cn_2D(self.Q).transpose()       
-
-        # print("\n=========================\nResults\n=========================")        
-        # print(f"Final electron distribution = \n{self.electrons}")
-        # return self.electrons
         
     """ 
     Function definitions 
     """
-    def set_Q(self, wimp): 
-        #set WIMP annihilation particle source function; 2D array (r_grid, E_grid); final units [cm^-3 s^-1] 
-        Nx = np.tensordot(wimp.wpair_density,np.ones(self.E_bins),axes=0)   #[cm^-6]
-        dnde = np.tensordot(np.ones(self.r_bins),wimp.spec,axes=0)          #[GeV^-1]
-        cross_section = 1.0e-26                                             #[cm^3 s^-1]
-        
-        self.Q = Nx*dnde*cross_section   
-
     def set_D(self,B,E):
         #set and return diffusion function [cm^2 s^-1]
         D0 = self.D0     #[D0] = cm^2 s^-1
@@ -394,11 +368,10 @@ class cn_scheme:
                    smallest timestep, override (c1) and allow convergence
             """
             if t>1:
-                rel_diff_check = bool(np.all(np.abs(psi[:-1]/psi_prev[:-1]-1.0) < stability_tol))    #[:-1] slice to ignore boundary condition 
+                rel_diff_check = bool(np.all(np.abs(psi[:-1]/psi_prev[:-1]-1.0) < stability_tol))    #[:-1] slice to ignore boundary condition, type conversion because np.bool != bool, get unexpected results sometimes 
 
                 #stability conditions - s1,s2
                 if self.const_Delta_t:
-                    #type conversion because np.bool != bool, get unexpected results sometimes
                     stability_check = rel_diff_check 
                 else:
                     stability_check = t_part > max_t_part
@@ -454,8 +427,6 @@ class cn_scheme:
                         
                         elif self.Delta_t < self.smallest_Delta_t:
                             if ts_check or rel_diff_check:  
-                                rel_diff = (psi[:-1]/psi_prev[:-1]-1.0)  
-                                print(f"ref diff: {rel_diff}")
                                 #psi has satisfied (a1 + c1) or (a1 + a2) with the lowest timestep - end iterations
                                 print(f"Delta t at lowest value: {(self.Delta_t*units.Unit('s')).to('yr').value:.2g} yr")
                                 print(f"Numer of iterations since previous Delta t: {t_part}\n")
