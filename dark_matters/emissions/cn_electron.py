@@ -337,12 +337,12 @@ class cn_scheme:
         diff_ts_check = False                   #psi_ts > diff_ts check
         ts_check = False                        #combination of ts_losscheck and ts_diffcheck
         benchmark_check = False                 #np.all(dpsidt==0), only for benchmarking runs
+        rel_diff_check = False                  #relative difference between (t-1) and (t) < stability_tol
         psi_ts = np.empty(psi.shape)            #for calculating psi_ts
         psi_prev = np.empty(psi.shape)          #copy of psi at t-1, for determining stability and convergence checks
         Delta_t_reduction = self.Delta_t_reduction    #factor by which to reduce Delta_t during timestep-switching in accelerated method
-        if self.const_Delta_t:
-            stability_tol = 1.0e-3              #relative difference tolerance between iterations (for stability_check)
-            print(f"Stability tolerance: {stability_tol}")
+        stability_tol = 1.0e-5                  #relative difference tolerance between iterations (for stability_check)
+        print(f"Stability tolerance: {stability_tol}")
 
         #other loop items
         t = 0                                   #total iteration counter 
@@ -390,12 +390,16 @@ class cn_scheme:
                    smallest value (Delta_t < smallest_Delta_t).
                    If const_Delta_t is False, Delta_t is sequentially reduced 
                    by some predetermined factor (Delta_t_reduction). 
+            (a2) - If rel_diff is satisfied together with (a1), ie. at the
+                   smallest timestep, override (c1) and allow convergence
             """
             if t>1:
+                rel_diff_check = bool(np.all(np.abs(psi[:-1]/psi_prev[:-1]-1.0) < stability_tol))    #[:-1] slice to ignore boundary condition 
+
                 #stability conditions - s1,s2
                 if self.const_Delta_t:
-                    #[:-1] slice to ignore boundary condition, type conversion because np.bool != bool, get unexpected results sometimes
-                    stability_check = bool(np.all(np.abs(psi[:-1]/psi_prev[:-1]-1.0) < stability_tol))
+                    #type conversion because np.bool != bool, get unexpected results sometimes
+                    stability_check = rel_diff_check 
                 else:
                     stability_check = t_part > max_t_part
                 
@@ -403,11 +407,6 @@ class cn_scheme:
                 dpsidt = (psi[:-1]-psi_prev[:-1])/self.Delta_t
                 with np.errstate(divide="ignore"): #gets rid of divide by 0 warnings (when psi converges this timescale should tend to inf)
                     psi_ts = np.abs(psi[:-1]/dpsidt)     
-                
-                #diagnostic benchmark check for machine-accuracy dpsidt convergence - b1
-                if self.benchmark_flag is True:
-                    with np.errstate(divide="ignore"):
-                        benchmark_check = np.all(np.abs(dpsidt) == 0)
                 
                 #set relevent timescale conditions for each effect
                 loss_ts_check = np.all(psi_ts > self.loss_ts[:-1])
@@ -419,6 +418,11 @@ class cn_scheme:
                 elif self.effect == "all":
                     ts_check = loss_ts_check and diff_ts_check 
             
+                #diagnostic benchmark check for machine-accuracy dpsidt convergence - b1
+                if self.benchmark_flag is True:
+                    with np.errstate(divide="ignore"):
+                        benchmark_check = np.all(np.abs(dpsidt) == 0)
+
             #check for convergence if iterations are stable (s1, s2)
             if stability_check:
                 if self.benchmark_flag:
@@ -434,7 +438,7 @@ class cn_scheme:
                             convergence_check = True
                             break
                     else:
-                        #accelerated method (a1)
+                        #accelerated method 
                         if self.Delta_t > self.smallest_Delta_t:
                             #reduce Delta_t and start again
                             self.Delta_t *= Delta_t_reduction
@@ -448,12 +452,15 @@ class cn_scheme:
                             if self.effect in {"diffusion","all"}:
                                 (diff_A,diff_B) = self.spmatrices_diff()  
                         
-                        elif self.Delta_t < self.smallest_Delta_t and ts_check:    #(a1 + c1)
-                            #psi has satisfied c1 condition with the lowest timestep - end iterations
-                            print(f"Delta t at lowest value: {(self.Delta_t*units.Unit('s')).to('yr').value:.2g} yr")
-                            print(f"Numer of iterations since previous Delta t: {t_part}\n")
-                            convergence_check = True
-                            break
+                        elif self.Delta_t < self.smallest_Delta_t:
+                            if ts_check or rel_diff_check:  
+                                rel_diff = (psi[:-1]/psi_prev[:-1]-1.0)  
+                                print(f"ref diff: {rel_diff}")
+                                #psi has satisfied (a1 + c1) or (a1 + a2) with the lowest timestep - end iterations
+                                print(f"Delta t at lowest value: {(self.Delta_t*units.Unit('s')).to('yr').value:.2g} yr")
+                                print(f"Numer of iterations since previous Delta t: {t_part}\n")
+                                convergence_check = True
+                                break
                     
             #convergence checks failed - store psi_prev and then update psi
             psi_prev = psi.copy()
@@ -489,6 +496,10 @@ class cn_scheme:
             if self.animation_flag is True:
                 snapshot = (psi.copy()[:-1],self.Delta_t)
                 self.snapshots.append(snapshot)
+
+            """ Debugging breakpoints """
+            # if t%1000 == 0:
+            #     print(f"debugging - iteration {t}")
         
         #end while loop
             
