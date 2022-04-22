@@ -36,7 +36,7 @@ def fatal_error(err_string):
     print("################################################")
     raise SystemExit(err_string)
 
-def getCalcID(calcData,haloData,partData):
+def getCalcID(calcData,haloData,partData,tag=None):
     """
     Builds an output file id code
         ---------------------------
@@ -60,7 +60,9 @@ def getCalcID(calcData,haloData,partData):
     dm_str += "_"
 
     if not calcData['calcMode'] == "jflux":
-        if haloData['haloWeights'] == "flat":
+        if not "green" in calcData['electronMode']:
+            w_str = ""
+        elif haloData['haloWeights'] == "flat":
             w_str = "weights-flat_"
         else:
             w_str = "weights-rho_"
@@ -77,6 +79,11 @@ def getCalcID(calcData,haloData,partData):
             dist_str = "jfactor-{:.1e}_".format(haloData['haloJFactor'])
         else:
             dist_str = "dfactor-{:.1e}_".format(haloData['haloDFactor'])
+
+    if calcData['freqMode'] in ['gamma','sgamma','radio','all']:
+        fm_str = calcData['electronMode']+"_"
+    else:
+        fm_str = ""
     
     if partData['emModel'] == "decay":
         wimp_str = "decay_"
@@ -92,7 +99,11 @@ def getCalcID(calcData,haloData,partData):
             mxStr += "GeV_"
 
     model_str = partData['partModel']+"_"
-    return haloData['haloName']+"_"+model_str+mxStr+wimp_str+dm_str+w_str+dist_str
+    if not tag is None:
+        tag_str = tag+"_"
+    else:
+        tag_str = ""
+    return haloData['haloName']+"_"+model_str+mxStr+wimp_str+dm_str+fm_str+w_str+dist_str+tag_str
 
 def fluxLabel(calcData):
     if calcData['freqMode'] == "radio":
@@ -133,8 +144,7 @@ def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,out
     else:
         writeCalc['results'] = {key: value for key, value in calcData['results'].items()}
     outData = {'calcData':writeCalc,'haloData':writeHalo,'partData':writePart,'magData':writeMag,'gasData':writeGas,'diffData':diffData,'cosmoData':cosmoData}
-    if fName is None:
-        fName = getCalcID(calcData,haloData,partData)+fluxLabel(calcData)
+    fName = getCalcID(calcData,haloData,partData,tag=fName)+fluxLabel(calcData)
     if not emOnly:
         fName += "_"+calcData['calcMode']
     else:

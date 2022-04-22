@@ -44,6 +44,7 @@ def radioEmGrid(electrons,fSample,rSample,gSample,bSample,neSample):
             Value of Bessel function at t
         """
         return 1.25*t**(1.0/3.0)*np.exp(-t)*(648.0+t**2)**(1.0/12.0)
+
     k = len(gSample) #number of E bins
     num = len(fSample)  #number of frequency sampling points
     ntheta = 60   #angular integration points
@@ -61,7 +62,8 @@ def radioEmGrid(electrons,fSample,rSample,gSample,bSample,neSample):
     nup = 8980.0*np.sqrt(neGrid)*1e-6
     x = 2.0*nuGrid/(3.0*nu0*eGrid**2)*(1+(eGrid*nup/nuGrid)**2)**1.5
     a = 2.0*np.pi*np.sqrt(3.0)*r0*me/c*1e6*nu0
-    pGridFull = a*electronGrid*0.5*np.sin(tGrid)*int_bessel(x/np.sin(tGrid))
+    with np.errstate(invalid="ignore",over="ignore"):
+        pGridFull = a*electronGrid*0.5*np.sin(tGrid)*int_bessel(x/np.sin(tGrid))
     eGridS = np.tensordot(np.ones((num,len(rSample))),gSample,axes=0) #for integration once theta is integrated out
     emGrid = integrate(integrate(pGridFull,tGrid),eGridS)
     return np.where(np.isnan(emGrid),0.0,emGrid) #GeV cm^-3
@@ -262,7 +264,8 @@ def secondaryEmHighE(electrons,z,gSample,fSample,neSample):
                 emax = E_g*g*me/(me*g - E_g)
                 emin = emax/(4*g**2)
                 e_set = np.logspace(np.log10(emin),np.log10(emax),num=ntheta)
-                e_int = black_body(e_set,2.73*(1+z))*klein_nishina(E_g,e_set,g)
+                with np.errstate(invalid="ignore",over="ignore"):
+                    e_int = black_body(e_set,2.73*(1+z))*klein_nishina(E_g,e_set,g)
                 P_IC[i][l] = c*E_g*integrate(e_int,e_set)
                 P_B[i][l] = c*E_g*sigma_brem(E_g,g)
         progress(i+1,num*2)

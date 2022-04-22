@@ -137,7 +137,8 @@ class cn_scheme:
         d0 = self.d0        #[d0] = kpc
         alpha = 2 - self.delta
         D = D0*(d0)**(1-alpha)*(B)**(-alpha)*(E)**alpha
-        #D = np.where(D>1e33,1e33,D)
+        dLim = 1e32*E**alpha
+        D = np.where(D>dLim,dLim,D)
         self.D = D
         return D
     
@@ -151,7 +152,6 @@ class cn_scheme:
         pf = np.tile(self.r_prefactor(np.arange(self.r_bins)),(self.E_bins,1)).transpose()
         dDdr = -(1.0/pf*D0*alpha)*(d0)**(1-alpha)*(B)**(-alpha-1)*dBdr*(E)**alpha
         #dDdr = np.where(dDdr>1e33, 1e33,dDdr)
-        print(dDdr)
         self.dDdr = dDdr
         return dDdr
         

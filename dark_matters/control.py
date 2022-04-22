@@ -302,7 +302,7 @@ def checkCalculation(calcDict):
         if not 'fSampleNum' in calcDict.keys():
             calcDict['fSampleNum'] = 40
         if not 'fSampleSpacing' in calcDict.keys():
-            calcDict['fSampleSpacing'] = "lin"
+            calcDict['fSampleSpacing'] = "log"
         if calcDict['fSampleSpacing'] == "lin":
             calcDict['fSampleValues'] = np.linspace(calcDict['fSampleLimits'][0],calcDict['fSampleLimits'][1],num=calcDict['fSampleNum'])
         else:
@@ -314,10 +314,12 @@ def checkCalculation(calcDict):
 
     if not 'eSampleNum' in calcDict.keys():
         calcDict['eSampleNum'] = 71
-    elif calcDict['eSampleNum'] < 71:
-        fatal_error("eSampleNum cannot be set below 71 without incurring errors")
-    if not 'log10ESampleMinFactor' in calcDict.keys() and not 'eSampleMin' in calcDict.keys():
-        calcDict['log10ESampleMinFactor'] = -9
+    elif calcDict['eSampleNum'] < 71 and 'green' in calcDict['electronMode']:
+        fatal_error("eSampleNum cannot be set below 71 without incurring errors when using a Green's function method")
+    # if not 'log10ESampleMinFactor' in calcDict.keys() and not 'eSampleMin' in calcDict.keys():
+    #     calcDict['log10ESampleMinFactor'] = -9
+    if not 'eSampleMin' in calcDict.keys():
+        calcDict['eSampleMin'] = 1e-3 #GeV
 
     if calcDict['calcMode'] in ["flux","sb"]:
         if (not 'calcRmaxIntegrate' in calcDict.keys()) and (not 'calcAngmaxIntegrate' in calcDict.keys()):
@@ -332,7 +334,7 @@ def checkCalculation(calcDict):
         if not 'rGreenSampleNum' in calcDict.keys():
             calcDict['rGreenSampleNum'] = 121
         if not 'log10RSampleMinFactor' in calcDict.keys():
-            calcDict['log10RSampleMinFactor'] = -5
+            calcDict['log10RSampleMinFactor'] = -3
     else:
         if not calcDict['freqMode'] in ["pgamma","neutrinos_mu","neutrinos_e","neutrinos_tau"]:
             fatal_error("calcData freqMode parameter can only be pgamma, or neutrinos_x (x= e, mu, or tau) for calcMode jflux")
@@ -545,7 +547,10 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         print("=========================================================")
         print('Magnetic Field Average Strength: {:.2e} micro Gauss'.format(b_av))
         print('Gas Average Density: {:.2e} cm^-3'.format(ne_av))
-        E_set = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
+        if not 'eSampleMin' in calcData.keys():
+            E_set = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
+        else:
+            E_set = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
         Q_set = partData['dNdxInterp']['positrons'](mxEff,E_set).flatten()/np.log(1e1)/10**E_set/mxEff*(constants.m_e*constants.c**2).to("GeV").value*partData['crossSection']
         E_set = 10**E_set*mxEff/(constants.m_e*constants.c**2).to("GeV").value
         r_sample = [takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum']),takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rGreenSampleNum'])]
@@ -557,8 +562,11 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         print("=========================================================")
         print('Magnetic Field Average Strength: {:.2e} micro Gauss'.format(b_av))
         print('Gas Average Density: {:.2e} cm^-3'.format(ne_av))
-        E_set = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
-        Q_set = partData['dNdxInterp']['positrons'](mxEff,E_set).flatten()/np.log(1e1)/10**E_set/mxEff*(constants.m_e*constants.c**2).to("GeV").value*partData['crossSection']
+        if not 'eSampleMin' in calcData.keys():
+            E_set = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
+        else:
+            E_set = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
+        Q_set = partData['dNdxInterp']['positrons'](mxEff,E_set).flatten()/np.log(1e1)/10**E_set/mxEff*(constants.m_e*constants.c**2).to("GeV").value
         E_set = 10**E_set*mxEff/(constants.m_e*constants.c**2).to("GeV").value
         r_sample = [takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum']),takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rGreenSampleNum'])]
         rho_dm_sample = [haloData['haloDensityFunc'](r_sample[0])**mode_exp,haloData['haloDensityFunc'](r_sample[1])**mode_exp]
@@ -567,7 +575,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         py_file = "temp_electrons_py.out"
         c_file = "temp_electrons_c.in"
         wd = os.getcwd()
-        calcData['results']['electronData'][mIndex] = electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calcData['electronExecFile'],E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,num_threads=calcData['threadNumber'])
+        calcData['results']['electronData'][mIndex] = electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calcData['electronExecFile'],E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,num_threads=calcData['threadNumber'])*partData['crossSection']
         #os.remove(join(wd,py_file))
         #os.remove(join(wd,c_file))
         if calcData['results']['electronData'][mIndex] is None:
@@ -786,7 +794,11 @@ def calcFlux(mx,calcData,haloData):
         emm = calcData['results']['radioEmData'][mIndex] 
     elif "neutrinos" in calcData['freqMode']:
         emm = calcData['results']['neutrinoEmData'][mIndex]
-    rSample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum'])
+    if calcData['calcRmax'] == "2*Rvir":
+        rLimit = 2*haloData['haloRvir']
+    else:
+        rLimit = calcData['calcRmax']
+    rSample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum'])
     fSample = calcData['fSampleValues']
     calcData['results']['finalData'][mIndex] = fluxes.fluxGrid(rmax,haloData['haloDistance'],fSample,rSample,emm,boostMod=1.0)
     print("Process Complete")
@@ -828,12 +840,16 @@ def calcSB(mx,calcData,haloData):
     elif "neutrinos" in calcData['freqMode']:
         emm = calcData['results']['neutrinoEmData'][mIndex]
     nuSB = []
-    rSample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum'])
+    if calcData['calcRmax'] == "2*Rvir":
+        rLimit = 2*haloData['haloRvir']
+    else:
+        rLimit = calcData['calcRmax']
+    rSample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum'])
     fSample = calcData['fSampleValues']
     for nu in fSample:
         nuSB.append(fluxes.surfaceBrightnessLoop(nu,fSample,rSample,emm)[1])
     calcData['results']['finalData'][mIndex] = np.array(nuSB)
-    calcData['angSampleValues'] = np.arctan(takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum'])/haloData['haloDistance']*(1+haloData['haloZ'])**2)/np.pi*180*60
+    calcData['angSampleValues'] = np.arctan(takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum'])/haloData['haloDistance']*(1+haloData['haloZ'])**2)/np.pi*180*60
     print("Process Complete")
     return calcData  
 
@@ -954,10 +970,10 @@ def runCalculation(calcData,haloData,partData,magData,gasData,diffData,cosmoData
     py_file = "temp_electrons_py.out"
     c_file = "temp_electrons_c.in"
     wd = os.getcwd()
-    if isfile(join(wd,py_file)):
-        os.remove(join(wd,py_file))
-    if isfile(join(wd,c_file)):
-        os.remove(join(wd,c_file))
+    # if isfile(join(wd,py_file)):
+    #     os.remove(join(wd,py_file))
+    # if isfile(join(wd,c_file)):
+    #     os.remove(join(wd,c_file))
     return calcData,haloData,partData,magData,gasData,diffData,cosmoData
 
 
