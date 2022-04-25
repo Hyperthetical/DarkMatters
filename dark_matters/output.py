@@ -340,7 +340,7 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,sigV=1e-26,halfPix=
             angleBeta = rMax - angleAlpha*(n-1)
             rPlot = angleAlpha*rPlot + angleBeta
             arcMinPerPixel = rMax*2/n
-            sPlot = intp(rPlot*1.00000001)*sigV*arcMinPerPixel**2
+            sPlot = intp(rPlot*1.00000001)*sigV/1e-26*arcMinPerPixel**2
             raVal = skyCoords.ra.value*60 #arcmin
             decVal = skyCoords.dec.value*60 #arcmin
             if not display_slice is None:

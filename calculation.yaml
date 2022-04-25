@@ -19,15 +19,13 @@ calcData:
   fSampleNum: 40
   fSampleSpacing: "log"
   log10RSampleMinFactor: -3
-  log10ESampleMinFactor: -3
-  calcRmax:
+  eSampleMin:
+    value: 1.e-3
+    unit: "GeV"
+  calcRmaxIntegrate:
     value: 1.0
     unit: "Mpc"
   rSampleNum: 61
-  rOutputSpacing: "log" 
   eSampleNum: 71
-  rGreenSampleNum: 121
-#  electronExecFile: "C:/Users/Geoff/Dropbox/Physics/Wimps/DarkMatters/dark_matters/emissions/electron.exe"
-  electronExecFile: "dark_matters/emissions/electron.x"
   electronMode: "crank-python"
 

@@ -1,5 +1,5 @@
 # DarkMatters
-A code to calculate multi-frequency and multi-messenger emissions from WIMP annihilations. This can be done both for standard channels and custom models, with the ability to produce surface brightnesses and integrated fluxes as well as flux maps in fits format to compare to actual data. This code makes use of a Crank-Nicolson accelerated ADI solver (like Galprop) for electron diffusion. Additionally, there is the option to use a Green's function approximate solution.
+A code to calculate multi-frequency and multi-messenger emissions from WIMP annihilations. This can be done both for standard channels and custom models, with the ability to produce surface brightnesses and integrated fluxes as well as flux maps in fits format to compare to actual data. This code makes use of a Crank-Nicolson accelerated ADI solver (like Galprop) for electron diffusion with an innovative spare matrix approach. Additionally, there is the option to use a Green's function approximate solution.
 
 ## Requirements:
 This software requires python3 with the numpy, scipy, sympy, matplotlib, pyyaml, and astropy packages installed. A requirements.txt file is provided for use with pip.

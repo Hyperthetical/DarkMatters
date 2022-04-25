@@ -134,10 +134,10 @@ def checkHalo(haloDict,cosmoDict):
     if not 'haloProfile' in haloDict.keys():
         fatal_error("halo variable {} is required for non J/D-factor calculations".format('haloProfile'))
     
-    if not 'haloZ' in haloDict.keys():
+    if ((not 'haloZ' in haloDict.keys()) or haloDict['haloZ'] == 0.0) and not 'haloDistance' in haloDict.keys():
+        fatal_error("Either haloDistance must be specified or haloZ must be non-zero")
+    elif not 'haloZ' in haloDict.keys():
         haloDict['haloZ'] = 0.0
-        if not 'haloDistance' in haloDict.keys():
-            fatal_error("either haloZ or haloDistance must be specified in haloData")
     elif not 'haloDistance' in haloDict.keys():
         haloDict['haloDistance'] = cosmology.dist_luminosity(haloDict['haloZ'],cosmoDict)
     varSet1 = ["haloNorm","haloMvir","haloRvir","haloNormRelative"]
@@ -316,8 +316,6 @@ def checkCalculation(calcDict):
         calcDict['eSampleNum'] = 71
     elif calcDict['eSampleNum'] < 71 and 'green' in calcDict['electronMode']:
         fatal_error("eSampleNum cannot be set below 71 without incurring errors when using a Green's function method")
-    # if not 'log10ESampleMinFactor' in calcDict.keys() and not 'eSampleMin' in calcDict.keys():
-    #     calcDict['log10ESampleMinFactor'] = -9
     if not 'eSampleMin' in calcDict.keys():
         calcDict['eSampleMin'] = 1e-3 #GeV
 
@@ -378,8 +376,13 @@ def checkParticles(partDict,calcDict):
     if calcDict['freqMode'] in ['sgamma',"radio","all","gamma"]:
         specSet.append("positrons")
     partDict['dNdxInterp'] = getSpectralData(partDict['spectrumDirectory'],partDict['partModel'],specSet,mode=partDict["emModel"])
-    if not 'crossSection' in partDict.keys():
-        partDict['crossSection'] = 1e-26
+    if 'crossSection' in partDict.keys() and 'decayRate' in partDict.keys():
+        fatal_error("You cannot have both a crossSection and decayRate set for the particle physics")
+    elif not 'crossSection' in partDict.keys() and not 'decayRate' in partDict.keys():
+        if partDict['emModel'] == "annihilation":
+            partDict['crossSection'] = 1e-26
+        else:
+            partDict['decayRate'] = 1e-26
     #check spectrum files and create 2D interpolation function
     return partDict
 
@@ -518,16 +521,16 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         lc = 0
         delta = 0
         d0 = diffData['diffConstant']
-        if calcData['rSampleNum'] < 51:
+        if calcData['rSampleNum'] < 51 and "green" in calcData['electronMode']:
             fatal_error("You have specified rSampleNum = {}, this will yield inaccurate electron density results.\n Set rSampleNum > 50".format(calcData['rSampleNum'])) 
     else:
         diff = 1
         lc = diffData['coherenceScale']*1e3 #kpc
         delta = diffData['diffIndex']
         d0 = diffData['diffConstant']
-        if calcData['rSampleNum'] < 51:
+        if calcData['rSampleNum'] < 51 and "green" in calcData['electronMode']:
             fatal_error("You have specified rSampleNum = {}, this will yield inaccurate electron density results with lossOnly = False.\n Set rSampleNum > 70".format(calcData['rSampleNum'])) 
-        if calcData['rGreenSampleNum'] < 101:
+        if calcData['rGreenSampleNum'] < 101 and "green" in calcData['electronMode']:
             fatal_error("You have specified rGreenSampleNum = {}, this will yield inaccurate electron density results with lossOnly = False.\n Set rGreenSampleNum > 200".format(calcData['rGreenSampleNum'])) 
     if 'calcRmaxIntegrate' in calcData.keys():
         rmax = calcData['calcRmaxIntegrate']
@@ -541,31 +544,29 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
     else:
         rLimit = calcData['calcRmax']
     b_av,ne_av = physical_averages(rmax,mode_exp,calcData,haloData,magData,gasData)
+    if partData['emModel'] == "annihilation":
+        sigV = partData['crossSection']
+    else:
+        sigV = partData['decayRate']
     if calcData['electronMode'] == "green-python":
         print("=========================================================")
         print("Calculating Electron Equilibriumn Distributions via Green's Function with Python")
         print("=========================================================")
         print('Magnetic Field Average Strength: {:.2e} micro Gauss'.format(b_av))
         print('Gas Average Density: {:.2e} cm^-3'.format(ne_av))
-        if not 'eSampleMin' in calcData.keys():
-            E_set = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
-        else:
-            E_set = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
-        Q_set = partData['dNdxInterp']['positrons'](mxEff,E_set).flatten()/np.log(1e1)/10**E_set/mxEff*(constants.m_e*constants.c**2).to("GeV").value*partData['crossSection']
+        E_set = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
+        Q_set = partData['dNdxInterp']['positrons'](mxEff,E_set).flatten()/np.log(1e1)/10**E_set/mxEff*(constants.m_e*constants.c**2).to("GeV").value
         E_set = 10**E_set*mxEff/(constants.m_e*constants.c**2).to("GeV").value
         r_sample = [takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum']),takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rGreenSampleNum'])]
         rho_dm_sample = [haloData['haloDensityFunc'](r_sample[0])**mode_exp,haloData['haloDensityFunc'](r_sample[1])**mode_exp]
-        calcData['results']['electronData'][mIndex] = electron.equilibrium_electrons(E_set,Q_set,r_sample,rho_dm_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF)
+        calcData['results']['electronData'][mIndex] = electron.equilibrium_electrons(E_set,Q_set,r_sample,rho_dm_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF)*sigV
     elif calcData['electronMode'] == "green-c":
         print("=========================================================")
         print("Calculating Electron Equilibriumn Distributions via Green's Function with C")
         print("=========================================================")
         print('Magnetic Field Average Strength: {:.2e} micro Gauss'.format(b_av))
         print('Gas Average Density: {:.2e} cm^-3'.format(ne_av))
-        if not 'eSampleMin' in calcData.keys():
-            E_set = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
-        else:
-            E_set = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
+        E_set = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
         Q_set = partData['dNdxInterp']['positrons'](mxEff,E_set).flatten()/np.log(1e1)/10**E_set/mxEff*(constants.m_e*constants.c**2).to("GeV").value
         E_set = 10**E_set*mxEff/(constants.m_e*constants.c**2).to("GeV").value
         r_sample = [takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum']),takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rGreenSampleNum'])]
@@ -575,7 +576,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         py_file = "temp_electrons_py.out"
         c_file = "temp_electrons_c.in"
         wd = os.getcwd()
-        calcData['results']['electronData'][mIndex] = electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calcData['electronExecFile'],E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,num_threads=calcData['threadNumber'])*partData['crossSection']
+        calcData['results']['electronData'][mIndex] = electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calcData['electronExecFile'],E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,num_threads=calcData['threadNumber'])*sigV
         #os.remove(join(wd,py_file))
         #os.remove(join(wd,c_file))
         if calcData['results']['electronData'][mIndex] is None:
@@ -585,7 +586,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         print("Calculating Electron Equilibriumn Distributions via Crank-Nicolson with Python")
         print("=========================================================")
         E_set = 10**takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")*mxEff
-        Q_set = partData['dNdxInterp']['positrons'](mxEff,np.log10(E_set/mxEff)).flatten()/np.log(1e1)/E_set*partData['crossSection']
+        Q_set = partData['dNdxInterp']['positrons'](mxEff,np.log10(E_set/mxEff)).flatten()/np.log(1e1)/E_set*sigV
         r_sample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum'])
         rho_sample = astrophysics.haloDensityBuilder(haloData)(r_sample)
         b_sample = magData['magFieldFunc'](r_sample)
@@ -634,10 +635,7 @@ def calcRadioEm(mx,calcData,haloData,partData,magData,gasData,diffData):
     mIndex = getIndex(calcData['mWIMP'],mx)
     rSample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],2*haloData['haloRvir'],calcData['rSampleNum'])
     fSample = calcData['fSampleValues']
-    if not 'eSampleMin' in calcData.keys():
-        xSample = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
-    else:
-        xSample = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
+    xSample = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
     gSample = 10**xSample*mxEff/(constants.m_e*constants.c**2).to("GeV").value
     bSample = magData['magFieldFunc'](rSample)
     neSample = gasData['gasDensityFunc'](rSample)
@@ -688,13 +686,14 @@ def calcPrimaryEm(mx,calcData,haloData,partData):
     mxEff = mx*0.5*mode_exp #this takes into account decay when mode_exp = 1, annihilation mode_exp = 2 means mxEff = mx
     rSample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum'])
     fSample = calcData['fSampleValues']
-    if not 'eSampleMin' in calcData.keys():
-        xSample = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
+    xSample = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
+    if partData['emModel'] == "annihilation":
+        sigV = partData['crossSection']
     else:
-        xSample = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
+        sigV = partData['decayRate']
     gSample = 10**xSample*mxEff/(constants.m_e*constants.c**2).to("GeV").value
     rhoSample = haloData['haloDensityFunc'](rSample)
-    qSample = partData['dNdxInterp'][specType](mxEff,xSample).flatten()/np.log(1e1)/10**xSample/mxEff*(constants.m_e*constants.c**2).to("GeV").value*partData['crossSection']
+    qSample = partData['dNdxInterp'][specType](mxEff,xSample).flatten()/np.log(1e1)/10**xSample/mxEff*(constants.m_e*constants.c**2).to("GeV").value*sigV
     calcData['results'][emmType][mIndex] = emissivity.primaryEmHighE(mx,rhoSample,haloData['haloZ'],gSample,qSample,fSample,mode_exp)
     print("Process Complete")
     return calcData
@@ -736,10 +735,7 @@ def calcSecondaryEm(mx,calcData,haloData,partData,magData,gasData,diffData):
     mxEff = mx*0.5*mode_exp #this takes into account decay when mode_exp = 1, annihilation mode_exp = 2 means mxEff = mx
     rSample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],haloData['haloRvir']*2,calcData['rSampleNum'])
     fSample = calcData['fSampleValues'] #frequency values
-    if not 'eSampleMin' in calcData.keys():
-        xSample = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
-    else:
-        xSample = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
+    xSample = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
     gSample = 10**xSample*mxEff/(constants.m_e*constants.c**2).to("GeV").value
     neSample = gasData['gasDensityFunc'](rSample)
     if calcData['results']['electronData'][mIndex] is None:
@@ -895,10 +891,7 @@ def calcJFlux(mx,calcData,haloData,partData):
             specType = calcData['freqMode']
         mIndex = getIndex(calcData['mWIMP'],mx)
         fSample = calcData['fSampleValues']
-        if not 'eSampleMin' in calcData.keys():
-            xSample = takeSamples(calcData['log10ESampleMinFactor'],0,calcData['eSampleNum'],spacing="lin")
-        else:
-            xSample = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
+        xSample = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
         gSample = 10**xSample*mxEff/(constants.m_e*constants.c**2).to("GeV").value  
         qSampleGamma = partData['dNdxInterp'][specType](mxEff,xSample).flatten()/np.log(1e1)/10**xSample/mxEff*(constants.m_e*constants.c**2).to("GeV").value*partData['crossSection']
         calcData['results']['finalData'][mIndex] = fluxes.fluxFromJFactor(mx,haloData['haloZ'],jFac,fSample,gSample,qSampleGamma,mode_exp)
@@ -970,10 +963,10 @@ def runCalculation(calcData,haloData,partData,magData,gasData,diffData,cosmoData
     py_file = "temp_electrons_py.out"
     c_file = "temp_electrons_c.in"
     wd = os.getcwd()
-    # if isfile(join(wd,py_file)):
-    #     os.remove(join(wd,py_file))
-    # if isfile(join(wd,c_file)):
-    #     os.remove(join(wd,c_file))
+    if isfile(join(wd,py_file)):
+        os.remove(join(wd,py_file))
+    if isfile(join(wd,c_file)):
+        os.remove(join(wd,c_file))
     return calcData,haloData,partData,magData,gasData,diffData,cosmoData
 
 
