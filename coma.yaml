@@ -21,14 +21,14 @@ gasData:
   gasScale:
     value: 253
     unit: "kpc"
-  gasIndex: -0.327
+  gasIndex: -0.654
   
 magData:
   magProfile: "beta"
   magNorm:
     value: 4.7e-6
     unit: "gauss"
-  magIndex: -0.1635
+  magIndex: -0.327
   magScale:
     value: 0.253
     unit: "Mpc"

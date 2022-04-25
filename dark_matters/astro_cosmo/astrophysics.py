@@ -40,9 +40,9 @@ def magneticFieldBuilder(magDict):
     if magDict['magProfile'] in ["pl","powerlaw"]:
         return lambda x: magDict['magNorm']*(x/magDict['magScale'])**magDict['magIndex']
     elif magDict['magProfile'] == "beta":
-        return lambda x: magDict['magNorm']*(1 +(x/magDict['magScale'])**2)**(3*magDict['magIndex'])
+        return lambda x: magDict['magNorm']*(1 +(x/magDict['magScale'])**2)**(3*magDict['magIndex']/2)
     elif magDict['magProfile'] == "doublebeta":
-        return lambda x: magDict['magNorm']*(1 +(x/magDict['magScale'])**2)**(3*magDict['magIndex']) + magDict['magNorm2']*(1 +(x/magDict['magScale2'])**2)**(3*magDict['magIndex2'])
+        return lambda x: magDict['magNorm']*(1 +(x/magDict['magScale'])**2)**(3*magDict['magIndex']/2) + magDict['magNorm2']*(1 +(x/magDict['magScale2'])**2)**(3*magDict['magIndex2']/2)
     elif magDict['magProfile'] == "exp":
         return lambda x: magDict['magNorm']*np.exp(1.0)**(-x/magDict['magScale'])
     elif magDict['magProfile'] == "m31":
@@ -57,9 +57,9 @@ def gasDensityBuilder(gasDict):
     if gasDict['gasProfile'] in ["pl","powerlaw"]:
         return lambda x: gasDict['gasNorm']*(x/gasDict['gasScale'])**gasDict['gasIndex']
     elif gasDict['gasProfile'] == "beta":
-        return lambda x: gasDict['gasNorm']*(1 +(x/gasDict['gasScale'])**2)**(3*gasDict['gasIndex'])
+        return lambda x: gasDict['gasNorm']*(1 +(x/gasDict['gasScale'])**2)**(3*gasDict['gasIndex']/2)
     elif gasDict['gasProfile'] == "doublebeta":
-        return lambda x: gasDict['gasNorm']*(1 +(x/gasDict['gasScale'])**2)**(3*gasDict['gasIndex']) + gasDict['gasNorm2']*(1 +(x/gasDict['gasScale2'])**2)**(3*gasDict['gasIndex2'])
+        return lambda x: gasDict['gasNorm']*(1 +(x/gasDict['gasScale'])**2)**(3*gasDict['gasIndex']/2) + gasDict['gasNorm2']*(1 +(x/gasDict['gasScale2'])**2)**(3*gasDict['gasIndex2']/2)
     elif gasDict['gasProfile'] == "exp":
         return lambda x: gasDict['gasNorm']*np.exp(-x/gasDict['gasScale'])
     elif gasDict['gasProfile'] == "flat":
