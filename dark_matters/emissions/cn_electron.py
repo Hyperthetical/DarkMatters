@@ -85,7 +85,19 @@ class cn_scheme:
         self.dDdr = self.set_dDdr(Btens,dBdrtens,Etens)
         self.b = self.set_b(Btens,netens,Etens)
         
-        """ Timescales """
+        """ Physical scales """
+        #virial diffusion velocity ->  used to limit the diffusion function so that it respects the speed of light
+        Rvir = (r_sample[-1]*units.Unit("Mpc")).to("cm").value
+        dLim = Rvir*const.c.to("cm/s").value 
+        diffVelCondition = self.D > dLim
+
+        #if there are indices where diffVelCondition is true, limit D and dDdr 
+        if len(self.D[diffVelCondition]) > 0: 
+            self.D = np.where(diffVelCondition,dLim,self.D)
+            dDdrLim = self.dDdr[diffVelCondition][0]    #[0] selects first index where D > dLim -> use corresponding dDdr value as the limit for the rest of dDdr
+            self.dDdr = np.where(diffVelCondition,dDdrLim,self.dDdr)
+
+        #timescales
         self.loss_ts = self.E_grid/self.b
         self.diff_ts = (self.r_grid[1]-self.r_grid[0])**2/self.D  
         loss_min = np.min(self.loss_ts)
@@ -137,8 +149,7 @@ class cn_scheme:
         d0 = self.d0        #[d0] = kpc
         alpha = 2 - self.delta
         D = D0*(d0)**(1-alpha)*(B)**(-alpha)*(E)**alpha
-        dLim = 1e32*E**alpha
-        D = np.where(D>dLim,dLim,D)
+        
         self.D = D
         return D
     
@@ -151,7 +162,7 @@ class cn_scheme:
         #prefactor (pf) needed for log-transformed derivative 
         pf = np.tile(self.r_prefactor(np.arange(self.r_bins)),(self.E_bins,1)).transpose()
         dDdr = -(1.0/pf*D0*alpha)*(d0)**(1-alpha)*(B)**(-alpha-1)*dBdr*(E)**alpha
-        #dDdr = np.where(dDdr>1e33, 1e33,dDdr)
+
         self.dDdr = dDdr
         return dDdr
         
