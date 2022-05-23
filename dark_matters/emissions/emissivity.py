@@ -2,7 +2,7 @@ import numpy as np
 from scipy.integrate import simps as integrate
 from astropy import constants as const
 from .progress_bar import progress
-import sys
+import sys,warnings
 import scipy.interpolate as sp
 
 def radioEmGrid(electrons,fSample,rSample,gSample,bSample,neSample):
@@ -60,7 +60,10 @@ def radioEmGrid(electrons,fSample,rSample,gSample,bSample,neSample):
     electronGrid = np.tensordot(np.tensordot(np.ones(num),electrons.transpose(),axes=0),np.ones(ntheta),axes=0)
     nu0 = 2.8*bGrid*1e-6      #non-relativistic gyro freq
     nup = 8980.0*np.sqrt(neGrid)*1e-6
-    x = 2.0*nuGrid/(3.0*nu0*eGrid**2)*(1+(eGrid*nup/nuGrid)**2)**1.5
+    with np.errstate(divide="ignore"):
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', r'overflow')
+            x = 2.0*nuGrid/(3.0*nu0*eGrid**2)*(1+(eGrid*nup/nuGrid)**2)**1.5
     a = 2.0*np.pi*np.sqrt(3.0)*r0*me/c*1e6*nu0
     with np.errstate(invalid="ignore",over="ignore"):
         pGridFull = a*electronGrid*0.5*np.sin(tGrid)*int_bessel(x/np.sin(tGrid))

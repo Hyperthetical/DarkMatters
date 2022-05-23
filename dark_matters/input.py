@@ -134,8 +134,6 @@ def readInputFile(inputFile,inMode="yaml"):
                     fatal_error("Processing failed on {} property {} ".format(h,x))
     if len(dataSets['magData']) > 0:
         dataSets['magData']['magFuncLock'] = False
-    if len(dataSets['calcData']) > 0:
-        dataSets['calcData']['results'] = {'electronData':[],'radioEmData':[],'primaryEmData':[],'secondaryEmData':[],'finalData':[],'neutrinoEmData':[]}
     return dataSets
 
 def readDMOutput(fName):

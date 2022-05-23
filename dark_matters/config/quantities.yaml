@@ -11,7 +11,7 @@ distance:
 - gasScale
 - gasScale2
 - calcRmaxIntegrate
-- calcRmax
+- diffRmax
 - coherenceScale
 - haloCoreScale
 time:

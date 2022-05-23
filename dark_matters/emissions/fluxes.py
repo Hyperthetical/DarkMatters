@@ -100,6 +100,7 @@ def fluxGrid(rf,dl,fSample,rSample,emm,boostMod=1.0):
     """
     emmInt = interp2d(rSample,fSample,emm)
     newRSample = np.logspace(np.log10(rSample[0]),np.log10(rf),num=100)
+    print(rf)
     fGrid,rGrid = np.meshgrid(fSample,newRSample,indexing="ij")
     fluxGrid = rGrid**2*emmInt(newRSample,fSample)/(dl**2 + rGrid**2)
     return integrate(fluxGrid,rGrid)*3.09e24*1.60e20*boostMod

@@ -61,7 +61,7 @@ double loss_function(double E, double b_av,double ne_av,double z,int ISRF){
     }
     //printf("%le %le %le %le \n",E*me,0.0254e-16*pow(E*me,2)*pow(b_av,2),eloss_brem,eloss_ic*pow(E*me,2));
     eloss_tot =  eloss_ic + eloss_sync + eloss_coul + eloss_brem;
-    return eloss_tot/me; //make it units of gamma s^-1 as integrals over E are all unitless too
+    return eloss_tot/me; //make it units of gamma s^-1 as emissivity integrals over E are all unitless too
 }
 
 double green_integrand(double rpr,double rn,double dv,double rhosq){
@@ -74,7 +74,7 @@ double Green(int const ngr,std::vector<double> &r_set_gr,double r,std::vector<do
     double G;
     std::vector<double> r_int(ngr); //store integration points
     std::vector<double> int_G(ngr);
-    int const images  = 51; //image charges for green function solution
+    int const images  = 101; //image charges for green function solution
     int p,i;
     std::vector<double> image_set(images);
 

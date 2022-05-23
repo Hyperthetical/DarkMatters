@@ -1,4 +1,4 @@
-import time
+import time,warnings
 import numpy as np
 from scipy import sparse
 from astropy import units, constants as const
@@ -45,7 +45,7 @@ class cn_scheme:
         self.animation_flag = animation_flag      #flag for whether animations take place or not
         self.snapshots = None   #stores snapshots of psi and Delta_t at each iteration for animation
         
-    def solveElectrons(self,mx,z,E_sample,r_sample,rho_sample,Q_sample,b_sample,dBdr_sample,ne_sample,rScale,eScale,d0,delta,diff0=3.1e28,lossOnly=False,mode_exp=2,Delta_t_min=1e1,Delta_ti=1e9,max_t_part=100,Delta_t_reduction=0.5):
+    def solveElectrons(self,mx,z,Rvir,E_sample,r_sample,rho_sample,Q_sample,b_sample,dBdr_sample,ne_sample,rScale,eScale,d0,delta,diff0=3.1e28,ISRF=False,lossOnly=False,mode_exp=2,Delta_t_min=1e1,Delta_ti=1e9,max_t_part=100,Delta_t_reduction=0.5):
         print("=========================\nEquation environment details\n=========================")
         
         self.effect = "loss" if lossOnly else "all" 
@@ -83,12 +83,11 @@ class cn_scheme:
 
         self.D = self.set_D(Btens,Etens)
         self.dDdr = self.set_dDdr(Btens,dBdrtens,Etens)
-        self.b = self.set_b(Btens,netens,Etens)
+        self.b = self.set_b(Btens,netens,Etens,ISRF=ISRF)
         
         """ Physical scales """
         #virial diffusion velocity ->  used to limit the diffusion function so that it respects the speed of light
-        Rvir = (r_sample[-1]*units.Unit("Mpc")).to("cm").value
-        dLim = Rvir*const.c.to("cm/s").value 
+        dLim = Rvir*units.Unit("Mpc").to("cm").value*const.c.to("cm/s").value 
         diffVelCondition = self.D > dLim
 
         #if there are indices where diffVelCondition is true, limit D and dDdr 
@@ -127,8 +126,7 @@ class cn_scheme:
         
         #final value for Delta_ti
         stability_factor = 0.1 if self.benchmark_flag is True else 1.0  #factor that modifies Delta_t by a certain amount (can be used to be 'safely' beneath the timescale of the effects for example)  
-        adi_factor = 0.5 if self.effect in {"all"} else 1.0             #factor to account for multiple dimensions in source function updating (ADI method)
-        self.Delta_t = self.Delta_ti*adi_factor*stability_factor        #[s]     
+        self.Delta_t = self.Delta_ti*stability_factor        #[s]     
 
         print(f"Included effects: {self.effect}")
         print(f"Domain grid sizes: r_bins: {self.r_bins}, E_bins: {self.E_bins}")
@@ -148,8 +146,10 @@ class cn_scheme:
         D0 = self.D0     #[D0] = cm^2 s^-1
         d0 = self.d0        #[d0] = kpc
         alpha = 2 - self.delta
-        D = D0*(d0)**(1-alpha)*(B)**(-alpha)*(E)**alpha
-        
+        with np.errstate(divide="ignore",invalid="ignore"):
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', r'overflow')
+                D = D0*(d0)**(1-alpha)*(B)**(-alpha)*(E)**alpha
         self.D = D
         return D
     
@@ -161,19 +161,31 @@ class cn_scheme:
 
         #prefactor (pf) needed for log-transformed derivative 
         pf = np.tile(self.r_prefactor(np.arange(self.r_bins)),(self.E_bins,1)).transpose()
-        dDdr = -(1.0/pf*D0*alpha)*(d0)**(1-alpha)*(B)**(-alpha-1)*dBdr*(E)**alpha
-
+        with np.errstate(divide="ignore",invalid="ignore"):
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', r'overflow')
+                dDdr = -(1.0/pf*D0*alpha)*(d0)**(1-alpha)*(B)**(-alpha-1)*dBdr*(E)**alpha
         self.dDdr = dDdr
         return dDdr
         
-    def set_b(self,B,ne,E,ISRF=0):
+    def set_b(self,B,ne,E,ISRF=False):
         #set and return energy loss function [GeV s^-1]
+        #The final 1/me factor is needed because emissivity integrals are all dimensionless
+        #i.e. they are integrated over gamma not E, solution to diffusion equation is prop to 1/b fixing the emissivity dimensions
         b = self.constants
-        me = 0.511e-3       #[me] = GeV/c^2 
-        eloss = b['ICISRF']*(E)**2 + b['sync']*(E)**2*B**2 + b['coul']*ne*(1+np.log(E/(me*ne))/75.0) + b['brem']*ne*E
-
-        self.b = eloss 
-        return eloss
+        me = (const.m_e*const.c**2).to("GeV").value      #[me] = GeV/c^2 
+        if ISRF:
+            eloss = b['ICISRF']*(E)**2 + b['sync']*(E)**2*B**2 + b['brem']*ne*E
+        else:
+            eloss = b['ICCMB']*(E)**2 + b['sync']*(E)**2*B**2 + b['brem']*ne*E
+        with np.errstate(divide="ignore",invalid="ignore"):
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', r'overflow')
+                coulomb = b['coul']*ne*(1+np.log(E/me/ne)/75.0)
+        coulomb = np.where(np.logical_or(np.isnan(coulomb),np.isinf(coulomb)),0.0,coulomb)
+        eloss += coulomb
+        self.b = eloss/me
+        return eloss/me
     
     
     """ 
@@ -333,7 +345,8 @@ class cn_scheme:
         t = 0                                   #total iteration counter 
         t_part = 0                              #iteration counter for each Delta_t 
         t_elapsed = 0                           #total amount of time elapsed during solution (t_part*Delta_t for each Delta_t)       
-        max_t = 1e4                            #maximum total number of iterations (fallback if convergence not reached - roughly 300 iterations per second) 
+        max_t = np.int64((np.log(self.Delta_t/self.smallest_Delta_t)/np.log(1/self.Delta_t_reduction)+5)*self.max_t_part)#1e4    
+        #maximum total number of iterations (fallback if convergence not reached - roughly 300 iterations per second) 
         max_t_part = self.max_t_part            #maximum number of iterations for each value of Delta_t 
         
         I = self.r_bins

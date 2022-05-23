@@ -240,8 +240,12 @@ def calcWrite(calcData,haloData,partData,magData,gasData,diffData,target=None):
         outstream.write(prefix+"Radial Grid Intervals: "+str(calcData['rSampleNum'])+end)
         if calcData['freqMode'] in ['all','radio','sgamma']:
             outstream.write((prefix+"Green's Function Grid Intervals: {}"+end).format(calcData['rGreenSampleNum']))
+        if diffData['diffRmax'] == "2*Rvir":
+            rLimit = 2*haloData['haloRvir']
+        else:
+            rLimit = diffData['diffRmax']
         outstream.write((prefix+'Minimum Sampled Radius: {:.2e} Mpc'+end).format(haloData['haloScale']*10**calcData['log10RSampleMinFactor']))
-        outstream.write((prefix+'Maximum Sampled Radius: {:.2e} Mpc'+end).format(haloData['haloRvir']*2))
+        outstream.write((prefix+'Maximum Sampled Radius: {:.2e} Mpc'+end).format(rLimit))
     outstream.write(prefix+'======================================================'+end)
     outstream.write(prefix+'Halo Parameters: '+end)
     outstream.write(prefix+'======================================================'+end)
