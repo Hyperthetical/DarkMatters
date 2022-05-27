@@ -68,18 +68,17 @@ double green_integrand(double rpr,double rn,double dv,double rhosq){
     return rpr/rn*(exp(-pow(rpr-rn,2)/(4.0*dv))-exp(-pow(rpr+rn,2)/(4.0*dv)))*rhosq;
 }
 
-double Green(int const ngr,std::vector<double> &r_set_gr,double r,std::vector<double> &ratioRhosq,double dv,int diff){
+double Green(int const ngr,std::vector<double> &r_set_gr,double r,std::vector<double> &ratioRhosq,double dv,int diff,int num_images){
     double rh = r_set_gr[ngr-1];
     double k1,rn;
     double G;
     std::vector<double> r_int(ngr); //store integration points
     std::vector<double> int_G(ngr);
-    int const images  = 101; //image charges for green function solution
     int p,i;
-    std::vector<double> image_set(images);
+    std::vector<double> image_set(num_images);
 
-    for (i = 0;i<images;i++){
-        image_set[i] = -(images-1)*0.5 + i; 
+    for (i = 0;i<num_images;i++){
+        image_set[i] = -(num_images-1)*0.5 + i; 
     }
     if(diff == 0 || dv == 0){
         G = 1.0;
@@ -87,7 +86,7 @@ double Green(int const ngr,std::vector<double> &r_set_gr,double r,std::vector<do
     else{
         G = 0.0;
         k1 = 1.0/sqrt(4*M_PI*dv); //coefficient
-        for (p=0;p<images;p++){
+        for (p=0;p<num_images;p++){
             rn = pow(-1.0,p)*r + 2.0*rh*p;
             for (i=0;i<ngr;i++){
                 int_G[i] = green_integrand(r_set_gr[i],rn,dv,ratioRhosq[i]);
@@ -99,7 +98,7 @@ double Green(int const ngr,std::vector<double> &r_set_gr,double r,std::vector<do
     return G;
 }
 
-std::vector<double> equilibrium_p(int const k,std::vector<double> &E_set,std::vector<double> &Q_set,int const n,int const ngr,std::vector<double> &r_set,std::vector<double> &r_set_gr,std::vector<double> &rhosq,std::vector<double> &rhosq_gr,std::vector<double> &b_set,std::vector<double> &n_set,double z,double mchi,double lc,double delta,int diff,double b_av,double ne_av,double d0,int ISRF,double mode_exp,int num_threads){
+std::vector<double> equilibrium_p(int const k,std::vector<double> &E_set,std::vector<double> &Q_set,int const n,int const ngr,std::vector<double> &r_set,std::vector<double> &r_set_gr,std::vector<double> &rhosq,std::vector<double> &rhosq_gr,std::vector<double> &b_set,std::vector<double> &n_set,double z,double mchi,double lc,double delta,int diff,double b_av,double ne_av,double d0,int ISRF,double mode_exp,int num_threads,int num_images){
     /*k is length of E_set and Q_set
     ngr is length of r_set_gr and rhosq_gr
     n is length of all other arrays
@@ -182,7 +181,7 @@ std::vector<double> equilibrium_p(int const k,std::vector<double> &E_set,std::ve
                     else{
                         dv = 0.0;
                     }
-                    double Gf = Green(ngr,r_set_gr,r,ratioRhosq[j],dv,diff);  //diffusion integrand
+                    double Gf = Green(ngr,r_set_gr,r,ratioRhosq[j],dv,diff,num_images);  //diffusion integrand
                     int_E[l] = Q_set[l]*Gf;  //diffusion integrand
                 }
             }
@@ -216,7 +215,7 @@ line 10 is diff, ISRF, d0, mode_exp
 */
 int main(int argc, char *argv[]){
     FILE *fptr;
-    int num,num_threads;
+    int num,num_threads,num_images;
     int lines = 4;
     int entries_per_line = 1;
     int k,n,n_gr,diff,ISRF;
@@ -264,11 +263,11 @@ int main(int argc, char *argv[]){
         }
         //printf("%le %le \n",ne_set[0],ne_set[n-1]);
         fscanf(fptr,"%lf %lf %lf %lf %lf %lf",&z,&mchi,&lc,&delta,&b_av,&ne_av);
-        fscanf(fptr,"%d %d %lf %lf %d",&diff,&ISRF,&d0,&mode_exp,&num_threads);
+        fscanf(fptr,"%d %d %lf %lf %d %d",&diff,&ISRF,&d0,&mode_exp,&num_threads,&num_images);
         fclose(fptr);
         //printf("%le %le %le %le %le %le \n",z,mchi,lc,delta,ne_av,b_av);
         //printf("%le \n",d0);
-        std::vector<double> electrons = equilibrium_p(k,e_set,q_set,n,n_gr,r_set,r_set_gr,rhosq,rhosq_gr,b_set,ne_set,z,mchi,lc,delta,diff,b_av,ne_av,d0,ISRF,mode_exp,num_threads);
+        std::vector<double> electrons = equilibrium_p(k,e_set,q_set,n,n_gr,r_set,r_set_gr,rhosq,rhosq_gr,b_set,ne_set,z,mchi,lc,delta,diff,b_av,ne_av,d0,ISRF,mode_exp,num_threads,num_images);
         fptr = fopen(argv[2],"w");
         for (int i = 0;i<k;i++){
             for (int j = 0;j<n;j++){

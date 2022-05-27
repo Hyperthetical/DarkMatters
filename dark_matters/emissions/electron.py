@@ -40,7 +40,7 @@ def read_electrons_c(infile,E_set,r_sample):
     return electrons
 
 #write input file for c executable
-def write_electrons_c(outfile,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads):
+def write_electrons_c(outfile,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads,num_images):
     """
     Write the input file for the c executable that finds equilibrium electon distributions
         ---------------------------
@@ -82,11 +82,11 @@ def write_electrons_c(outfile,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sam
         outf.write(str(x)+" ")
     outf.write("\n")
     outf.write(str(z)+" "+str(mx)+" "+str(lc)+" "+str(delta)+" "+str(b_av)+" "+str(ne_av)+"\n")
-    outf.write(str(diff)+" "+str(int(ISRF))+" "+str(d0)+" "+str(mode_exp)+" "+str(num_threads))
+    outf.write(f"{diff} {ISRF:d} {d0} {mode_exp} {num_threads:d} {num_images:d}")
     outf.close()
 
 #run the c executable with a written infile and retrieve output
-def electrons_from_c(outfile,infile,exec_electron_c,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads=1):
+def electrons_from_c(outfile,infile,exec_electron_c,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads=1,num_images=51):
     """
     Prepare the input file, run the c executable that finds equilibrium electon distributions and retrieve the output
         ---------------------------
@@ -102,7 +102,7 @@ def electrons_from_c(outfile,infile,exec_electron_c,E_set,Q_set,r_sample,rho_dm_
         ---------------------------
         2D array of floats, electron equilibrium distributions (phys.e_bins x sim.n)
     """
-    write_electrons_c(outfile,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads)
+    write_electrons_c(outfile,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads,num_images)
     if not os.path.isfile(exec_electron_c):
         return None
     try:
@@ -522,6 +522,7 @@ def get_v(E,E_set,d0,delta,loss,me):
         ---------------------------
         float
     """
+    me = (const.m_e*const.c**2).to("GeV").value
     int_v = d0*(E_set*me)**(2.0-delta)/loss
     int_v[E_set<E] = 0.0 
     v = integrate(int_v,E_set)

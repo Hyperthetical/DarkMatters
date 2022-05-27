@@ -87,7 +87,7 @@ class cn_scheme:
         
         """ Physical scales """
         #virial diffusion velocity ->  used to limit the diffusion function so that it respects the speed of light
-        dLim = Rvir*units.Unit("Mpc").to("cm").value*const.c.to("cm/s").value 
+        dLim = (Rvir*units.Unit("Mpc")).to("cm").value*const.c.to("cm/s").value 
         diffVelCondition = self.D > dLim
 
         #if there are indices where diffVelCondition is true, limit D and dDdr 
@@ -184,8 +184,8 @@ class cn_scheme:
                 coulomb = b['coul']*ne*(1+np.log(E/me/ne)/75.0)
         coulomb = np.where(np.logical_or(np.isnan(coulomb),np.isinf(coulomb)),0.0,coulomb)
         eloss += coulomb
-        self.b = eloss/me
-        return eloss/me
+        self.b = eloss#/me
+        return eloss#/me
     
     
     """ 
@@ -345,7 +345,7 @@ class cn_scheme:
         t = 0                                   #total iteration counter 
         t_part = 0                              #iteration counter for each Delta_t 
         t_elapsed = 0                           #total amount of time elapsed during solution (t_part*Delta_t for each Delta_t)       
-        max_t = np.int64((np.log(self.Delta_t/self.smallest_Delta_t)/np.log(1/self.Delta_t_reduction)+5)*self.max_t_part)#1e4    
+        max_t = np.int64((np.log(self.Delta_t/self.smallest_Delta_t)/np.log(1/self.Delta_t_reduction)+6)*self.max_t_part)#1e4    
         #maximum total number of iterations (fallback if convergence not reached - roughly 300 iterations per second) 
         max_t_part = self.max_t_part            #maximum number of iterations for each value of Delta_t 
         
@@ -512,4 +512,4 @@ class cn_scheme:
         print("CN solution complete.")
         print(f"Total CN method run time: {time.perf_counter() - cn_start:.4g} s")
                
-        return psi   
+        return psi*2   

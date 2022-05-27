@@ -238,7 +238,7 @@ def calcWrite(calcData,haloData,partData,magData,gasData,diffData,target=None):
     outstream.write((prefix+"Maximum Frequency Sampled: {:.1e} MHz"+end).format(calcData['fSampleLimits'][1]))
     if not calcData['calcMode'] == "jflux":
         outstream.write(prefix+"Radial Grid Intervals: "+str(calcData['rSampleNum'])+end)
-        if calcData['freqMode'] in ['all','radio','sgamma']:
+        if calcData['freqMode'] in ['all','radio','sgamma'] and "green" in calcData['electronMode']:
             outstream.write((prefix+"Green's Function Grid Intervals: {}"+end).format(calcData['rGreenSampleNum']))
         if diffData['diffRmax'] == "2*Rvir":
             rLimit = 2*haloData['haloRvir']

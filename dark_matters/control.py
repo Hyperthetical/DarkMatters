@@ -273,6 +273,8 @@ def checkCalculation(calcDict):
     if calcDict['electronMode'] == "green-c":  
         if not 'threadNumber' in calcDict.keys():
             calcDict['threadNumber'] = 4
+        if not "imageNumber" in calcDict.keys():
+            calcDict['imageNumber'] = 51
     elif calcDict['electronMode'] == "crank-python":
         if not "crankDeltaTi" in calcDict.keys():
             calcDict['crankDeltaTi'] = 1e9 
@@ -292,7 +294,7 @@ def checkCalculation(calcDict):
         if not 'fSampleLimits' in calcDict.keys():
             fatal_error("calcDict requires the variable {}, giving the minimum and maximum frequencies to be studied".format('fSampleLimits'))
         if not 'fSampleNum' in calcDict.keys():
-            calcDict['fSampleNum'] = 40
+            calcDict['fSampleNum'] = int((np.log10(calcDict['fSampleLimits'][1]) - np.log10(calcDict['fSampleLimits'][0]))/5)
         if not 'fSampleSpacing' in calcDict.keys():
             calcDict['fSampleSpacing'] = "log"
         if calcDict['fSampleSpacing'] == "lin":
@@ -309,8 +311,8 @@ def checkCalculation(calcDict):
     elif calcDict['eSampleNum'] < 71 and 'green' in calcDict['electronMode']:
         fatal_error("eSampleNum cannot be set below 71 without incurring errors when using a Green's function method")
     if not 'eSampleMin' in calcDict.keys():
-        calcDict['eSampleMin'] = 1e-3 #GeV
-
+        calcDict['eSampleMin'] = (constants.m_e*constants.c**2).to("GeV").value #GeV
+        print(calcDict['eSampleMin'])
     if calcDict['calcMode'] in ["flux"]:
         if (not 'calcRmaxIntegrate' in calcDict.keys()) and (not 'calcAngmaxIntegrate' in calcDict.keys()):
             fatal_error("calcDict requires one of the variables {} or {} for the selected mode: {}".format('calcRmaxIntegrate','calcAngmaxIntegrate',calcDict['calcMode']))
@@ -319,10 +321,10 @@ def checkCalculation(calcDict):
     if not calcDict['calcMode'] == "jflux":
         if not 'rSampleNum' in calcDict.keys():
             calcDict['rSampleNum'] = 61
-        if not 'rGreenSampleNum' in calcDict.keys():
+        if (not 'rGreenSampleNum' in calcDict.keys()) and 'green' in calcDict['electronMode']:
             calcDict['rGreenSampleNum'] = 121
         if not 'log10RSampleMinFactor' in calcDict.keys():
-            calcDict['log10RSampleMinFactor'] = -3
+            calcDict['log10RSampleMinFactor'] = -4
     else:
         if not calcDict['freqMode'] in ["pgamma","neutrinos_mu","neutrinos_e","neutrinos_tau"]:
             fatal_error("calcData freqMode parameter can only be pgamma, or neutrinos_x (x= e, mu, or tau) for calcMode jflux")
@@ -521,8 +523,9 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         d0 = diffData['diffConstant']
         if calcData['rSampleNum'] < 51 and "green" in calcData['electronMode']:
             fatal_error("You have specified rSampleNum = {}, this will yield inaccurate electron density results with Green's functions and lossOnly = False.\n Set rSampleNum > 70".format(calcData['rSampleNum'])) 
-        if calcData['rGreenSampleNum'] < 101 and "green" in calcData['electronMode']:
-            fatal_error("You have specified rGreenSampleNum = {}, this will yield inaccurate electron density results with lossOnly = False.\n Set rGreenSampleNum > 200".format(calcData['rGreenSampleNum'])) 
+        if "green" in calcData['electronMode']:
+            if calcData['rGreenSampleNum'] < 101:
+                fatal_error("You have specified rGreenSampleNum = {}, this will yield inaccurate electron density results with lossOnly = False.\n Set rGreenSampleNum > 200".format(calcData['rGreenSampleNum'])) 
     if 'calcRmaxIntegrate' in calcData.keys():
         rmax = calcData['calcRmaxIntegrate']
     elif 'calcAngmaxIntegrate' in calcData.keys():
@@ -567,7 +570,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         py_file = "temp_electrons_py.out"
         c_file = "temp_electrons_c.in"
         wd = os.getcwd()
-        calcData['results']['electronData'][mIndex] = electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calcData['electronExecFile'],E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,num_threads=calcData['threadNumber'])*sigV
+        calcData['results']['electronData'][mIndex] = electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calcData['electronExecFile'],E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,num_threads=calcData['threadNumber'],num_images=calcData['imageNumber'])*sigV
         if calcData['results']['electronData'][mIndex] is None:
             fatal_error("The electron executable {} is not compiled or location not specified correctly".format(calcData['electronExecFile']))
     elif calcData['electronMode'] == "crank-python":
@@ -575,7 +578,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         print("Calculating Electron Equilibriumn Distributions via Crank-Nicolson with Python")
         print("=========================================================")
         E_set = 10**takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")*mxEff
-        Q_set = partData['dNdxInterp']['positrons'](mxEff,np.log10(E_set/mxEff)).flatten()/np.log(1e1)/E_set*sigV
+        Q_set = partData['dNdxInterp']['positrons'](mxEff,np.log10(E_set/mxEff)).flatten()/np.log(1e1)/E_set
         r_sample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum'])
         rho_sample = astrophysics.haloDensityBuilder(haloData)(r_sample)
         b_sample = magData['magFieldFunc'](r_sample)
@@ -585,7 +588,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         if np.isscalar(dBdr_sample):
             dBdr_sample = dBdr_sample*np.ones_like(r_sample)
         cnSolver = cn_electron.cn_scheme(benchmark_flag=calcData['crankBenchMarkMode'],const_Delta_t=calcData['crankDeltaTConstant'])
-        calcData['results']['electronData'][mIndex] = cnSolver.solveElectrons(mx,haloData['haloZ'],haloData['haloRvir'],E_set,r_sample,rho_sample,Q_set,b_sample,dBdr_sample,ne_sample,haloData['haloScale'],1.0,diffData['coherenceScale'],diffData['diffIndex'],diff0=diffData['diffConstant'],Delta_t_min=calcData['crankDeltaTMin'],lossOnly=diffData['lossOnly'],mode_exp=mode_exp,Delta_ti=calcData['crankDeltaTi'],max_t_part=calcData['crankMaxSteps'],Delta_t_reduction=calcData['crankDeltaTReduction'])
+        calcData['results']['electronData'][mIndex] = cnSolver.solveElectrons(mx,haloData['haloZ'],haloData['haloRvir'],E_set,r_sample,rho_sample,Q_set,b_sample,dBdr_sample,ne_sample,haloData['haloScale'],1.0,diffData['coherenceScale'],diffData['diffIndex'],diff0=diffData['diffConstant'],Delta_t_min=calcData['crankDeltaTMin'],lossOnly=diffData['lossOnly'],mode_exp=mode_exp,Delta_ti=calcData['crankDeltaTi'],max_t_part=calcData['crankMaxSteps'],Delta_t_reduction=calcData['crankDeltaTReduction'])*(constants.m_e*constants.c**2).to("GeV").value*sigV
     print("Process Complete")
     return calcData
 
