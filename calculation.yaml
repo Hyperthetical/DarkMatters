@@ -13,19 +13,13 @@ calcData:
     unit: "GeV"
   fSampleLimits:
     value:
-      - 1.e+1
+      - 1.e+2
       - 1.e+5
     unit: "MHz"
   fSampleNum: 40
   fSampleSpacing: "log"
-  log10RSampleMinFactor: -3
-  eSampleMin:
-    value: 1.e-3
-    unit: "GeV"
-  calcRmaxIntegrate:
-    value: 1.0
-    unit: "Mpc"
-  rSampleNum: 61
-  eSampleNum: 71
+  log10RSampleMinFactor: -4
+  rSampleNum: 50
+  eSampleNum: 60
   electronMode: "crank-python"
 

@@ -2,8 +2,22 @@ import time,warnings
 import numpy as np
 from scipy import sparse
 from astropy import units, constants as const
+from ipywidgets import IntProgress
+from IPython.display import display
+from .progress_bar import printProgressBar,progress
 
-from ..astro_cosmo import astrophysics
+def isnotebook():
+    try:
+        shell = get_ipython().__class__.__name__ #don't worry if IDE flags this as an issue, it will work
+        if shell == 'ZMQInteractiveShell':
+            return True   # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Terminal running IPython
+        else:
+            return False  # Other type (?)
+    except NameError:
+        return False      # Probably standard Python interpreter
+
 
 class cn_scheme:
     
@@ -149,7 +163,7 @@ class cn_scheme:
         with np.errstate(divide="ignore",invalid="ignore"):
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', r'overflow')
-                D = D0*(d0)**(1-alpha)*(B)**(-alpha)*(E)**alpha
+                D = D0*d0**(1-alpha)*B**(-alpha)*E**alpha
         self.D = D
         return D
     
@@ -164,7 +178,7 @@ class cn_scheme:
         with np.errstate(divide="ignore",invalid="ignore"):
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', r'overflow')
-                dDdr = -(1.0/pf*D0*alpha)*(d0)**(1-alpha)*(B)**(-alpha-1)*dBdr*(E)**alpha
+                dDdr = -(1.0/pf*D0*alpha)*d0**(1-alpha)*B**(-alpha-1)*dBdr*E**alpha
         self.dDdr = dDdr
         return dDdr
         
@@ -175,17 +189,17 @@ class cn_scheme:
         b = self.constants
         me = (const.m_e*const.c**2).to("GeV").value      #[me] = GeV/c^2 
         if ISRF:
-            eloss = b['ICISRF']*(E)**2 + b['sync']*(E)**2*B**2 + b['brem']*ne*E
+            eloss = b['ICISRF']*E**2 + b['sync']*E**2*B**2 + b['brem']*ne*E
         else:
-            eloss = b['ICCMB']*(E)**2 + b['sync']*(E)**2*B**2 + b['brem']*ne*E
+            eloss = b['ICCMB']*E**2 + b['sync']*E**2*B**2 + b['brem']*ne*E
         with np.errstate(divide="ignore",invalid="ignore"):
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', r'overflow')
                 coulomb = b['coul']*ne*(1+np.log(E/me/ne)/75.0)
         coulomb = np.where(np.logical_or(np.isnan(coulomb),np.isinf(coulomb)),0.0,coulomb)
         eloss += coulomb
-        self.b = eloss#/me
-        return eloss#/me
+        self.b = eloss
+        return eloss
     
     
     """ 
@@ -255,7 +269,7 @@ class cn_scheme:
         k_l = np.zeros(IJ)    
         
     	#populate diagonals block-by-block. Note upper+lower have J-1 non-zero elements (with 0's at end points)    
-        for i in range(I):
+        for i in np.arange(I):
             k_u[i*J:(i+1)*J-1] = -self.E_alpha3(i,np.arange(J)[:-1])/2
             k_mA[i*J:(i+1)*J] = 1+self.E_alpha2(i,np.arange(J))/2
             k_mB[i*J:(i+1)*J] = 1-self.E_alpha2(i,np.arange(J))/2
@@ -278,7 +292,7 @@ class cn_scheme:
         k_l = np.zeros(IJ)    
         
         #Note upper+lower diagonals have I-1 non-zero elements (with 0's at end points)
-        for j in range(J):
+        for j in np.arange(J):
             k_u[j*I:(j+1)*I-1] = -self.r_alpha3(np.arange(I)[:-1],j)/2
             k_mA[j*I:(j+1)*I] = 1+self.r_alpha2(np.arange(I)[:],j)/2
             k_mB[j*I:(j+1)*I] = 1-self.r_alpha2(np.arange(I)[:],j)/2
@@ -358,7 +372,11 @@ class cn_scheme:
             self.snapshots = [snapshot]
 
         """ Main CN loop """
-        print("Beginning CN solution... \n")
+        print("Beginning CN solution...")
+        noteBookFlag = False#isnotebook()
+        if noteBookFlag:
+            pbar = IntProgress(min=0, max=max_t) # instantiate the bar
+            display(pbar) # display the bar
         while not(convergence_check) and (t < max_t):            
             """ 
             Convergence, stability and Delta_t switching
@@ -439,8 +457,8 @@ class cn_scheme:
                         if self.Delta_t > self.smallest_Delta_t:
                             #reduce Delta_t and start again
                             self.Delta_t *= Delta_t_reduction
-                            print(f"Timescale switching activated, Delta t changing to: {(self.Delta_t*units.Unit('s')).to('yr').value:.2g} yr")
-                            print(f"Numer of iterations since previous Delta t: {t_part}\n")
+                            #print(f"Timescale switching activated, Delta t changing to: {(self.Delta_t*units.Unit('s')).to('yr').value:.2g} yr")
+                            #print(f"Numer of iterations since previous Delta t: {t_part}\n")
                             t_part = 0
                             
                             #reconstruct A, B matrices with new Delta_t
@@ -452,14 +470,13 @@ class cn_scheme:
                         elif self.Delta_t < self.smallest_Delta_t:
                             if ts_check or rel_diff_check:  
                                 #psi has satisfied (a1 + c1) or (a1 + a2) with the lowest timestep - end iterations
-                                print(f"Delta t at lowest value: {(self.Delta_t*units.Unit('s')).to('yr').value:.2g} yr")
-                                print(f"Numer of iterations since previous Delta t: {t_part}\n")
+                                # print(f"Delta t at lowest value: {(self.Delta_t*units.Unit('s')).to('yr').value:.2g} yr")
+                                # print(f"Numer of iterations since previous Delta t: {t_part}\n")
                                 convergence_check = True
                                 break
                     
             #convergence checks failed - store psi_prev and then update psi
             psi_prev = psi.copy()
-            
             """ 
             Matrix solutions 
             
@@ -481,11 +498,16 @@ class cn_scheme:
             t_elapsed += self.Delta_t
             t += 1
             t_part += 1
+            if noteBookFlag:
+                pbar.value += 1
+            else:
+                progress(t,max_t,prefix="CN Progess:")
+                #printProgressBar(t,max_t,"Completion")
             
             """ progress feedback during loop """ 
-            progress_check = t%(max_t/10)
-            if progress_check == 0 and t!= 0:
-                print(f"progress to max {max_t:.2g} iterations...{(t/max_t)*100}%")     
+            # progress_check = t%(max_t/10)
+            # if progress_check == 0 and t!= 0:
+            #     print(f"progress to max {max_t:.2g} iterations...{(t/max_t)*100}%")     
 
             """ Store solution for animation """
             if self.animation_flag is True:
@@ -497,7 +519,7 @@ class cn_scheme:
             #     print(f"debugging - iteration {t}")
         
         #end while loop
-            
+        print()
         self.electrons = psi.copy()        #final equilibrium solution
 
         print("CN loop completed.")

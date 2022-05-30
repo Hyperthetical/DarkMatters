@@ -36,7 +36,7 @@ def fatal_error(err_string):
     print("################################################")
     raise SystemExit(err_string)
 
-def getCalcID(calcData,haloData,partData,tag=None):
+def getCalcID(calcData,haloData,partData,diffData,tag=None):
     """
     Builds an output file id code
         ---------------------------
@@ -98,12 +98,17 @@ def getCalcID(calcData,haloData,partData,tag=None):
         else:
             mxStr += "GeV_"
 
+    if diffData['lossOnly']:
+        diff_str = "loss-only_"
+    else:
+        diff_str = ""
+
     model_str = partData['partModel']+"_"
     if not tag is None:
         tag_str = tag+"_"
     else:
         tag_str = ""
-    return haloData['haloName']+"_"+model_str+mxStr+wimp_str+dm_str+fm_str+w_str+dist_str+tag_str
+    return haloData['haloName']+"_"+model_str+mxStr+wimp_str+dm_str+fm_str+w_str+dist_str+diff_str+tag_str
 
 def fluxLabel(calcData):
     if calcData['freqMode'] == "radio":
@@ -122,7 +127,7 @@ def fluxLabel(calcData):
 
 def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,outMode="yaml",fName=None,emOnly=False):
     if np.any(calcData['results']['finalData'] is None):
-        fatal_error("output.fitsMap() cannot be invoked without a full set of calculated results, some masses have not had calculations run")
+        fatal_error("output.makeOutput() cannot be invoked without a full set of calculated results, some masses have not had calculations run")
     def default(obj):
         if type(obj).__module__ == np.__name__:
             if isinstance(obj, np.ndarray):
@@ -144,7 +149,7 @@ def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,out
     else:
         writeCalc['results'] = {key: value for key, value in calcData['results'].items()}
     outData = {'calcData':writeCalc,'haloData':writeHalo,'partData':writePart,'magData':writeMag,'gasData':writeGas,'diffData':diffData,'cosmoData':cosmoData}
-    fName = getCalcID(calcData,haloData,partData,tag=fName)+fluxLabel(calcData)
+    fName = getCalcID(calcData,haloData,partData,diffData,tag=fName)+fluxLabel(calcData)
     if not emOnly:
         fName += "_"+calcData['calcMode']
     else:
@@ -301,7 +306,7 @@ def calcWrite(calcData,haloData,partData,magData,gasData,diffData,target=None):
     elif not target is None:
         outstream.close()
 
-def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,sigV=1e-26,halfPix=3000,useHalfPix=500,display_slice=None):
+def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26,halfPix=3000,useHalfPix=500,display_slice=None):
     if not calcData['calcMode'] == "sb":
         fatal_error("output.fitsMap() can only be run with surface brightness data")
     if np.any(calcData['results']['finalData'] is None):
@@ -404,4 +409,4 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,sigV=1e-26,halfPix=
         hduList.append(hdu)
 
     hduList = fits.HDUList(hduList)
-    hduList.writeto(getCalcID(calcData,haloData,partData)+fluxLabel(calcData)+".fits",overwrite=True)
+    hduList.writeto(getCalcID(calcData,haloData,partData,diffData)+fluxLabel(calcData)+".fits",overwrite=True)

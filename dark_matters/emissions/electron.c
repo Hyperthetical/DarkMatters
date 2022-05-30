@@ -87,12 +87,12 @@ double Green(int const ngr,std::vector<double> &r_set_gr,double r,std::vector<do
         G = 0.0;
         k1 = 1.0/sqrt(4*M_PI*dv); //coefficient
         for (p=0;p<num_images;p++){
-            rn = pow(-1.0,p)*r + 2.0*rh*p;
+            rn = pow(-1.0,image_set[p])*r + 2.0*rh*image_set[p];
             for (i=0;i<ngr;i++){
                 int_G[i] = green_integrand(r_set_gr[i],rn,dv,ratioRhosq[i]);
             }
             //G += pow(-1.0,p)*simps_3_8((log10(r_set_gr[ngr-1])-log10(r_set_gr[0]))/((ngr-1)/3.0-1),(ngr-1)/3,r_set_gr,int_G)*k1;
-            G += pow(-1.0,p)*simps(ngr,r_set_gr,int_G)*k1;
+            G += pow(-1.0,image_set[p])*simps(ngr,r_set_gr,int_G)*k1;
         }
     }
     return G;
@@ -187,7 +187,7 @@ std::vector<double> equilibrium_p(int const k,std::vector<double> &E_set,std::ve
             }
             //#pragma omp atomic
             //electrons[n*i +j] = 2.0*simps_3_8((log10(E_set[k-1])-log10(E_set[0]))/((k-1)/3.0-1),(k-1)/3,E_set,int_E)/loss[i]*rhosq[j]; //the 2 is for electrons and positrons
-            electrons[n*i +j] = 2.0*simps_3_8(k,E_set,int_E)/loss[i]*rhosq[j]; //the 2 is for electrons and positrons
+            electrons[n*i +j] = 2.0*simps_3_8(k,E_set,int_E)/loss_function(E_set[i],b_set[j],n_set[j],z,ISRF)*rhosq[j]; //the 2 is for electrons and positrons
             #pragma omp atomic
             steps_done++;
             #pragma omp critical

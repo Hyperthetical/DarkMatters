@@ -307,12 +307,14 @@ def checkCalculation(calcDict):
         calcDict['fSampleSpacing'] = "custom"
 
     if not 'eSampleNum' in calcDict.keys():
-        calcDict['eSampleNum'] = 71
+        if 'green' in calcDict['electronMode']:
+            calcDict['eSampleNum'] = 71
+        else:
+            calcDict['eSampleNum'] = 60
     elif calcDict['eSampleNum'] < 71 and 'green' in calcDict['electronMode']:
         fatal_error("eSampleNum cannot be set below 71 without incurring errors when using a Green's function method")
     if not 'eSampleMin' in calcDict.keys():
         calcDict['eSampleMin'] = (constants.m_e*constants.c**2).to("GeV").value #GeV
-        print(calcDict['eSampleMin'])
     if calcDict['calcMode'] in ["flux"]:
         if (not 'calcRmaxIntegrate' in calcDict.keys()) and (not 'calcAngmaxIntegrate' in calcDict.keys()):
             fatal_error("calcDict requires one of the variables {} or {} for the selected mode: {}".format('calcRmaxIntegrate','calcAngmaxIntegrate',calcDict['calcMode']))
@@ -320,7 +322,10 @@ def checkCalculation(calcDict):
             fatal_error("calcDict requires ONLY one of the variables {} or {} for the selected mode: {}".format('calcRmaxIntegrate','calcAngmaxIntegrate',calcDict['calcMode']))
     if not calcDict['calcMode'] == "jflux":
         if not 'rSampleNum' in calcDict.keys():
-            calcDict['rSampleNum'] = 61
+            if 'green' in calcDict['electronMode']:
+                calcDict['rSampleNum'] = 61
+            else:
+                calcDict['rSampleNum'] = 50
         if (not 'rGreenSampleNum' in calcDict.keys()) and 'green' in calcDict['electronMode']:
             calcDict['rGreenSampleNum'] = 121
         if not 'log10RSampleMinFactor' in calcDict.keys():
@@ -537,7 +542,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         rLimit = 2*haloData['haloRvir']
     else:
         rLimit = diffData['diffRmax']
-    b_av,ne_av = physical_averages(rmax,mode_exp,calcData,haloData,magData,gasData)
+    b_av,ne_av = physical_averages(3.7e-5,mode_exp,calcData,haloData,magData,gasData)
     if partData['emModel'] == "annihilation":
         sigV = partData['crossSection']
     else:
@@ -578,7 +583,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         print("Calculating Electron Equilibriumn Distributions via Crank-Nicolson with Python")
         print("=========================================================")
         E_set = 10**takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")*mxEff
-        Q_set = partData['dNdxInterp']['positrons'](mxEff,np.log10(E_set/mxEff)).flatten()/np.log(1e1)/E_set
+        Q_set = partData['dNdxInterp']['positrons'](mxEff,np.log10(E_set/mxEff)).flatten()/np.log(1e1)/E_set*sigV
         r_sample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum'])
         rho_sample = astrophysics.haloDensityBuilder(haloData)(r_sample)
         b_sample = magData['magFieldFunc'](r_sample)
@@ -588,7 +593,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         if np.isscalar(dBdr_sample):
             dBdr_sample = dBdr_sample*np.ones_like(r_sample)
         cnSolver = cn_electron.cn_scheme(benchmark_flag=calcData['crankBenchMarkMode'],const_Delta_t=calcData['crankDeltaTConstant'])
-        calcData['results']['electronData'][mIndex] = cnSolver.solveElectrons(mx,haloData['haloZ'],haloData['haloRvir'],E_set,r_sample,rho_sample,Q_set,b_sample,dBdr_sample,ne_sample,haloData['haloScale'],1.0,diffData['coherenceScale'],diffData['diffIndex'],diff0=diffData['diffConstant'],Delta_t_min=calcData['crankDeltaTMin'],lossOnly=diffData['lossOnly'],mode_exp=mode_exp,Delta_ti=calcData['crankDeltaTi'],max_t_part=calcData['crankMaxSteps'],Delta_t_reduction=calcData['crankDeltaTReduction'])*(constants.m_e*constants.c**2).to("GeV").value*sigV
+        calcData['results']['electronData'][mIndex] = cnSolver.solveElectrons(mx,haloData['haloZ'],haloData['haloRvir'],E_set,r_sample,rho_sample,Q_set,b_sample,dBdr_sample,ne_sample,haloData['haloScale'],1.0,diffData['coherenceScale'],diffData['diffIndex'],diff0=diffData['diffConstant'],Delta_t_min=calcData['crankDeltaTMin'],lossOnly=diffData['lossOnly'],mode_exp=mode_exp,Delta_ti=calcData['crankDeltaTi'],max_t_part=calcData['crankMaxSteps'],Delta_t_reduction=calcData['crankDeltaTReduction'])*(constants.m_e*constants.c**2).to("GeV").value
     print("Process Complete")
     return calcData
 
