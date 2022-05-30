@@ -542,7 +542,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData):
         rLimit = 2*haloData['haloRvir']
     else:
         rLimit = diffData['diffRmax']
-    b_av,ne_av = physical_averages(3.7e-5,mode_exp,calcData,haloData,magData,gasData)
+    b_av,ne_av = physical_averages(haloData['haloScale'],mode_exp,calcData,haloData,magData,gasData)
     if partData['emModel'] == "annihilation":
         sigV = partData['crossSection']
     else:
