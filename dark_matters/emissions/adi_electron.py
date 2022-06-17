@@ -2,24 +2,10 @@ import time,warnings
 import numpy as np
 from scipy import sparse
 from astropy import units, constants as const
-from ipywidgets import IntProgress
-from IPython.display import display
-from .progress_bar import printProgressBar,progress
-
-def isnotebook():
-    try:
-        shell = get_ipython().__class__.__name__ #don't worry if IDE flags this as an issue, it will work
-        if shell == 'ZMQInteractiveShell':
-            return True   # Jupyter notebook or qtconsole
-        elif shell == 'TerminalInteractiveShell':
-            return False  # Terminal running IPython
-        else:
-            return False  # Other type (?)
-    except NameError:
-        return False      # Probably standard Python interpreter
+from .progress_bar import progress
 
 
-class cn_scheme:
+class adi_scheme:
     
     def __init__(self,benchmark_flag=False,const_Delta_t=False,animation_flag=False):
         self.effect = None      #which effects to include in the solution of the transport equation (in set {"loss","diffusion","all"})
@@ -70,7 +56,7 @@ class cn_scheme:
         self.r_grid = (r_sample*units.Unit("Mpc")).to("cm").value       #[cm] -> check conversion
         self.E_grid = E_sample          #[GeV] -> check conversion
         self.delta = delta
-        self.d0 = (d0*units.Unit("Mpc")).to("kpc").value
+        self.d0 = d0
         self.D0 = diff0
         #variable transformations:  r --> r~ ; E --> E~
         self.r0 = (rScale*units.Unit("Mpc")).to("cm").value    #scale variable [cm]
@@ -101,14 +87,16 @@ class cn_scheme:
         
         """ Physical scales """
         #virial diffusion velocity ->  used to limit the diffusion function so that it respects the speed of light
-        dLim = (Rvir*units.Unit("Mpc")).to("cm").value*const.c.to("cm/s").value 
+        dLim = (r_sample[-1]*units.Unit("Mpc")).to("cm").value*const.c.to("cm/s").value 
         diffVelCondition = self.D > dLim
-
+        for i in range(len(diffVelCondition)):
+            if np.any(diffVelCondition):
+                print(diffVelCondition[i],r_sample[i])
         #if there are indices where diffVelCondition is true, limit D and dDdr 
-        if len(self.D[diffVelCondition]) > 0: 
-            self.D = np.where(diffVelCondition,dLim,self.D)
-            dDdrLim = self.dDdr[diffVelCondition][0]    #[0] selects first index where D > dLim -> use corresponding dDdr value as the limit for the rest of dDdr
-            self.dDdr = np.where(diffVelCondition,dDdrLim,self.dDdr)
+        # if len(self.D[diffVelCondition]) > 0: 
+        #     self.D = np.where(diffVelCondition,dLim,self.D)
+        #     dDdrLim = self.dDdr[diffVelCondition][0]    #[0] selects first index where D > dLim -> use corresponding dDdr value as the limit for the rest of dDdr
+        #     self.dDdr = np.where(diffVelCondition,dDdrLim,self.dDdr)
 
         #timescales
         self.loss_ts = self.E_grid/self.b
@@ -148,9 +136,9 @@ class cn_scheme:
         print(f"Initial time step: Delta_t = {(self.Delta_t*units.Unit('s')).to('yr').value:.2g} yr")
         print(f"Constant time step: {self.const_Delta_t}\n")
         
-        """ CN method """
-        print("=========================\nCN run details\n=========================")
-        return self.cn_2D(self.Q).transpose()       
+        """ADI method """
+        print("=========================\nADI run details\n=========================")
+        return self.adi_2D(self.Q).transpose()       
         
     """ 
     Function definitions 
@@ -303,14 +291,13 @@ class cn_scheme:
 
         return (diff_A,diff_B)
 
-    def cn_2D(self,Q):
+    def adi_2D(self,Q):
         """
-        Solve 2-D diffusion/loss transport equation using the Crank-Nicholson 
-        method. 
+        Solve 2-D diffusion/loss transport equation using the ADI method. 
         
         The general matrix equation being sovled is A*psi1 = B*psi0 + Q,
         where psi == dn/dE is the electron distribution function,
-        A, B are coefficient matrices determined from the CN scheme,
+        A, B are coefficient matrices determined from the ADI scheme,
         Q is the electron source function from DM annihilations.
         
         The equation is solved iteratively until convergence is reached. 
@@ -326,7 +313,7 @@ class cn_scheme:
         ---------------------------
         psi - electron equilibrium function - (2D numpy array)
         """        
-        cn_start = time.perf_counter()
+        adi_start = time.perf_counter()
         
         """ Preliminary setup """
         #create A,B matrices for initial timestep        
@@ -371,12 +358,8 @@ class cn_scheme:
             snapshot = (psi.copy()[:-1],self.Delta_t)
             self.snapshots = [snapshot]
 
-        """ Main CN loop """
-        print("Beginning CN solution...")
-        noteBookFlag = False#isnotebook()
-        if noteBookFlag:
-            pbar = IntProgress(min=0, max=max_t) # instantiate the bar
-            display(pbar) # display the bar
+        """ Main ADI loop """
+        print("Beginning ADI solution...")
         while not(convergence_check) and (t < max_t):            
             """ 
             Convergence, stability and Delta_t switching
@@ -498,11 +481,7 @@ class cn_scheme:
             t_elapsed += self.Delta_t
             t += 1
             t_part += 1
-            if noteBookFlag:
-                pbar.value += 1
-            else:
-                progress(t,max_t,prefix="CN Progess:")
-                #printProgressBar(t,max_t,"Completion")
+            progress(t,max_t,prefix="ADI Progess:")
             
             """ progress feedback during loop """ 
             # progress_check = t%(max_t/10)
@@ -522,7 +501,7 @@ class cn_scheme:
         print()
         self.electrons = psi.copy()        #final equilibrium solution
 
-        print("CN loop completed.")
+        print("ADI loop completed.")
         print(f"Convergence: {convergence_check}")
         print(f"Total number of iterations: {t}")
         print(f"Total elapsed time at final iteration: {(t_elapsed*units.Unit('s')).to('yr').value:2g} yr")        
@@ -531,7 +510,7 @@ class cn_scheme:
             print("\n=========================\nBenchmark Run!\n=========================") 
             print(f"Benchmark test - all(dpsi/dt == 0): {benchmark_check}")        
 
-        print("CN solution complete.")
-        print(f"Total CN method run time: {time.perf_counter() - cn_start:.4g} s")
+        print("ADI solution complete.")
+        print(f"Total ADI method run time: {time.perf_counter() - adi_start:.4g} s")
                
-        return psi*2   
+        return psi  

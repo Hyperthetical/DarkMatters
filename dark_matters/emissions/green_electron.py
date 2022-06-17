@@ -6,6 +6,8 @@ from .progress_bar import progress
 from subprocess import call
 from astropy import constants as const
 import os
+from joblib import Parallel, delayed
+from tqdm import tqdm
 
 
 #read the output from the c routine
@@ -40,7 +42,7 @@ def read_electrons_c(infile,E_set,r_sample):
     return electrons
 
 #write input file for c executable
-def write_electrons_c(outfile,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads,num_images):
+def write_electrons_c(outfile,kPrime,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads,num_images):
     """
     Write the input file for the c executable that finds equilibrium electon distributions
         ---------------------------
@@ -56,7 +58,7 @@ def write_electrons_c(outfile,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sam
         None
     """
     outf = open(outfile,"w")
-    outf.write(str(len(E_set))+" "+str(len(r_sample[0]))+" "+str(len(r_sample[1]))+"\n")
+    outf.write(str(len(E_set))+" "+str(kPrime)+" "+str(len(r_sample[0]))+" "+str(len(r_sample[1]))+"\n")
     for r in r_sample[0]:
         outf.write(str(r)+" ")
     outf.write("\n")
@@ -86,7 +88,7 @@ def write_electrons_c(outfile,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sam
     outf.close()
 
 #run the c executable with a written infile and retrieve output
-def electrons_from_c(outfile,infile,exec_electron_c,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads=1,num_images=51):
+def electrons_from_c(outfile,infile,exec_electron_c,kPrime,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads=1,num_images=51):
     """
     Prepare the input file, run the c executable that finds equilibrium electon distributions and retrieve the output
         ---------------------------
@@ -102,7 +104,7 @@ def electrons_from_c(outfile,infile,exec_electron_c,E_set,Q_set,r_sample,rho_dm_
         ---------------------------
         2D array of floats, electron equilibrium distributions (phys.e_bins x sim.n)
     """
-    write_electrons_c(outfile,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads,num_images)
+    write_electrons_c(outfile,kPrime,E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads,num_images)
     if not os.path.isfile(exec_electron_c):
         return None
     try:
@@ -136,11 +138,18 @@ def eloss_vector(E_vec,B,ne,z,ISRF=0):
     coeffs = np.array([6.08e-16+0.25e-16*(1+z)**4,0.0254e-16,6.13e-16,4.7e-16],dtype=float)
     if ISRF == 0:
         coeffs[0] = 0.25e-16*(1+z)**4 #only CMB used so it scales with z
-    if not ne == 0.0: 
-        eloss_tot = coeffs[0]*(me*E_vec)**2 + coeffs[1]*(me*E_vec)**2*B**2 + coeffs[2]*ne*(1+np.log(E_vec/ne)/75.0)+ coeffs[3]*ne*E_vec*me
-    else:
-        eloss_tot = coeffs[0]*(me*E_vec)**2 + coeffs[1]*(me*E_vec)**2*B**2 
+    eloss_tot = coeffs[0]*(me*E_vec)**2 + coeffs[1]*(me*E_vec)**2*B**2 + coeffs[2]*ne*(1+np.log(E_vec/ne)/75.0)+ coeffs[3]*ne*E_vec*me
     return eloss_tot/me #make it gamma s^-1 units
+
+def diffFuncNormed(gamma,B,lc,delta):
+    me = (const.m_e*const.c**2).to("GeV").value
+    E = gamma*me
+    return E**(2-delta)*B**(delta-2)*lc**(delta-1)
+
+def vFunc(mx,gamma,B,ne,lc,delta,z,ISRF):
+    me = (const.m_e*const.c**2).to("GeV").value
+    gammaPrime = np.logspace(np.log10(gamma),np.log10(mx/me*np.ones_like(gamma)),num=100,axis=-1) 
+    return integrate(diffFuncNormed(gammaPrime,B,lc,delta)/eloss_vector(gammaPrime,B,ne,z,ISRF),gammaPrime)
 
 ##@jit
 def green_integrand_vector(rpr,rn,dv,rhosq):
@@ -185,7 +194,7 @@ def Green_vector(r_set,r,rhosq,dv,diff):
         n = len(r_set)
         rh = r_set.max()
         images = 33 #image charges for green function solution -> should be odd
-        image_set = np.arange(-(images-1)/2,(images-1)/2,dtype=int)
+        image_set = np.arange(-images,images+1,dtype=int)
 
         for i in range(0,m):
             if(dv[i] == 0.0):
@@ -197,6 +206,7 @@ def Green_vector(r_set,r,rhosq,dv,diff):
                 for j in range(0,len(image_set)):
                     p = image_set[j]
                     rn = (-1.0)**p*r + 2.0*p*rh  #position of the image charge
+                    print(k1,dv[i],Green_p(r,rn,r_set,rhosq,dv[i],p))
                     G[i] = G[i] + k1*Green_p(r,rn,r_set,rhosq,dv[i],p)
     return G
 
@@ -347,7 +357,47 @@ def equilibriumElectronsGrid(E_set,Q_set,r_sample,rho_dm_sample,mx,mode_exp,b_av
 
     return electrons
 
-def equilibriumElectronsGridPartial(E_set,Q_set,r_sample,rho_dm_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF):
+def booles_rule_log10(y, x, axis):
+    def tupleset(t, i, value):
+        l = list(t)
+        l[i] = value
+        return tuple(l)
+    y = np.asarray(y)
+    nd = len(y.shape)
+    N = y.shape[axis]
+    returnshape = 0
+    start = 0
+    stop = N-4
+    step = 4
+    if x is not None:
+        x = np.asarray(x)
+        if len(x.shape) == 1:
+            shapex = [1] * nd
+            shapex[axis] = x.shape[0]
+            saveshape = x.shape
+            returnshape = 1
+            x = x.reshape(tuple(shapex))
+
+    slice_all = (slice(None),)*nd
+    slice0 = tupleset(slice_all, axis, slice(start,stop,step))
+    slice1 = tupleset(slice_all, axis, slice(start+1,stop+1,step))
+    slice2 = tupleset(slice_all, axis, slice(start+2,stop+2,step))
+    slice3 = tupleset(slice_all, axis, slice(start+3,stop+3,step))
+    slice4 = tupleset(slice_all, axis, slice(start+4,stop+4,step))
+
+    if len(x.shape) == 1:
+        dx = (np.log10(x[-1])-np.log10(x[0]))/(N-1)
+    else:
+        dx = (np.log10(x[axis][-1])-np.log10(x[axis][0]))/(N-1)
+
+    result = np.sum(y[slice0]*x[slice0]*7 + y[slice1]*x[slice1]*32 + y[slice2]*x[slice2]*12 + y[slice3]*x[slice3]*32 + y[slice4]*x[slice4]*7,axis=axis)*dx*2/45*np.log(10.0)
+
+    if returnshape:
+        x = x.reshape(saveshape)
+
+    return result
+
+def equilibriumElectronsGridPartial(E_set,Q_set,r_sample,rho_dm_sample,b_set,ne_set,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads,num_images):
     """
     Calculates equilibrium electron distribution 2D array (energy)(position)
         ---------------------------
@@ -373,47 +423,80 @@ def equilibriumElectronsGridPartial(E_set,Q_set,r_sample,rho_dm_sample,mx,mode_e
         ---------------------------
         2D float array (phys.e_bins x sim.n)
     """
-    def internalLoop(E,E_set,Q_set,r_sample,rho_dm_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF):
-        nwimp0 = np.sqrt(1.458e-33)**mode_exp/mode_exp/mx**mode_exp  #non-thermal wimp density (cm^-3) (central)
-        rhodm = nwimp0*rho_dm_sample[0]**mode_exp
-        rhodm_gr = nwimp0*rho_dm_sample[1]**mode_exp
-        imageNum = 33
-        images = np.arange(-(imageNum-1)/2,(imageNum-1)/2,dtype=int)
-        rowElectron = np.zeros_like(r_sample[0])
-        for j in range(0,len(r_sample[0])):
-            ePrime = np.logspace(np.log10(E),np.log10(mx),num=kPrime)
-            ePrimePrime = np.logspace(np.log10(ePrime),np.log10(mx),num=kPrime)
-            vEPrime = integrate(diffFunc(ePrimePrime,b_av,lc,delta)/eloss_vector(ePrimePrime,b_av,ne_av,z,ISRF),ePrimePrime,axis=0)
-            vE = integrate(diffFunc(ePrime,b_av,lc,delta)/eloss_vector(ePrime,b_av,ne_av,z,ISRF),ePrime,axis=0)
-            deltaV = np.tensordot(np.ones(kPrime),vE,axes=0) - vEPrime
-            deltaVGrid = np.tensordot(np.tensordot(np.ones_like(r_sample[1]),np.ones(imageNum-1),axes=0),deltaV,axes=0)
-
-            rPrimeGrid = np.tensordot(np.tensordot(r_sample[1],np.ones(imageNum-1),axes=0),np.ones(kPrime),axes=0)
-            imageGrid = np.tensordot(np.tensordot(np.ones_like(r_sample[1]),images,axes=0),np.ones(kPrime),axes=0)
-            rGrid = np.ones_like(imageGrid)*r_sample[0][j]
-            rNGrid = (-1)**imageGrid*rGrid + 2*imageGrid*r_sample[0][-1]
-            rhoDMGrid = np.ones_like(imageGrid)*rhodm[j]
-            rhoPrimeDMGrid = np.tensordot(np.tensordot(rhodm_gr,np.ones(imageNum-1),axes=0),np.ones(kPrime),axes=0)
-    
-            G = rPrimeGrid/rNGrid*(np.exp(-0.25*(rPrimeGrid-rNGrid)**2/deltaVGrid) - np.exp(-0.25*(rPrimeGrid+rNGrid)**2/deltaVGrid))*(-1)**imageGrid/np.sqrt(4*np.pi*deltaVGrid)
-            G *= rhoPrimeDMGrid/rhoDMGrid
-            G = integrate(G,rPrimeGrid,axis=0)
-            G = np.sum(G,axis=0) #now ePrime by eGrid in shape
-            qGrid = interp1d(E_set,Q_set)(ePrime*1.000000001)
-            rowElectron[j] = integrate(G*qGrid,ePrime,axis=0)*rhodm[j]
-        return rowElectron
 
     k = len(E_set) #number of energy bins
-    kPrime = k
-
+    kPrime = 200
+    n = len(r_sample[0])
+    #print(k,n,k*n)
     #msun converted to kg, convert to GeV, convert kpc to cm 
     
-    electrons = np.zeros((k,len(r_sample[0])))
-    
-    for i in range(0,len(E_set)):
-        electrons[i,:] = internalLoop(E_set[i],E_set,Q_set,r_sample,rho_dm_sample,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF)/eloss_vector(E_set[i],b_av,ne_av,z,ISRF)  #non-thermal wimp density (cm^-3) (central)
+    electrons = np.zeros((k,n))
+    nwimp0 = np.sqrt(1.458e-33)**mode_exp/mode_exp/mx**mode_exp  #non-thermal wimp density (cm^-3) (central)
+    rhodm = nwimp0*rho_dm_sample[0]**mode_exp
+    rhodm_gr = nwimp0*rho_dm_sample[1]**mode_exp
+    imageNum = num_images
+    images = np.arange(-(imageNum),(imageNum+1),dtype=int)
+    with np.errstate(invalid="ignore",divide="ignore"):
+        vSample = vFunc(mx,E_set,b_av,ne_av,lc,delta,z,ISRF)*d0/3.086e24**2
+    vSample = np.where(np.isnan(vSample),0.0,vSample)
+    vIntp = interp1d(E_set,vSample)
+    me = (const.m_e*const.c**2).to("GeV").value
+    def kernel(i):
+        E = E_set[i]
+        vE = vIntp(E_set[i])
+        ePrime = np.logspace(np.log10(E),np.log10(mx/me),num=kPrime)
+        vEPrime = vIntp(ePrime)
+        qGrid = interp1d(E_set,Q_set)(ePrime)
+        deltaV = np.tensordot(np.ones(kPrime),vE,axes=0) - vEPrime
+        for j in np.arange(0,n-1):
+            if diff == 1:
+                rPrimeGrid,imageGrid,deltaVGrid = np.meshgrid(r_sample[1],images,deltaV,indexing="ij")
+                rNGrid = (-1.0)**imageGrid*r_sample[0][j] + 2*imageGrid*r_sample[0][-1]
+                rhoDMGrid = np.ones_like(imageGrid)*rhodm[j]
+                rhoPrimeDMGrid = np.tensordot(np.tensordot(rhodm_gr,np.ones(2*imageNum+1),axes=0),np.ones(kPrime),axes=0)
 
+                with np.errstate(invalid="ignore",divide="ignore",over="ignore"):
+                    G = rPrimeGrid/rNGrid*(np.exp(-0.25*(rPrimeGrid-rNGrid)**2/deltaVGrid) - np.exp(-0.25*(rPrimeGrid+rNGrid)**2/deltaVGrid))*(-1.0)**imageGrid/np.sqrt(4*np.pi*deltaVGrid)
+                G *= rhoPrimeDMGrid/rhoDMGrid
+                G = np.where(np.isnan(G),0.0,G)
+                G = integrate(G,rPrimeGrid,axis=0)
+                G = np.sum(G,axis=0) #now ePrime by eGrid in shape
+                G[0] = 1.0
+            else:
+                G = np.ones_like(ePrime)
+            electrons[i,j] = integrate(G*qGrid,ePrime,axis=0)*rhodm[j]/eloss_vector(E_set[i],b_set[j],ne_set[j],z,ISRF)  #non-thermal wimp density (cm^-3) (central)
+    Parallel(n_jobs=num_threads,require='sharedmem')(delayed(kernel)(i) for i in tqdm(range(k)))
+    electrons = np.where(np.isnan(electrons),0.0,electrons)
     return electrons
+
+
+def electronsGridV2(mx,eSample,rSample,qFunc,rhoFunc,bFunc,nFunc,z,lc,b_av,ne_av,delta,diff,d0,ISRF,mode_exp,numImages,nPrime=100,kPrime=100):
+    if diff == 1:
+        vSample = vFunc(mx,eSample,b_av,ne_av,lc,delta,z,ISRF)
+        vIntp = interp1d(eSample,vSample*d0/3.086e24**2)
+        rh = rSample[-1]    
+        rPrime = np.logspace(np.log10(rSample[0]),np.log10(rh),num=nPrime)
+    electrons = np.zeros((len(eSample),len(rSample)))
+    for i in np.arange(len(eSample)):
+        ePrime = np.logspace(np.log10(eSample[i]),np.log10(mx),num=kPrime)
+        if diff == 1:
+            images = np.arange(-numImages,numImages+1)
+            rGrid,ePrimeGrid,iGrid,rPrimeGrid = np.meshgrid(rSample,ePrime,images,rPrime,indexing="ij")
+            print(np.where(np.isnan(rGrid)))
+            rNGrid = (-1.0)**iGrid*rGrid + 2*rh*iGrid
+            dvGrid = vIntp(eSample[i])-vIntp(ePrimeGrid)
+            G = rPrimeGrid/rNGrid*(np.exp(-0.25*(rPrimeGrid-rNGrid)**2/dvGrid) - np.exp(-0.25*(rPrimeGrid+rNGrid)**2/dvGrid))*(-1.0)**iGrid/np.sqrt(4*np.pi*dvGrid)
+            G *= rhoFunc(rPrimeGrid)**mode_exp/rhoFunc(rGrid)**mode_exp
+            G = np.sum(integrate(G*qFunc(ePrimeGrid),rPrimeGrid),axis=-1)
+        else:
+            rGrid,ePrimeGrid = np.meshgrid(rSample,ePrime,indexing="ij")
+            G = qFunc(ePrimeGrid)
+        electrons[i,:] = integrate(G,ePrime,axis=-1)/eloss_vector(eSample[i],bFunc(rSample),nFunc(rSample),z,ISRF)*rhoFunc(rSample)**mode_exp/mode_exp/mx**mode_exp
+        progress(i + 1,len(eSample))
+    return electrons
+
+        
+
 
 
 
@@ -478,7 +561,7 @@ def equilibrium_electrons(E_set,Q_set,r_sample,rho_dm_sample,mx,mode_exp,b_av,ne
         for j in range(0,n):   #loop of r
             r = r_sample[0][j]
             int_E = Q_set*Green_vector(r_sample[1],r,rhosq[j],dv,diff)  #diffusion integrand vectroised over E
-            electrons[i][j] = 2.0*integrate(int_E,E_set)/loss[i]*rhodm[j] #the 2 is for electrons and positrons
+            electrons[i][j] = integrate(int_E,E_set)/loss[i]*rhodm[j] #the 2 is for electrons and positrons
             progress(i*n + j + 1,k*n)
     return electrons              
 
@@ -524,7 +607,7 @@ def get_v(E,E_set,d0,delta,loss,me):
     """
     me = (const.m_e*const.c**2).to("GeV").value
     int_v = d0*(E_set*me)**(2.0-delta)/loss
-    int_v[E_set<E] = 0.0 
+    #int_v[E_set<E] = 0.0 
     v = integrate(int_v,E_set)
     return v
 
@@ -548,7 +631,9 @@ def make_vtab(E_set,d0,delta,loss,me):
     k = len(E_set)
     vtab = np.zeros(k)#,dtype=float)
     for i in range(0,k):
-        vtab[i] = get_v(E_set[i],E_set,d0,delta,loss,me)
+        epSet = np.logspace(np.log10(E_set[i]),np.log10(E_set[-1]),num=50)
+        vtab[i] = get_v(E_set[i],epSet,d0,delta,loss,me)
+    vtab = np.where(np.isnan(vtab),0.0,vtab)
     return vtab
 
 #def print_loss_scales(M,ne,z):

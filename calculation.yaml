@@ -19,7 +19,5 @@ calcData:
   fSampleNum: 40
   fSampleSpacing: "log"
   log10RSampleMinFactor: -4
-  rSampleNum: 50
-  eSampleNum: 60
-  electronMode: "crank-python"
+  electronMode: "adi-python"
 

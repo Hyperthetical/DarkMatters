@@ -53,11 +53,18 @@ def radioEmGrid(electrons,fSample,rSample,gSample,bSample,neSample):
     r0 = 2.82e-13  #electron radius (cm)
     me = 0.511e-3  #electron mass (GeV)
     c = 2.998e10     #speed of light (cm s^-1)
+    if k < 200:
+        intpElec = sp.interp2d(rSample,gSample,electrons)
+        gSample = np.logspace(np.log10(gSample[0]),np.log10(gSample[-1]),num=200)
+        k = len(gSample) #number of E bins
+        electrons_new = intpElec(rSample,gSample)
+    else:
+        electrons_new = electrons
 
     nuGrid,rGrid,eGrid,tGrid = np.meshgrid(fSample,rSample,gSample,theta_set,indexing="ij")
     bGrid = np.tensordot(np.tensordot(np.ones(num),bSample,axes=0),np.ones((k,ntheta)),axes=0)
     neGrid = np.tensordot(np.tensordot(np.ones(num),neSample,axes=0),np.ones((k,ntheta)),axes=0)
-    electronGrid = np.tensordot(np.tensordot(np.ones(num),electrons.transpose(),axes=0),np.ones(ntheta),axes=0)
+    electronGrid = np.tensordot(np.tensordot(np.ones(num),electrons_new.transpose(),axes=0),np.ones(ntheta),axes=0)
     nu0 = 2.8*bGrid*1e-6      #non-relativistic gyro freq
     nup = 8980.0*np.sqrt(neGrid)*1e-6
     with np.errstate(divide="ignore"):
@@ -69,7 +76,7 @@ def radioEmGrid(electrons,fSample,rSample,gSample,bSample,neSample):
         pGridFull = a*electronGrid*0.5*np.sin(tGrid)*int_bessel(x/np.sin(tGrid))
     eGridS = np.tensordot(np.ones((num,len(rSample))),gSample,axes=0) #for integration once theta is integrated out
     emGrid = integrate(integrate(pGridFull,tGrid),eGridS)
-    return np.where(np.isnan(emGrid),0.0,emGrid) #GeV cm^-3
+    return 2*np.where(np.isnan(emGrid),0.0,emGrid) #GeV cm^-3
 
 def primaryEmHighE(mx,rhoSample,z,gSample,qSample,fSample,mode_exp):
     """
@@ -106,16 +113,20 @@ def primaryEmHighE(mx,rhoSample,z,gSample,qSample,fSample,mode_exp):
     rhodm = nwimp0*rhoSample**mode_exp
     emm = np.zeros((num,n),dtype=float)
     Q_func = sp.interp1d(gSample,qSample)
-    for i in range(0,num):
-        E_g = h*fSample[i]*1e6*(1+z)/me
-        #Q_set = np.where(phys.gamma_spectrum[0] < E_g,0.0,phys.gamma_spectrum[1])
-        #emm[i,:] = integrate(Q_set,phys.gamma_spectrum[0])*rhodm[:] 
-        if E_g < gSample[0] or E_g > gSample[-1]:
-            emm[i,:] = np.zeros(len(rhodm))
-        else:
-            emm[i,:] = Q_func(E_g)*rhodm[:]*E_g #now in units of (cm^-3 s^-1) when including a factor sigmaV or Gamma
-        progress(i+1,num)
-    sys.stdout.write("\n")
+    eGrid = np.tensordot(h*fSample*1e6*(1+z)/me,np.ones_like(rhodm),axes=0)
+    rhoGrid = np.tensordot(np.ones_like(fSample),rhodm,axes=0)
+    emm = Q_func(eGrid)*eGrid*rhoGrid
+    emm = np.where(np.logical_or(eGrid<gSample[0],eGrid>gSample[-1]),0.0,emm)
+    # for i in range(0,num):
+    #     E_g = h*fSample[i]*1e6*(1+z)/me
+    #     #Q_set = np.where(phys.gamma_spectrum[0] < E_g,0.0,phys.gamma_spectrum[1])
+    #     #emm[i,:] = integrate(Q_set,phys.gamma_spectrum[0])*rhodm[:] 
+    #     if E_g < gSample[0] or E_g > gSample[-1]:
+    #         emm[i,:] = np.zeros(len(rhodm))
+    #     else:
+    #         emm[i,:] = Q_func(E_g)*rhodm[:]*E_g #now in units of (cm^-3 s^-1) when including a factor sigmaV or Gamma
+    #     progress(i+1,num)
+    # sys.stdout.write("\n")
     return 2.0*emm*h #2 gamma-rays per event - h converts to GeV cm^-3
 
 def klein_nishina(E_g,E,g):
@@ -274,7 +285,7 @@ def secondaryEmHighE(electrons,z,gSample,fSample,neSample):
         progress(i+1,num*2)
     for i in range(0,num):
         for j in range(0,n):    
-            int_1 = electrons[:,j]*(P_IC[i,:] + P_B[i,:]*neSample[j])
+            int_1 = 2*electrons[:,j]*(P_IC[i,:] + P_B[i,:]*neSample[j])
             #integrate over energies to get emmisivity
             emm[i][j] = integrate(int_1,gSample)
         progress(i+num+1,num*2)

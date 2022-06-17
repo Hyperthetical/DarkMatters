@@ -30,11 +30,13 @@ dFactor:
 magnetic:
 - magNorm
 - magNorm2
+- magFieldAverage
 mass:
 - haloMvir
 numDensity:
 - gasNorm
 - gasNorm2
+- gasAverageDensity
 diffConstant:
 - diffConstant
 crossSection:

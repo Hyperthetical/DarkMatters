@@ -4,3 +4,5 @@ astropy
 matplotlib
 sympy
 jupyter
+tqdm
+joblib
