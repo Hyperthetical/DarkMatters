@@ -8,6 +8,8 @@ from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
 from astropy.io import fits
 
+spacer_length = 55
+
 
 def checkQuant(key):
     inFile =open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/quantities.yaml"),"r")
@@ -31,10 +33,28 @@ def fatal_error(err_string):
         ---------------------------
         None
     """
-    print("################################################")
+    print("#"*spacer_length)
     print("                   Fatal Error")
-    print("################################################")
+    print("#"*spacer_length)
     raise SystemExit(err_string)
+
+def warning(err_string):
+    """
+    Display error string and exit program
+        ---------------------------
+        Parameters
+        ---------------------------
+        err_sting - Required : error message (String)
+        ---------------------------
+        Output
+        ---------------------------
+        None
+    """
+    print("*"*spacer_length)
+    print("                   Warning")
+    print("*"*spacer_length)
+    print(err_string)
+    print("*"*spacer_length)
 
 def getCalcID(calcData,haloData,partData,diffData,tag=None):
     """
@@ -56,7 +76,7 @@ def getCalcID(calcData,haloData,partData,diffData,tag=None):
     """
     dm_str = haloData['haloProfile']
     if 'haloIndex' in haloData.keys():
-        dm_str += "-{:.1f}".format(haloData['haloIndex'])
+        dm_str += f"-{haloData['haloIndex']:.1f}"
     dm_str += "_"
 
     if not calcData['calcMode'] == "jflux":
@@ -68,17 +88,17 @@ def getCalcID(calcData,haloData,partData,diffData,tag=None):
             w_str = "weights-rho_"
 
         if haloData['haloDistance'] < 0.1 or haloData['haloDistance'] > 1e3:
-            dist_str = "dl-{:.2e}Mpc_".format(haloData['haloDistance'])
+            dist_str = f"dl-{haloData['haloDistance']:.2e}Mpc_"
         elif  haloData['haloDistance'] == "0":
             dist_str = ""
         else:
-            dist_str = "dl-{:.1f}Mpc_".format(haloData['haloDistance'])
+            dist_str = f"dl-{haloData['haloDistance']:.1f}Mpc_"
     else:
         w_str = ""
         if partData['emModel'] == "annihilation":
-            dist_str = "jfactor-{:.1e}_".format(haloData['haloJFactor'])
+            dist_str = f"jfactor-{haloData['haloJFactor']:.1e}_"
         else:
-            dist_str = "dfactor-{:.1e}_".format(haloData['haloDFactor'])
+            dist_str = f"dfactor-{haloData['haloDFactor']:.1e}_"
 
     if calcData['freqMode'] in ['gamma','sgamma','radio','all']:
         fm_str = calcData['electronMode']+"_"
@@ -92,7 +112,7 @@ def getCalcID(calcData,haloData,partData,diffData,tag=None):
 
     mxStr = "mx-"
     for mx in calcData['mWIMP']:
-        mxStr += "{}".format(int(mx))
+        mxStr += f"{mx}"
         if not mx == calcData['mWIMP'][-1]:
             mxStr += "-"
         else:
@@ -188,12 +208,12 @@ def wimpWrite(mx,partData,target=None):
         prefix = ""
     else:
         prefix = "#"
-    outstream.write(prefix+'======================================================'+end)
-    outstream.write(prefix+'Dark Matter Parameters: '+end)
-    outstream.write(prefix+'======================================================'+end)
-    outstream.write(prefix+'WIMP mass: '+str(mx)+' GeV'+end)
-    outstream.write(prefix+'Dark matter particle physics: '+str(partData['partModel'])+end)
-    outstream.write(prefix+"Emission type: "+str(partData['emModel'])+end)
+    outstream.write(f"{prefix}{'='*spacer_length} {end}")
+    outstream.write(f"{prefix}Dark Matter Parameters: {end}")
+    outstream.write(f"{prefix}{'='*spacer_length}{end}")
+    outstream.write(f"{prefix}WIMP mass: {mx} GeV{end}")
+    outstream.write(f"{prefix}Dark matter particle physics: {partData['partModel']}{end}")
+    outstream.write(f"{prefix}Emission type: {partData['emModel']}{end}")
 
 def calcWrite(calcData,haloData,partData,magData,gasData,diffData,target=None):
     """
@@ -232,75 +252,75 @@ def calcWrite(calcData,haloData,partData,magData,gasData,diffData,target=None):
         prefix = ""
     else:
         prefix = "#"
-    outstream.write(prefix+'======================================================'+end)
-    outstream.write(prefix+'Run Parameters'+end)
-    outstream.write(prefix+'======================================================'+end)
+    outstream.write(f"{prefix}{'='*spacer_length}{end}")
+    outstream.write(f"{prefix}Run Parameters{end}")
+    outstream.write(f"{prefix}{'='*spacer_length}{end}")
     if 'calcOutputDirectory' in calcData.keys():
-        outstream.write(prefix+"Output directory: "+calcData['calcOutputDirectory']+end)
-    #outstream.write(prefix+'Field File Code: b'+str(int(phys.b0))+"q"+str(phys.qb)+end)
-    outstream.write((prefix+"Frequency Samples: {}"+end).format(calcData['fSampleNum']))
-    outstream.write((prefix+"Minimum Frequency Sampled: {:.1e} MHz"+end).format(calcData['fSampleLimits'][0]))
-    outstream.write((prefix+"Maximum Frequency Sampled: {:.1e} MHz"+end).format(calcData['fSampleLimits'][1]))
+        outstream.write(f"{prefix}Output directory: {calcData['calcOutputDirectory']}{end}")
+    #outstream.write(f"{prefix}Field File Code: b'+str(int(phys.b0))+"q"+str(phys.qb)+end)
+    outstream.write((f"{prefix}Frequency Samples: {calcData['fSampleNum']}{end}"))
+    outstream.write(f"{prefix}Minimum Frequency Sampled: {calcData['fSampleLimits'][0]:.2e} MHz {end}")
+    outstream.write(f"{prefix}Maximum Frequency Sampled: {calcData['fSampleLimits'][1]:.2e} MHz{end}")
     if not calcData['calcMode'] == "jflux":
-        outstream.write(prefix+"Radial Grid Intervals: "+str(calcData['rSampleNum'])+end)
+        outstream.write(f"{prefix}Radial Grid Intervals: {calcData['rSampleNum']}{end}")
         if calcData['freqMode'] in ['all','radio','sgamma'] and "green" in calcData['electronMode']:
-            outstream.write((prefix+"Green's Function Grid Intervals: {}"+end).format(calcData['rGreenSampleNum']))
+            outstream.write(f"{prefix}Green's Function Grid Intervals: {calcData['rGreenSampleNum']}{end}")
         if diffData['diffRmax'] == "2*Rvir":
             rLimit = 2*haloData['haloRvir']
         else:
             rLimit = diffData['diffRmax']
-        outstream.write((prefix+'Minimum Sampled Radius: {:.2e} Mpc'+end).format(haloData['haloScale']*10**calcData['log10RSampleMinFactor']))
-        outstream.write((prefix+'Maximum Sampled Radius: {:.2e} Mpc'+end).format(rLimit))
-    outstream.write(prefix+'======================================================'+end)
-    outstream.write(prefix+'Halo Parameters: '+end)
-    outstream.write(prefix+'======================================================'+end)
-    outstream.write(prefix+'Halo Name: '+str(haloData['haloName'])+end)
+        outstream.write(f"{prefix}Minimum Sampled Radius: {haloData['haloScale']*10**calcData['log10RSampleMinFactor']:.3e} Mpc{end}")
+        outstream.write((f"{prefix}Maximum Sampled Radius: {rLimit:.3e} Mpc{end}"))
+    outstream.write(f"{prefix}{'='*spacer_length}{end}")
+    outstream.write(f"{prefix}Halo Parameters: {end}")
+    outstream.write(f"{prefix}{'='*spacer_length}{end}")
+    outstream.write(f"{prefix}Halo Name: {haloData['haloName']}{end}")
     if not calcData['calcMode'] == "jflux":
-        outstream.write((prefix+'Redshift z: {:.2e}'+end).format(haloData['haloZ']))
-        outstream.write((prefix+'Luminosity Distance: {:.2f} Mpc'+end).format(haloData['haloDistance']))
-        outstream.write(prefix+'Halo profile: '+str(haloData['haloProfile'])+end)
+        outstream.write(f"{prefix}Redshift z: {haloData['haloZ']:.2e}{end}")
+        outstream.write(f"{prefix}Luminosity Distance: {haloData['haloDistance']:.3f} Mpc{end}")
+        outstream.write(f"{prefix}Halo profile: {haloData['haloProfile']}{end}")
         if haloData['haloProfile'] in ["einasto","gnfw","cgnfw"]:
-            outstream.write(prefix+'Halo index parameter: '+str(haloData['haloIndex'])+end)
-        outstream.write((prefix+"Virial Mass: {:.2e} Solar Masses"+end).format(haloData['haloMvir']))
-        outstream.write((prefix+'Virial Radius: {:.2e} Mpc'+end).format(haloData['haloRvir']))
-        outstream.write((prefix+'Halo scale radius: {:.2e} Mpc'+end).format(haloData['haloScale']))
-        outstream.write((prefix+'Rho_s/Rho_crit: {:.2e}'+end).format(haloData['haloNormRelative']))
-        outstream.write((prefix+'Virial Concentration: {:.1f}'+end).format(haloData['haloCvir']))
+            outstream.write(f"{prefix}Halo index parameter: {haloData['haloIndex']}{end}")
+        outstream.write(f"{prefix}Virial Mass: {haloData['haloMvir']:.3e} Solar Masses{end}")
+        outstream.write(f"{prefix}Virial Radius: {haloData['haloRvir']:.3e} Mpc{end}")
+        outstream.write(f"{prefix}Halo scale radius: {haloData['haloScale']:.3e} Mpc{end}")
+        outstream.write(f"{prefix}Rho_s/Rho_crit: {haloData['haloNormRelative']:.3e}{end}")
+        outstream.write(f"{prefix}Virial Concentration: {haloData['haloCvir']:.2f}{end}")
     elif partData['emModel'] == "decay":
-        outstream.write((prefix+'Dfactor: {:.2e} GeV cm^-2'+end).format(haloData['haloJFactor']))
+        outstream.write(f"{prefix}Dfactor: {haloData['haloJFactor']:.2e} GeV cm^-2{end}")
     else:
-        outstream.write((prefix+'Jfactor: {:.2e} GeV^2 cm^-5'+end).format(haloData['haloJFactor']))
+        outstream.write(f"{prefix}Jfactor: {haloData['haloJFactor']:.2e} GeV^2 cm^-5{end}")
 
     if calcData['freqMode'] in ["all","sgamma","radio"]:
-        outstream.write(prefix+'======================================================'+end)
-        outstream.write(prefix+'Gas Parameters: '+end)
-        outstream.write(prefix+'======================================================'+end)
-        outstream.write(prefix+"Gas density profile: {}".format(gasData['gasProfile'])+end)
+        outstream.write(f"{prefix}{'='*spacer_length}{end}")
+        outstream.write(f"{prefix}Gas Parameters: {end}")
+        outstream.write(f"{prefix}{'='*spacer_length}{end}")
+        outstream.write(f"{prefix}Gas density profile: {gasData['gasProfile']}{end}")
         paramSet = gasParams[gasData['gasProfile']]
         for p in paramSet:
             unitType = checkQuant(p)
             if not unitType is None:
-                outstream.write(prefix+"{}: {} {}".format(p,gasData[p],unitDict[unitType])+end)
+                outstream.write(f"{prefix}{p}: {gasData[p]} {unitDict[unitType]} {end}")
             else:
-                outstream.write(prefix+"{}: {}".format(p,gasData[p])+end)
-        outstream.write(prefix+'======================================================'+end)
-        outstream.write(prefix+'Magnetic Field Parameters: '+end)
-        outstream.write(prefix+'======================================================'+end)
-        outstream.write(prefix+"Magnetic field profile: {}".format(magData['magProfile'])+end)
+                outstream.write(f"{prefix}{p}: {gasData[p]}{end}")
+        outstream.write(f"{prefix}{'='*spacer_length}{end}")
+        outstream.write(f"{prefix}Magnetic Field Parameters: {end}")
+        outstream.write(f"{prefix}{'='*spacer_length}{end}")
+        outstream.write(f"{prefix}Magnetic field profile: {magData['magProfile']}{end}")
         paramSet = magParams[magData['magProfile']]
         for p in paramSet:
             unitType = checkQuant(p)
             if not unitType is None:
-                outstream.write(prefix+"{}: {} {}".format(p,magData[p],unitDict[unitType])+end)
+                outstream.write(f"{prefix}{p}: {magData[p]} {unitDict[unitType]} {end}")
             else:
-                outstream.write(prefix+"{}: {}".format(p,magData[p])+end)
+                outstream.write(f"{prefix}{p}: {magData[p]}{end}")
         if diffData['lossOnly']:
-            outstream.write(prefix+'No Diffusion'+end)
+            outstream.write(f"{prefix}No Diffusion{end}")
         else:
-            outstream.write(prefix+'Spatial Diffusion'+end)
-            outstream.write((prefix+'Turbulence scale: {:.2e} kpc'+end).format(diffData['coherenceScale']*1e3))
-            outstream.write((prefix+'Turbulence index: {:.2f}'+end).format(diffData['diffIndex']))
-            outstream.write((prefix+'Diffusion constant: {:.2e} cm^2 s^-1'+end).format(diffData['diffConstant']))
+            outstream.write(f"{prefix}Spatial Diffusion{end}")
+            outstream.write(f"{prefix}Turbulence scale: {diffData['coherenceScale']*1e3:.2e} kpc{end}")
+            outstream.write(f"{prefix}Turbulence index: {diffData['diffIndex']:.2f}{end}")
+            outstream.write(f"{prefix}Diffusion constant: {diffData['diffConstant']:.2e} cm^2 s^-1{end}")
     if stringOut:
         return outstream.text
     elif not target is None:

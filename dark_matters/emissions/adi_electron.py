@@ -89,14 +89,11 @@ class adi_scheme:
         #virial diffusion velocity ->  used to limit the diffusion function so that it respects the speed of light
         dLim = (r_sample[-1]*units.Unit("Mpc")).to("cm").value*const.c.to("cm/s").value 
         diffVelCondition = self.D > dLim
-        for i in range(len(diffVelCondition)):
-            if np.any(diffVelCondition):
-                print(diffVelCondition[i],r_sample[i])
         #if there are indices where diffVelCondition is true, limit D and dDdr 
-        # if len(self.D[diffVelCondition]) > 0: 
-        #     self.D = np.where(diffVelCondition,dLim,self.D)
-        #     dDdrLim = self.dDdr[diffVelCondition][0]    #[0] selects first index where D > dLim -> use corresponding dDdr value as the limit for the rest of dDdr
-        #     self.dDdr = np.where(diffVelCondition,dDdrLim,self.dDdr)
+        if len(self.D[diffVelCondition]) > 0: 
+            self.D = np.where(diffVelCondition,dLim,self.D)
+            dDdrLim = self.dDdr[diffVelCondition][0]    #[0] selects first index where D > dLim -> use corresponding dDdr value as the limit for the rest of dDdr
+            self.dDdr = np.where(diffVelCondition,dDdrLim,self.dDdr)
 
         #timescales
         self.loss_ts = self.E_grid/self.b
@@ -151,7 +148,7 @@ class adi_scheme:
         with np.errstate(divide="ignore",invalid="ignore"):
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', r'overflow')
-                D = D0*d0**(1-alpha)*B**(-alpha)*E**alpha
+                D = D0*d0**(1-alpha)*E**alpha*B**(-alpha)
         self.D = D
         return D
     

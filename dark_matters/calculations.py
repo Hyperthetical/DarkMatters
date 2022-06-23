@@ -7,7 +7,7 @@ from astropy import constants
 import sympy
 from sympy.utilities.lambdify import lambdify
 
-from .output import fatal_error,calcWrite,wimpWrite
+from .output import fatal_error,calcWrite,wimpWrite,spacer_length
 from .dictionary_checks import checkCosmology,checkCalculation,checkDiffusion,checkGas,checkHalo,checkMagnetic,checkParticles
 from .astro_cosmo import astrophysics
 from .emissions import adi_electron,green_electron,fluxes,emissivity
@@ -121,9 +121,9 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
     """
     mIndex = getIndex(calcData['mWIMP'],mx)
     if (not calcData['results']['electronData'][mIndex] is None) and (not overWrite):
-        print("=========================================================")
+        print("="*spacer_length)
         print(f"Electron Equilibrium distribution exists for WIMP mass {mx} GeV and overWrite=False, skipping")
-        print("=========================================================")
+        print("="*spacer_length)
         print("Process Complete")
         return calcData
     if partData['emModel'] == "annihilation":
@@ -137,7 +137,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
         ISRF = 0
     if diffData['lossOnly']:
         diff = 0
-        lc = 0
+        lc = 1.0
         delta = 0
         d0 = diffData['diffConstant']
     else:
@@ -149,6 +149,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
         rLimit = 2*haloData['haloRvir']
     else:
         rLimit = diffData['diffRmax']
+    haloData['greenAveragingScale'] = rLimit
     b_av,ne_av = physical_averages(haloData['greenAveragingScale'],mode_exp,calcData,haloData,magData,gasData)
     if "gasAverageDensity" in gasData.keys():
         ne_av = gasData['gasAverageDensity']
@@ -158,26 +159,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
         sigV = partData['crossSection']
     else:
         sigV = partData['decayRate']
-    if calcData['electronMode'] == "green-python":
-        print("=========================================================")
-        print("Calculating Electron Equilibriumn Distributions via Green's Function with Python")
-        print("=========================================================")
-        print('Magnetic Field Average Strength: {:.2e} micro Gauss'.format(b_av))
-        print('Gas Average Density: {:.2e} cm^-3'.format(ne_av))
-        E_set = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
-        Q_set = partData['dNdxInterp']['positrons'](mxEff,E_set).flatten()/np.log(1e1)/10**E_set/mxEff*(constants.m_e*constants.c**2).to("GeV").value
-        E_set = 10**E_set*mxEff/(constants.m_e*constants.c**2).to("GeV").value
-        r_sample = [takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum']),takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rGreenSampleNum'])]
-        rho_dm_sample = [haloData['haloDensityFunc'](r_sample[0]),haloData['haloDensityFunc'](r_sample[1])]
-        b_sample = magData['magFieldFunc'](r_sample[0])
-        ne_sample = gasData['gasDensityFunc'](r_sample[0])
-        calcData['results']['electronData'][mIndex] = green_electron.equilibriumElectronsGridPartial(E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,calcData['threadNumber'],calcData['imageNumber'])*sigV
-    elif calcData['electronMode'] == "green-c":
-        print("=========================================================")
-        print("Calculating Electron Equilibriumn Distributions via Green's Function with C")
-        print("=========================================================")
-        print('Magnetic Field Average Strength: {:.2e} micro Gauss'.format(b_av))
-        print('Gas Average Density: {:.2e} cm^-3'.format(ne_av))
+    if "green" in calcData['electronMode']:
         E_set = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
         Q_set = partData['dNdxInterp']['positrons'](mxEff,E_set).flatten()/np.log(1e1)/10**E_set/mxEff*(constants.m_e*constants.c**2).to("GeV").value
         E_set = 10**E_set*mxEff/(constants.m_e*constants.c**2).to("GeV").value
@@ -185,22 +167,35 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
         rho_dm_sample = [haloData['haloDensityFunc'](r_sample[0])**mode_exp,haloData['haloDensityFunc'](r_sample[1])**mode_exp]
         b_sample = magData['magFieldFunc'](r_sample[0])
         ne_sample = gasData['gasDensityFunc'](r_sample[0])
-        py_file = "temp_electrons_py.out"
-        c_file = "temp_electrons_c.in"
-        wd = os.getcwd()
-        calcData['results']['electronData'][mIndex] = green_electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calcData['electronExecFile'],calcData['eGreenSampleNum'],E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,num_threads=calcData['threadNumber'],num_images=calcData['imageNumber'])*sigV
-        if calcData['results']['electronData'][mIndex] is None:
-            fatal_error("The electron executable {} is not compiled or location not specified correctly".format(calcData['electronExecFile']))
-    elif calcData['electronMode'] == "adi-python":
-        print("=========================================================")
-        print("Calculating Electron Equilibriumn Distributions via ADI method with Python")
-        print("=========================================================")
+    else:
         E_set = 10**takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")*mxEff
         Q_set = partData['dNdxInterp']['positrons'](mxEff,np.log10(E_set/mxEff)).flatten()/np.log(1e1)/E_set*sigV
         r_sample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum'])
         rho_sample = astrophysics.haloDensityBuilder(haloData)(r_sample)
         b_sample = magData['magFieldFunc'](r_sample)
         ne_sample = gasData['gasDensityFunc'](r_sample)
+    print("="*spacer_length)
+    print("Calculating Electron Equilibriumn Distributions")
+    print("="*spacer_length)
+    if calcData['electronMode'] == "green-python":
+        print("Solution via: Green's function (python implementation)")
+        print(f'Magnetic Field Average Strength: {b_av:.2e} micro Gauss')
+        print(f'Gas Average Density: {ne_av:.2e} cm^-3')
+        calcData['results']['electronData'][mIndex] = green_electron.equilibriumElectronsGridPartial(E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,calcData['threadNumber'],calcData['imageNumber'])*sigV
+    elif calcData['electronMode'] == "green-c":
+        print("Solution via: Green's function (c++ implementation)")
+        print(f'Magnetic Field Average Strength: {b_av:.2e} micro Gauss')
+        print(f'Gas Average Density: {ne_av:.2e} cm^-3')
+        py_file = "temp_electrons_py.out"
+        c_file = "temp_electrons_c.in"
+        wd = os.getcwd()
+        calcData['results']['electronData'][mIndex] = green_electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calcData['electronExecFile'],calcData['eGreenSampleNum'],E_set,Q_set,calcData['rGreenSampleNum'],r_sample[0],rho_dm_sample[0],b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,num_threads=calcData['threadNumber'],num_images=calcData['imageNumber'])
+        if calcData['results']['electronData'][mIndex] is None:
+            fatal_error(f"The electron executable {calcData['electronExecFile']} is not compiled or location not specified correctly")
+        else:
+            calcData['results']['electronData'][mIndex] *= sigV
+    elif calcData['electronMode'] == "adi-python":
+        print("Solution via: ADI method (python implementation)")
         r = sympy.symbols('r')
         dBdr_sample = lambdify(r,sympy.diff(magData['magFieldFunc'](r),r))(r_sample)
         if np.isscalar(dBdr_sample):
@@ -236,9 +231,9 @@ def calcRadioEm(mx,calcData,haloData,partData,magData,gasData,diffData):
     calcData : dictionary
         Calculation information with radio emissivity in calcData['results']['radioEmData']
     """
-    print("=========================================================")
+    print("="*spacer_length)
     print("Calculating Radio Emissivity")
-    print("=========================================================")
+    print("="*spacer_length)
     if partData['emModel'] == "annihilation":
         mode_exp = 2.0
     else:
@@ -283,15 +278,15 @@ def calcPrimaryEm(mx,calcData,haloData,partData,diffData):
         Calculation information with emissivity in calcData['results'][x], x = primaryEmData or neutrinoEmData
     """
     if calcData['freqMode'] in ["gamma","pgamma","all"]:
-        print("=========================================================")
+        print("="*spacer_length)
         print("Calculating Primary Gamma-ray Emissivity")
-        print("=========================================================")
+        print("="*spacer_length)
         specType = "gammas"
         emmType = 'primaryEmData'
     else:
-        print("=========================================================")
+        print("="*spacer_length)
         print("Calculating Neutrino Emissivity")
-        print("=========================================================")
+        print("="*spacer_length)
         specType = calcData['freqMode']
         emmType = 'neutrinoEmData'
     mIndex = getIndex(calcData['mWIMP'],mx)
@@ -344,9 +339,9 @@ def calcSecondaryEm(mx,calcData,haloData,partData,magData,gasData,diffData):
     calcData : dictionary
         Calculation information with emissivity in calcData['results']['secondaryEmData']
     """
-    print("=========================================================")
+    print("="*spacer_length)
     print("Calculating Secondary Gamma-ray Emissivity")
-    print("=========================================================")
+    print("="*spacer_length)
     if partData['emModel'] == "annihilation":
         mode_exp = 2.0
     else:
@@ -387,20 +382,26 @@ def calcFlux(mx,calcData,haloData,diffData):
     calcData : dictionary
         Calculation information with flux in calcData['results']['finalData']
     """
-    print("=========================================================")
+    print("="*spacer_length)
     print("Calculating Flux")
-    print("=========================================================")
-    print("Frequency mode: {}".format(calcData['freqMode']))
+    print("="*spacer_length)
+    print(f"Frequency mode: {calcData['freqMode']}")
+    if diffData['diffRmax'] == "2*Rvir":
+        rLimit = 2*haloData['haloRvir']
+    else:
+        rLimit = diffData['diffRmax']
     if 'calcRmaxIntegrate' in calcData.keys():
-        if calcData['calcRmaxIntegrate'] == "Rmax" or calcData['calcRmaxIntegrate'] == -1:
+        if calcData['calcRmaxIntegrate'] == "Rvir":
             rmax = haloData['haloRvir']
+        elif calcData['calcRmaxIntegrate'] == -1:
+            rmax = rLimit
         else:
             rmax = calcData['calcRmaxIntegrate']
-        print("Integration radius: {} Mpc".format(rmax))
+        print(f"Integration radius: {rmax} Mpc")
         
     else:
         rmax = np.tan(calcData['calcAngmaxIntegrate']/180/60*np.pi)*haloData['haloDistance']/(1+haloData['haloZ'])**2
-        print("Integration radius: {} arcmins = {} Mpc".format(calcData['calcAngmaxIntegrate'],rmax))
+        print(f"Integration radius: {calcData['calcAngmaxIntegrate']} arcmins = {rmax} Mpc")
     mIndex = getIndex(calcData['mWIMP'],mx)
     if calcData['freqMode'] == "all":
         emm = calcData['results']['radioEmData'][mIndex] + calcData['results']['primaryEmData'][mIndex] + calcData['results']['secondaryEmData'][mIndex]
@@ -414,10 +415,6 @@ def calcFlux(mx,calcData,haloData,diffData):
         emm = calcData['results']['radioEmData'][mIndex] 
     elif "neutrinos" in calcData['freqMode']:
         emm = calcData['results']['neutrinoEmData'][mIndex]
-    if diffData['diffRmax'] == "2*Rvir":
-        rLimit = 2*haloData['haloRvir']
-    else:
-        rLimit = diffData['diffRmax']
     rSample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum'])
     fSample = calcData['fSampleValues']
     calcData['results']['finalData'][mIndex] = fluxes.fluxGrid(rmax,haloData['haloDistance'],fSample,rSample,emm,boostMod=1.0)
@@ -442,10 +439,10 @@ def calcSB(mx,calcData,haloData,diffData):
     calcData : dictionary
         Calculation information with surface brightness in calcData['results']['finalData']
     """
-    print("=========================================================")
+    print("="*spacer_length)
     print("Calculating Surface Brightness")
-    print("=========================================================")
-    print("Frequency mode: {}".format(calcData['freqMode']))
+    print("="*spacer_length)
+    print(f"Frequency mode: {calcData['freqMode']}")
     mIndex = getIndex(calcData['mWIMP'],mx)
     if calcData['freqMode'] == "all":
         emm = calcData['results']['radioEmData'][mIndex] + calcData['results']['primaryEmData'][mIndex] + calcData['results']['secondaryEmData'][mIndex]
@@ -493,10 +490,10 @@ def calcJFlux(mx,calcData,haloData,partData):
     calcData : dictionary
         Calculation information with flux in calcData['results']['finalData']
     """
-    print("=========================================================")
+    print("="*spacer_length)
     print("Calculating Flux From J/D-factor")
-    print("=========================================================")
-    print("Frequency mode: {}".format(calcData['freqMode']))
+    print("="*spacer_length)
+    print(f"Frequency mode: {calcData['freqMode']}")
     if (not 'haloJFactor' in haloData.keys()) and partData['emModel'] == "annihilation":
         fatal_error("haloData parameter haloJFactor must be supplied to find a jflux for emModel = annihilation")  
     elif (not 'haloDFactor' in haloData.keys()) and partData['emModel'] == "decay":
@@ -608,11 +605,11 @@ def runCalculation(calcData,haloData,partData,magData,gasData,diffData,cosmoData
     """
     
     calcData,haloData,partData,magData,gasData,diffData,cosmoData = runChecks(calcData,haloData,partData,magData,gasData,diffData,cosmoData,clear)
-    print("=========================================================")
+    print("="*spacer_length)
     print("Beginning DarkMatters calculations")
-    print("=========================================================")
-    print("Frequency mode: {}".format(calcData['freqMode']))
-    print("Calculation type: {}".format(calcData['calcMode']))
+    print("="*spacer_length)
+    print(f"Frequency mode: {calcData['freqMode']}")
+    print(f"Calculation type: {calcData['calcMode']}")
     calcWrite(calcData,haloData,partData,magData,gasData,diffData)
     for mx in calcData['mWIMP']:
         wimpWrite(mx,partData)

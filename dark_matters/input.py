@@ -30,9 +30,9 @@ def getSpectralData(spec_dir,partModel,specSet,mode="annihilation"):
     specDict = {}
     for f in specSet:
         if partModel in ["bb","qq","ww","ee","hh","tautau","mumu","tt","zz"]:
-            specDict[f] = readSpectrum(os.path.join(spec_dir,"AtProduction_{}.dat".format(f)),partModel,mode=mode,pppc4dmid=True)
+            specDict[f] = readSpectrum(os.path.join(spec_dir,f"AtProduction_{f}.dat"),partModel,mode=mode,pppc4dmid=True)
         else:
-            specDict[f] = readSpectrum(os.path.join(spec_dir,"{}_AtProduction_{}.dat".format(partModel,f)),partModel,mode=mode,pppc4dmid=False)
+            specDict[f] = readSpectrum(os.path.join(spec_dir,f"{partModel}_AtProduction_{f}.dat"),partModel,mode=mode,pppc4dmid=False)
     return specDict
 
 def readSpectrum(spec_file,partModel,mode="annihilation",pppc4dmid=True):
@@ -107,7 +107,7 @@ def readInputFile(inputFile,inMode="yaml"):
     elif inMode == "json":
         inputData = json.loads(stream)
     else:
-        fatal_error("The argument inMode = {} given to input.readInputFile() does not match any valid input modes".format(inMode))
+        fatal_error(f"The argument inMode = {inMode} given to input.readInputFile() does not match any valid input modes")
     stream.close()
     validKeys = ["haloData","magData","gasData","diffData","partData","calcData","cosmoData"]
     dmUnits = {"decayRate":"1/s","crossSection":"cm^3/s","time":"yr","distance":"Mpc","mass":"solMass","density":"Msun/Mpc^3","numDensity":"1/cm^3","magnetic":"microGauss","energy":"GeV","frequency":"MHz","angle":"arcmin","jFactor":"GeV^2/cm^5","dFactor":"GeV/cm^2","diffConstant":"cm^2/s"}
@@ -116,7 +116,7 @@ def readInputFile(inputFile,inMode="yaml"):
         dataSets[key] = {}
     for h in inputData.keys():
         if not h in validKeys:
-            fatal_error("The key {} in the file {} is not valid, options are {}".format(h,inputFile,validKeys))
+            fatal_error(f"The key {h} in the file {inputFile} is not valid, options are {validKeys}")
         for x in inputData[h].keys():
             if not isinstance(inputData[h][x],dict):
                 dataSets[h][x] = inputData[h][x]
@@ -125,13 +125,13 @@ def readInputFile(inputFile,inMode="yaml"):
                 if not quant is None:
                     unitStr = dmUnits[quant] #get the unit DM uses internally
                 else:
-                    fatal_error("{} property {} does not accept a unit argument".format(h,x))
+                    fatal_error(f"{h} property {x} does not accept a unit argument")
                 try:
                     dataSets[h][x] = ((inputData[h][x]['value']*units.Unit(inputData[h][x]['unit'])).to(unitStr)).value #convert the units to internal system
                 except AttributeError:
                     dataSets[h][x] = (inputData[h][x]['value']*units.Unit(inputData[h][x]['unit'])).to(unitStr)
                 except:
-                    fatal_error("Processing failed on {} property {} ".format(h,x))
+                    fatal_error(f"Processing failed on {h} property {x} ")
     if len(dataSets['magData']) > 0:
         dataSets['magData']['magFuncLock'] = False
     return dataSets

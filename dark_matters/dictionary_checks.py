@@ -3,7 +3,7 @@ import numpy as np
 from astropy import constants
 
 from .input import getSpectralData
-from .output import fatal_error
+from .output import fatal_error,warning
 from .astro_cosmo import astrophysics,cosmology
 
 def checkCosmology(cosmoDict):
@@ -59,17 +59,17 @@ def checkMagnetic(magDict):
     if not 'magProfile' in magDict.keys():
         magDict['magProfile'] = "flat"
     if not magDict['magProfile'] in profileDict.keys():
-        fatal_error("magData variable magProfile is required to be one of {}".format(profileDict.keys()))
+        fatal_error(f"magData variable magProfile is required to be one of {profileDict.keys()}")
     needVars = profileDict[magDict['magProfile']]
     for var in needVars:
         if not var in magDict.keys():
-            fatal_error("magData variable {} required for magnetic field profile {}".format(var,magDict['magProfile']))
+            fatal_error(f"magData variable {var} required for magnetic field profile {magDict['magProfile']}")
         if not np.isscalar(magDict[var]):
-            fatal_error("magData property {} must be a scalar".format(var))
+            fatal_error(f"magData property {var} must be a scalar")
     if not magDict['magFuncLock']:
         magDict['magFieldFunc'] = astrophysics.magneticFieldBuilder(magDict)
     if magDict['magFieldFunc'] is None:
-        fatal_error("No magFieldFunc recipe for profile {} found in astrophysics.magneticFieldBuilder()".format(magDict['magProfile']))
+        fatal_error(f"No magFieldFunc recipe for profile {magDict['magProfile']} found in astrophysics.magneticFieldBuilder()")
     return magDict
 
 def checkHalo(haloDict,cosmoDict):
@@ -106,7 +106,7 @@ def checkHalo(haloDict,cosmoDict):
     if not 'haloWeights' in haloDict.keys():
         haloDict['haloWeights'] = "rho"
     if not 'haloProfile' in haloDict.keys():
-        fatal_error("halo variable {} is required for non J/D-factor calculations".format('haloProfile'))
+        fatal_error("halo variable haloProfile is required for non J/D-factor calculations")
     
     if ((not 'haloZ' in haloDict.keys()) or haloDict['haloZ'] == 0.0) and not 'haloDistance' in haloDict.keys():
         fatal_error("Either haloDistance must be specified or haloZ must be non-zero")
@@ -117,15 +117,15 @@ def checkHalo(haloDict,cosmoDict):
     varSet1 = ["haloNorm","haloMvir","haloRvir","haloNormRelative"]
     varSet2 = ["haloCvir","haloScale"]
     if ((not len(set(varSet1).intersection(haloDict.keys())) > 0) or (not len(set(varSet2).intersection(haloDict.keys())) > 0)) and not ("haloRvir" in haloDict.keys() or "haloMvir" in haloDict.keys()):
-        fatal_error("Halo specification requires 1 halo variable from {} and 1 from {}".format(varSet1,varSet2))
+        fatal_error(f"Halo specification requires 1 halo variable from {varSet1} and 1 from {varSet2}")
     else:
         if haloDict['haloProfile'] not in haloParams.keys():
-            fatal_error("Halo specification requires haloProfile from: {}".format(haloParams.keys()))
+            fatal_error(f"Halo specification requires haloProfile from: {haloParams.keys()}")
         else:
             for x in haloParams[haloDict['haloProfile']]:
                 if not x == "none":
                     if not x in haloDict.keys():
-                        fatal_error("haloProfile {} requires property {} be set".format(haloDict['haloProfile'],x))
+                        fatal_error(f"haloProfile {haloDict['haloProfile']} requires property {x} be set")
         if haloDict["haloProfile"] == "burkert":
             #rescale to reflect where dlnrho/dlnr = -2 (required as cvir = rvir/r_{-2})
             #isothermal, nfw, einasto all have rs = r_{-2}
@@ -181,12 +181,12 @@ def checkHalo(haloDict,cosmoDict):
             haloDict['haloScale'] = haloDict['haloRvir']/haloDict['haloCvir']/scaleMod
             haloDict = rhoNorm(haloDict,cosmoDict)
         else:
-            fatal_error("haloData is underspecified by {}".format(haloDict))
+            fatal_error(f"haloData is underspecified by {haloDict}")
     haloDict['haloDensityFunc'] = astrophysics.haloDensityBuilder(haloDict)
     if not "greenAvergingScale" in haloDict.keys():
         haloDict["greenAveragingScale"] = haloDict['haloScale']
     if haloDict['haloDensityFunc'] is None:
-        fatal_error("No haloDensityFunc recipe for profile {} found in astrophysics.haloDensityBuilder()".format(haloDict['haloProfile']))
+        fatal_error(f"No haloDensityFunc recipe for profile {haloDict['haloProfile']} found in astrophysics.haloDensityBuilder()")
     return haloDict
 
 def checkGas(gasDict):
@@ -214,11 +214,11 @@ def checkGas(gasDict):
         needVars = gasParams[gasDict['gasProfile']]
         for var in needVars:
             if not var in gasDict.keys():
-                print("gasData variable {} is required for magnetic field profile {}".format(var,gasDict['gasProfile']))
+                print(f"gasData variable {var} is required for magnetic field profile {gasDict['gasProfile']}")
                 fatal_error("gasData underspecified")
     gasDict['gasDensityFunc'] = astrophysics.gasDensityBuilder(gasDict)
     if gasDict['gasDensityFunc'] is None:
-        fatal_error("No gasDensityFunc recipe for profile {} found in astrophysics.gasDensityBuilder()".format(gasDict['gasProfile']))
+        fatal_error(f"No gasDensityFunc recipe for profile {gasDict['gasProfile']} found in astrophysics.gasDensityBuilder()")
     return gasDict   
 
 def checkCalculation(calcDict):
@@ -239,36 +239,19 @@ def checkCalculation(calcDict):
         fatal_error("control.checkCalculation() must be passed a dictionary as its argument")
     calcParams = {'allElectronModes':["adi-python","green-python","green-c"],'allModes':["jflux","flux","sb"],"allFreqs":["radio","all","gamma","pgamma","sgamma","neutrinos_e","neutrinos_mu","neutrinos_tau"]}
     if not 'mWIMP' in calcDict.keys():
-        fatal_error("calcDict requires the variable {} be set".format('mWIMP'))
+        fatal_error("calcDict requires the variable mWIMP be set")
     if not 'calcMode' in calcDict.keys() or (not calcDict['calcMode'] in calcParams['allModes']):
-        fatal_error("calcDict requires the variable {} with options: {}".format('calcMode',calcParams['allModes']))
+        fatal_error(f"calcDict requires the variable calcMode with options: {calcParams['allModes']}")
     if not 'freqMode' in calcDict.keys() or (not calcDict['freqMode'] in calcParams['allFreqs']):
-        fatal_error("calcDict requires the variable {} with options: {}".format('freqMode',calcParams['allFreqs']))
+        fatal_error(f"calcDict requires the variable freqMode with options: {calcParams['allFreqs']}")
     if not 'electronMode' in calcDict.keys():
         calcDict['electronMode'] = "adi-python"  
-    if "green" in calcDict['electronMode']:  
-        if not 'threadNumber' in calcDict.keys():
-            calcDict['threadNumber'] = 4
-        if not "imageNumber" in calcDict.keys():
-            calcDict['imageNumber'] = 30
-    elif calcDict['electronMode'] == "adi-python":
-        if not "adiDeltaTi" in calcDict.keys():
-            calcDict['adiDeltaTi'] = 1e9 
-        if not "adiDeltaTReduction" in calcDict.keys():
-            calcDict['adiDeltaTReduction'] = 0.5 
-        if not "adiMaxSteps" in calcDict.keys():
-            calcDict['adiMaxSteps'] = 100
-        if not "adiDeltaTConstant" in calcDict.keys():
-            calcDict['adiDeltaTConstant'] = False 
-        if not "adiBenchMarkMode" in calcDict.keys():
-            calcDict['adiBenchMarkMode'] = False  
-        if not 'adiDeltaTMin' in calcDict.keys():
-            calcDict['adiDeltaTMin'] = 1e1  
     elif calcDict['electronMode'] not in calcParams['allElectronModes']:
-        fatal_error("electronMode can only take the values: green-python, green-c, or adi-python. Your value of {} is invalid.".format(calcDict['electronMode'])) 
+        fatal_error(f"electronMode can only take the values: green-python, green-c, or adi-python. Your value of {calcDict['electronMode']} is invalid") 
+
     if not 'fSampleValues' in calcDict.keys(): 
         if not 'fSampleLimits' in calcDict.keys():
-            fatal_error("calcDict requires the variable {}, giving the minimum and maximum frequencies to be studied".format('fSampleLimits'))
+            fatal_error("calcDict requires the variable fSampleLimits, giving the minimum and maximum frequencies to be studied")
         if not 'fSampleNum' in calcDict.keys():
             calcDict['fSampleNum'] = int((np.log10(calcDict['fSampleLimits'][1]) - np.log10(calcDict['fSampleLimits'][0]))/5)
         if not 'fSampleSpacing' in calcDict.keys():
@@ -286,37 +269,58 @@ def checkCalculation(calcDict):
         if 'green' in calcDict['electronMode']:
             calcDict['eSampleNum'] = 50
         else:
-            calcDict['eSampleNum'] = 70
-    # elif calcDict['eSampleNum'] < 71 and 'green' in calcDict['electronMode']:
-    #     fatal_error("eSampleNum cannot be set below 71 without incurring errors when using a Green's function method")
+            calcDict['eSampleNum'] = 80
+    if not 'rSampleNum' in calcDict.keys():
+        if 'green' in calcDict['electronMode']:
+            calcDict['rSampleNum'] = 50
+        else:
+            calcDict['rSampleNum'] = 80
+    if not 'log10RSampleMinFactor' in calcDict.keys():
+        calcDict['log10RSampleMinFactor'] = -3
     if not 'eSampleMin' in calcDict.keys():
         calcDict['eSampleMin'] = (constants.m_e*constants.c**2).to("GeV").value #GeV
+
     if calcDict['calcMode'] in ["flux"]:
         if (not 'calcRmaxIntegrate' in calcDict.keys()) and (not 'calcAngmaxIntegrate' in calcDict.keys()):
-            fatal_error("calcDict requires one of the variables {} or {} for the selected mode: {}".format('calcRmaxIntegrate','calcAngmaxIntegrate',calcDict['calcMode']))
+            fatal_error(f"calcDict requires one of the variables calcRmaxIntegrate or calcAngmaxIntegrate for the selected mode: {calcDict['calcMode']}")
         elif ('calcRmaxIntegrate' in calcDict.keys()) and ('calcAngmaxIntegrate' in calcDict.keys()):
-            fatal_error("calcDict requires ONLY one of the variables {} or {} for the selected mode: {}".format('calcRmaxIntegrate','calcAngmaxIntegrate',calcDict['calcMode']))
+            fatal_error(f"calcDict requires ONLY one of the variables calcRmaxIntegrate or calcAngmaxIntegrate for the selected mode: {calcDict['calcMode']}")
+
     if not calcDict['calcMode'] == "jflux":
-        if not 'rSampleNum' in calcDict.keys():
-            if 'green' in calcDict['electronMode']:
-                calcDict['rSampleNum'] = 50
-            else:
-                calcDict['rSampleNum'] = 70
-        if "green" in calcDict['electronMode']:
+        if "green" in calcDict['electronMode']: 
+            if not 'threadNumber' in calcDict.keys():
+                calcDict['threadNumber'] = 4
+            if not "imageNumber" in calcDict.keys():
+                calcDict['imageNumber'] = 30
+            if (not 'electronExecFile' in calcDict.keys()):
+                calcDict['electronExecFile'] = os.path.join(os.path.dirname(os.path.realpath(__file__)),"emissions/electron.x")
             if (not 'rGreenSampleNum' in calcDict.keys()):
                 calcDict['rGreenSampleNum'] = 61
             if calcDict['rGreenSampleNum'] < 61:
                 fatal_error("rGreenSampleNum cannot be set below 61 without incurring errors")
             if (not 'eGreenSampleNum' in calcDict.keys()):
-                calcDict['eGreenSampleNum'] = 201
+                calcDict['eGreenSampleNum'] = 401
             if calcDict['eGreenSampleNum'] < 201:
-                fatal_error("eGreenSampleNum cannot be set below 201 without incurring substantial errors")
+                fatal_error("eGreenSampleNum cannot be set below 201 without incurring substantial errors, recommended value is 401")
+            if calcDict['eGreenSampleNum'] < 401:
+                warning(f"eGreenSampleNum recommended value is 401 to minimize errors, you are curently using {calcDict['eGreenSampleNum']}")
             if (calcDict['rGreenSampleNum']-1)%4 != 0:
-                fatal_error(f"rGreenSampleNum - 1 must be divisble by 4, you provided {calcDict['rGreenSampleNum']}")
+                fatal_error(f"rGreenSampleNum - 1 must be divisible by 4, you provided {calcDict['rGreenSampleNum']}")
             if (calcDict['eGreenSampleNum']-1)%4 != 0:
-                fatal_error(f"eGreenSampleNum - 1 must be divisble by 4, you provided {calcDict['eGreenSampleNum']}")
-        if not 'log10RSampleMinFactor' in calcDict.keys():
-            calcDict['log10RSampleMinFactor'] = -3
+                fatal_error(f"eGreenSampleNum - 1 must be divisible by 4, you provided {calcDict['eGreenSampleNum']}")
+        elif calcDict['electronMode'] == "adi-python":
+            if not "adiDeltaTi" in calcDict.keys():
+                calcDict['adiDeltaTi'] = 1e9 
+            if not "adiDeltaTReduction" in calcDict.keys():
+                calcDict['adiDeltaTReduction'] = 0.5 
+            if not "adiMaxSteps" in calcDict.keys():
+                calcDict['adiMaxSteps'] = 100
+            if not "adiDeltaTConstant" in calcDict.keys():
+                calcDict['adiDeltaTConstant'] = False 
+            if not "adiBenchMarkMode" in calcDict.keys():
+                calcDict['adiBenchMarkMode'] = False  
+            if not 'adiDeltaTMin' in calcDict.keys():
+                calcDict['adiDeltaTMin'] = 1e1  
     else:
         if not calcDict['freqMode'] in ["pgamma","neutrinos_mu","neutrinos_e","neutrinos_tau"]:
             fatal_error("calcData freqMode parameter can only be pgamma, or neutrinos_x (x= e, mu, or tau) for calcMode jflux")
@@ -406,7 +410,8 @@ def checkDiffusion(diffDict):
         diffDict['diffConstant'] = 0.0
     else:
         if not 'coherenceScale' in diffDict.keys():
-            fatal_error("diffDict requires the variable {} when lossOnly = False".format('coherenceScale'))
+            warning("diffData variable 'coherenceScale' not specified, defaulting to 1 kpc")
+            diffDict['coherenceScale'] = 1e-3
         if not 'diffConstant' in diffDict.keys():
             diffDict['diffConstant'] = 3e28
         if not 'diffIndex' in diffDict.keys():
