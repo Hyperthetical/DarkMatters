@@ -206,7 +206,7 @@ double dvFunc(double E,void * params){
     return pow(E*me,2.0-delta)*pow(b_av,delta-2)*pow(lc,delta-1)/loss_function(E,b_av,ne_av,z,ISRF);
 }
 
-std::vector<double> equilibrium_p2(int const k,int const kp,std::vector<double> &E_set,std::vector<double> &Q_set,int const n,int const ngr,std::vector<double> &r_set,std::vector<double> &rhosq,std::vector<double> &b_set,std::vector<double> &n_set,double z,double mchi,double lc,double delta,int diff,double b_av,double ne_av,double d0,int ISRF,double mode_exp,int num_threads,int num_images){
+std::vector<double> equilibrium_p2(int const k,int const kp,std::vector<double> &E_set,std::vector<double> &Q_set,int const n,int const ngr,std::vector<double> &r_set,std::vector<double> &rho_dm_set,std::vector<double> &b_set,std::vector<double> &n_set,double z,double mchi,double lc,double delta,int diff,double b_av,double ne_av,double d0,int ISRF,double mode_exp,int num_threads,int num_images){
     /*k is length of E_set and Q_set
     ngr is length of r_set_gr and rhosq_gr
     n is length of all other arrays
@@ -225,12 +225,11 @@ std::vector<double> equilibrium_p2(int const k,int const kp,std::vector<double> 
     double me = 0.511e-3; //GeV - electron mass
     double nwimp0 = pow(1.458e-33,0.5*mode_exp)*pow(1.0/mchi,mode_exp)/mode_exp;  //non-thermal wimp density (cm^-3) (central)
     std::vector<double> electrons(k*n);   //electron equilibrium distribution
-    std::vector<vector<double>> ratioRhosq(n,std::vector<double>(ngr));
     double v_set[k];
     double e_array[k];
     double q_array[k];
     double r_array[n];
-    double rho_array[n];
+    double rho_sq_array[n];
     std::vector<double> dvParams (6);
     double vResult, vError;
     dvParams[0] = b_av;
@@ -257,10 +256,10 @@ std::vector<double> equilibrium_p2(int const k,int const kp,std::vector<double> 
     }
     for (int i=0;i<n;i++){
         r_array[i] = r_set[i];
-        rho_array[i] = rhosq[i]*nwimp0;
+        rho_sq_array[i] = pow(rho_dm_set[i],mode_exp)*nwimp0;
     }
     gsl_spline * rho_spline = gsl_spline_alloc(gsl_interp_steffen,n);
-    gsl_spline_init(rho_spline,r_array,rho_array,n);
+    gsl_spline_init(rho_spline,r_array,rho_sq_array,n);
     gsl_spline * v_spline = gsl_spline_alloc (gsl_interp_steffen, k);
     gsl_spline_init (v_spline, e_array, v_set, k);
     gsl_spline *q_spline = gsl_spline_alloc (gsl_interp_steffen, k);
@@ -281,13 +280,11 @@ std::vector<double> equilibrium_p2(int const k,int const kp,std::vector<double> 
                 if (e_prime[l] > E_set[k-1]) e_prime[l] = E_set[k-1];
                 if ((diff == 1) && (e_prime[l] != E_set[i])){
                     double dv = v_set[i] - gsl_spline_eval(v_spline,e_prime[l],acc_v);
-                    Gf = green_function(ngr,r_set[j],rho_array[j],r_set[0],r_set[n-1],dv,diff,num_images,rho_spline);
-                    //printf("%le %le %le %le %le\n",E_set[i],r_set[j],e_prime[l],dv,Gf);
+                    Gf = green_function(ngr,r_set[j],rho_sq_array[j],r_set[0],r_set[n-1],dv,diff,num_images,rho_spline);
                 }
                 int_E[l] = gsl_spline_eval(q_spline,e_prime[l],acc_q)*Gf;  //diffusion integrand
             }
-            electrons[n*i +j] = boole_rule(kp,e_prime,int_E)/loss_function(E_set[i],b_set[j],n_set[j],z,ISRF)*rho_array[j]; 
-            //printf("Int %le %le %le\n",E_set[i],r_set[j],electrons[i*n+j]);
+            electrons[n*i +j] = boole_rule(kp,e_prime,int_E)/loss_function(E_set[i],b_set[j],n_set[j],z,ISRF)*rho_sq_array[j]; 
             #pragma omp atomic
             steps_done++;
             #pragma omp critical
@@ -417,7 +414,7 @@ int main(int argc, char *argv[]){
             exit(1);             
         }
         fscanf(fptr,"%d %d %d %d",&k,&kp,&n,&n_gr);
-        std::vector<double> r_set(n);std::vector<double> e_set(k);std::vector<double> q_set(k);std::vector<double> rhosq(n);std::vector<double> b_set(n);std::vector<double> ne_set(n);
+        std::vector<double> r_set(n);std::vector<double> e_set(k);std::vector<double> q_set(k);std::vector<double> rho_dm(n);std::vector<double> b_set(n);std::vector<double> ne_set(n);
         for (int i = 0;i<n;i++){
             fscanf(fptr,"%lf", &r_set[i]);
         }
@@ -428,7 +425,7 @@ int main(int argc, char *argv[]){
             fscanf(fptr,"%le", &q_set[i]);
         }
         for (int i = 0;i<n;i++){
-            fscanf(fptr,"%lf", &rhosq[i]);
+            fscanf(fptr,"%lf", &rho_dm[i]);
         }
         for (int i = 0;i<n;i++){
             fscanf(fptr,"%lf", &b_set[i]);
@@ -439,7 +436,7 @@ int main(int argc, char *argv[]){
         fscanf(fptr,"%lf %lf %lf %lf %lf %lf",&z,&mchi,&lc,&delta,&b_av,&ne_av);
         fscanf(fptr,"%d %d %lf %lf %d %d",&diff,&ISRF,&d0,&mode_exp,&num_threads,&num_images);
         fclose(fptr);
-        std::vector<double> electrons = equilibrium_p2(k,kp,e_set,q_set,n,n_gr,r_set,rhosq,b_set,ne_set,z,mchi,lc,delta,diff,b_av,ne_av,d0,ISRF,mode_exp,num_threads,num_images);
+        std::vector<double> electrons = equilibrium_p2(k,kp,e_set,q_set,n,n_gr,r_set,rho_dm,b_set,ne_set,z,mchi,lc,delta,diff,b_av,ne_av,d0,ISRF,mode_exp,num_threads,num_images);
         fptr = fopen(argv[2],"w");
         for (int i = 0;i<k;i++){
             for (int j = 0;j<n;j++){

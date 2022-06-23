@@ -149,31 +149,31 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
         rLimit = 2*haloData['haloRvir']
     else:
         rLimit = diffData['diffRmax']
-    haloData['greenAveragingScale'] = rLimit
+
     b_av,ne_av = physical_averages(haloData['greenAveragingScale'],mode_exp,calcData,haloData,magData,gasData)
     if "gasAverageDensity" in gasData.keys():
         ne_av = gasData['gasAverageDensity']
     if "magFieldAverage" in magData.keys():
         b_av = gasData['magFieldAverage']
+        
     if partData['emModel'] == "annihilation":
         sigV = partData['crossSection']
     else:
         sigV = partData['decayRate']
+
+    r_sample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum'])
+    rho_dm_sample = haloData['haloDensityFunc'](r_sample)
+    b_sample = magData['magFieldFunc'](r_sample)
+    ne_sample = gasData['gasDensityFunc'](r_sample)
+
     if "green" in calcData['electronMode']:
         E_set = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
         Q_set = partData['dNdxInterp']['positrons'](mxEff,E_set).flatten()/np.log(1e1)/10**E_set/mxEff*(constants.m_e*constants.c**2).to("GeV").value
         E_set = 10**E_set*mxEff/(constants.m_e*constants.c**2).to("GeV").value
-        r_sample = [takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum']),takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rGreenSampleNum'])]
-        rho_dm_sample = [haloData['haloDensityFunc'](r_sample[0])**mode_exp,haloData['haloDensityFunc'](r_sample[1])**mode_exp]
-        b_sample = magData['magFieldFunc'](r_sample[0])
-        ne_sample = gasData['gasDensityFunc'](r_sample[0])
     else:
         E_set = 10**takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")*mxEff
         Q_set = partData['dNdxInterp']['positrons'](mxEff,np.log10(E_set/mxEff)).flatten()/np.log(1e1)/E_set*sigV
-        r_sample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum'])
-        rho_sample = astrophysics.haloDensityBuilder(haloData)(r_sample)
-        b_sample = magData['magFieldFunc'](r_sample)
-        ne_sample = gasData['gasDensityFunc'](r_sample)
+
     print("="*spacer_length)
     print("Calculating Electron Equilibriumn Distributions")
     print("="*spacer_length)
@@ -181,7 +181,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
         print("Solution via: Green's function (python implementation)")
         print(f'Magnetic Field Average Strength: {b_av:.2e} micro Gauss')
         print(f'Gas Average Density: {ne_av:.2e} cm^-3')
-        calcData['results']['electronData'][mIndex] = green_electron.equilibriumElectronsGridPartial(E_set,Q_set,r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,calcData['threadNumber'],calcData['imageNumber'])*sigV
+        calcData['results']['electronData'][mIndex] = green_electron.equilibriumElectronsGridPartial(calcData['eGreenSampleNum'],E_set,Q_set,calcData['rGreenSampleNum'],r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,calcData['threadNumber'],calcData['imageNumber'])*sigV
     elif calcData['electronMode'] == "green-c":
         print("Solution via: Green's function (c++ implementation)")
         print(f'Magnetic Field Average Strength: {b_av:.2e} micro Gauss')
@@ -189,7 +189,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
         py_file = "temp_electrons_py.out"
         c_file = "temp_electrons_c.in"
         wd = os.getcwd()
-        calcData['results']['electronData'][mIndex] = green_electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calcData['electronExecFile'],calcData['eGreenSampleNum'],E_set,Q_set,calcData['rGreenSampleNum'],r_sample[0],rho_dm_sample[0],b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,num_threads=calcData['threadNumber'],num_images=calcData['imageNumber'])
+        calcData['results']['electronData'][mIndex] = green_electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calcData['electronExecFile'],calcData['eGreenSampleNum'],E_set,Q_set,calcData['rGreenSampleNum'],r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,num_threads=calcData['threadNumber'],num_images=calcData['imageNumber'])
         if calcData['results']['electronData'][mIndex] is None:
             fatal_error(f"The electron executable {calcData['electronExecFile']} is not compiled or location not specified correctly")
         else:
@@ -201,7 +201,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
         if np.isscalar(dBdr_sample):
             dBdr_sample = dBdr_sample*np.ones_like(r_sample)
         adiSolver = adi_electron.adi_scheme(benchmark_flag=calcData['adiBenchMarkMode'],const_Delta_t=calcData['adiDeltaTConstant'])
-        calcData['results']['electronData'][mIndex] = adiSolver.solveElectrons(mx,haloData['haloZ'],haloData['haloRvir'],E_set,r_sample,rho_sample,Q_set,b_sample,dBdr_sample,ne_sample,haloData['haloScale'],1.0,lc,diffData['diffIndex'],diff0=diffData['diffConstant'],Delta_t_min=calcData['adiDeltaTMin'],lossOnly=diffData['lossOnly'],mode_exp=mode_exp,Delta_ti=calcData['adiDeltaTi'],max_t_part=calcData['adiMaxSteps'],Delta_t_reduction=calcData['adiDeltaTReduction'])*(constants.m_e*constants.c**2).to("GeV").value
+        calcData['results']['electronData'][mIndex] = adiSolver.solveElectrons(mx,haloData['haloZ'],haloData['haloRvir'],E_set,r_sample,rho_dm_sample,Q_set,b_sample,dBdr_sample,ne_sample,haloData['haloScale'],1.0,lc,diffData['diffIndex'],diff0=diffData['diffConstant'],Delta_t_min=calcData['adiDeltaTMin'],lossOnly=diffData['lossOnly'],mode_exp=mode_exp,Delta_ti=calcData['adiDeltaTi'],max_t_part=calcData['adiMaxSteps'],Delta_t_reduction=calcData['adiDeltaTReduction'])*(constants.m_e*constants.c**2).to("GeV").value
     print("Process Complete")
     return calcData
 

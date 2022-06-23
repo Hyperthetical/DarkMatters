@@ -1,6 +1,6 @@
 import numpy as np
 import platform
-from scipy.integrate import simps as integrate
+from scipy.integrate import simpson as integrate
 from scipy.interpolate import interp1d
 from .progress_bar import progress
 from subprocess import call
@@ -280,6 +280,46 @@ def diffFunc(E_set,B,lc,delta):
     dset = d0*(E_set*me)**(2.0-delta)
     return dset
 
+def booles_rule_lin(y, x, axis=-1):
+    def tupleset(t, i, value):
+        l = list(t)
+        l[i] = value
+        return tuple(l)
+    y = np.asarray(y)
+    nd = len(y.shape)
+    N = y.shape[axis]
+    returnshape = 0
+    start = 0
+    stop = N-4
+    step = 4
+    if x is not None:
+        x = np.asarray(x)
+        if len(x.shape) == 1:
+            shapex = [1] * nd
+            shapex[axis] = x.shape[0]
+            saveshape = x.shape
+            returnshape = 1
+            x = x.reshape(tuple(shapex))
+
+    slice_all = (slice(None),)*nd
+    slice0 = tupleset(slice_all, axis, slice(start,stop,step))
+    slice1 = tupleset(slice_all, axis, slice(start+1,stop+1,step))
+    slice2 = tupleset(slice_all, axis, slice(start+2,stop+2,step))
+    slice3 = tupleset(slice_all, axis, slice(start+3,stop+3,step))
+    slice4 = tupleset(slice_all, axis, slice(start+4,stop+4,step))
+
+    if len(x.shape) == 1:
+        dx = (x[-1]-x[0])/(N-1)
+    else:
+        dx = (x[axis].flatten()[-1]-x[axis].flatten()[0])/(N-1)
+
+    result = np.sum(y[slice0]*7 + y[slice1]*32 + y[slice2]*12 + y[slice3]*32 + y[slice4]*7,axis=axis)*dx*2/45
+
+    if returnshape:
+        x = x.reshape(saveshape)
+
+    return result
+
 def booles_rule_log10(y, x, axis=-1):
     def tupleset(t, i, value):
         l = list(t)
@@ -320,7 +360,7 @@ def booles_rule_log10(y, x, axis=-1):
 
     return result
 
-def equilibriumElectronsGridPartial(E_set,Q_set,r_sample,rho_dm_sample,b_set,ne_set,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads,num_images):
+def equilibriumElectronsGridPartial(kPrime,E_set,Q_set,nPrime,r_sample,rho_dm_sample,b_set,ne_set,mx,mode_exp,b_av,ne_av,z,lc,delta,diff,d0,ISRF,num_threads,num_images):
     """
     Calculates equilibrium electron distribution 2D array (energy)(position)
         ---------------------------
@@ -348,21 +388,19 @@ def equilibriumElectronsGridPartial(E_set,Q_set,r_sample,rho_dm_sample,b_set,ne_
     """
 
     k = len(E_set) #number of energy bins
-    kPrime = 200
-    n = len(r_sample[0])
-    #print(k,n,k*n)
-    #msun converted to kg, convert to GeV, convert kpc to cm 
+    n = len(r_sample)
     
     electrons = np.zeros((k,n))
     nwimp0 = np.sqrt(1.458e-33)**mode_exp/mode_exp/mx**mode_exp  #non-thermal wimp density (cm^-3) (central)
-    rhodm = nwimp0*rho_dm_sample[0]
-    rhodm_gr = nwimp0*rho_dm_sample[1]
-    imageNum = num_images
-    images = np.arange(-(imageNum),(imageNum+1),dtype=int)
+    rhodm = nwimp0*rho_dm_sample**mode_exp
+    rhoIntp = interp1d(r_sample,rhodm)
+    images = np.arange(-(num_images),(num_images+1),dtype=int)
+
     with np.errstate(invalid="ignore",divide="ignore"):
         vSample = vFunc(mx,E_set,b_av,ne_av,lc,delta,z,ISRF)*d0/3.086e24**2
     vSample = np.where(np.isnan(vSample),0.0,vSample)
     vIntp = interp1d(E_set,vSample)
+
     me = (const.m_e*const.c**2).to("GeV").value
     def kernel(i):
         E = E_set[i]
@@ -371,23 +409,40 @@ def equilibriumElectronsGridPartial(E_set,Q_set,r_sample,rho_dm_sample,b_set,ne_
         vEPrime = vIntp(ePrime)
         qGrid = interp1d(E_set,Q_set)(ePrime)
         deltaV = np.tensordot(np.ones(kPrime),vE,axes=0) - vEPrime
+        deltaV = np.where(deltaV<0,0.0,deltaV)
         for j in np.arange(0,n-1):
             if diff == 1:
-                rPrimeGrid,imageGrid,deltaVGrid = np.meshgrid(r_sample[1],images,deltaV,indexing="ij")
-                rNGrid = (-1.0)**imageGrid*r_sample[0][j] + 2*imageGrid*r_sample[0][-1]
-                rhoDMGrid = np.ones_like(imageGrid)*rhodm[j]
-                rhoPrimeDMGrid = np.tensordot(np.tensordot(rhodm_gr,np.ones(2*imageNum+1),axes=0),np.ones(kPrime),axes=0)
+                deltaVGrid = np.tensordot(deltaV,np.ones_like(images),axes=0)
+                imageGrid = np.tensordot(np.ones_like(deltaV),images,axes=0)
+                rNGrid = (-1.0)**imageGrid*r_sample[j] + 2*imageGrid*r_sample[-1]
+                
+                rCentral = np.abs(rNGrid)
+                rCentral = np.where(rCentral > r_sample[-1],r_sample[-1],rCentral)
+                rCentral = np.where(rCentral < r_sample[0],r_sample[0],rCentral)
+                rMax = rCentral + np.sqrt(deltaVGrid)*10
+                rMin = rCentral - np.sqrt(deltaVGrid)*10
+                rMin = np.where(rMin < r_sample[0],r_sample[0],rMin)
+                rMax = np.where(rMax > r_sample[-1],r_sample[-1],rMax)
+                rPrimeGrid = np.linspace(rMin,rMax,num=nPrime,axis=-1)
 
-                with np.errstate(invalid="ignore",divide="ignore",over="ignore"):
+                imageGrid = np.tensordot(imageGrid,np.ones(nPrime),axes=0)
+                deltaVGrid = np.tensordot(deltaVGrid,np.ones(nPrime),axes=0)
+                rNGrid = np.tensordot(rNGrid,np.ones(nPrime),axes=0)
+                rhoPrimeDMGrid = rhoIntp(rPrimeGrid)
+
+                with np.errstate(invalid="ignore",divide="ignore",over="ignore"): #ignore issues from exponential, fix below
                     G = rPrimeGrid/rNGrid*(np.exp(-0.25*(rPrimeGrid-rNGrid)**2/deltaVGrid) - np.exp(-0.25*(rPrimeGrid+rNGrid)**2/deltaVGrid))*(-1.0)**imageGrid/np.sqrt(4*np.pi*deltaVGrid)
-                G *= rhoPrimeDMGrid/rhoDMGrid
+                G *= rhoPrimeDMGrid/rhodm[j]
                 G = np.where(np.isnan(G),0.0,G)
-                G = integrate(G,rPrimeGrid,axis=0)
-                G = np.sum(G,axis=0) #now ePrime by eGrid in shape
+                with np.errstate(invalid="ignore",divide="ignore",over="ignore"): #ignore cases where rPrime is constant (should integrate to zero anyway)
+                    G = integrate(G,rPrimeGrid,axis=-1)
+                G = np.sum(G,axis=-1) #now ePrime by eGrid in shape
                 G[0] = 1.0
+                #G = np.where(deltaV==0.0,1.0,G)
             else:
                 G = np.ones_like(ePrime)
-            electrons[i,j] = integrate(G*qGrid,ePrime,axis=0)*rhodm[j]/eloss_vector(E_set[i],b_set[j],ne_set[j],z,ISRF)  #non-thermal wimp density (cm^-3) (central)
+
+            electrons[i,j] = booles_rule_log10(G*qGrid,ePrime,axis=-1)*rhodm[j]/eloss_vector(E_set[i],b_set[j],ne_set[j],z,ISRF)  #non-thermal wimp density (cm^-3) (central)
     Parallel(n_jobs=num_threads,require='sharedmem')(delayed(kernel)(i) for i in tqdm(range(k)))
     electrons = np.where(np.isnan(electrons),0.0,electrons)
     return electrons

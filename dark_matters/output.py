@@ -209,10 +209,10 @@ def wimpWrite(mx,partData,target=None):
     else:
         prefix = "#"
     outstream.write(f"{prefix}{'='*spacer_length} {end}")
-    outstream.write(f"{prefix}Dark Matter Parameters: {end}")
+    outstream.write(f"{prefix}Now calculating for Dark Matter model: {end}")
     outstream.write(f"{prefix}{'='*spacer_length}{end}")
     outstream.write(f"{prefix}WIMP mass: {mx} GeV{end}")
-    outstream.write(f"{prefix}Dark matter particle physics: {partData['partModel']}{end}")
+    outstream.write(f"{prefix}Particle physics: {partData['partModel']}{end}")
     outstream.write(f"{prefix}Emission type: {partData['emModel']}{end}")
 
 def calcWrite(calcData,haloData,partData,magData,gasData,diffData,target=None):
