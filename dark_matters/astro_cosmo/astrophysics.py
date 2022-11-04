@@ -1,3 +1,6 @@
+"""
+Header
+"""
 import numpy as np
 try:
     import cosmology
@@ -6,20 +9,21 @@ except:
 from scipy.integrate import simps as integrate
 from scipy.optimize import bisect
 
+
 def haloDensityBuilder(haloDict):
     """
     Calculates the density profile over r_set
-        ---------------------------
-        Parameters
-        ---------------------------
-        r_set - Required : radial sample values [Mpc] (float)
-        rc    - Required : halo radial scale length [Mpc] (float)
-        dmmod - Required : halo profile code (int)
-        alpha - Optional : Einasto parameter (float)
-        ---------------------------
-        Output
-        ---------------------------
-        Radial density profile values (float len(r_set))
+    ---------------------------
+    Parameters
+    ---------------------------
+    r_set - Required : radial sample values [Mpc] (float)
+    rc    - Required : halo radial scale length [Mpc] (float)
+    dmmod - Required : halo profile code (int)
+    alpha - Optional : Einasto parameter (float)
+    ---------------------------
+    Output
+    ---------------------------
+    Radial density profile values (float len(r_set))
     """
     if haloDict['haloProfile'] == "nfw":
         return lambda x: haloDict['haloNorm']/(x/haloDict['haloScale'])/(1+x/haloDict['haloScale'])**2
@@ -70,36 +74,36 @@ def gasDensityBuilder(gasDict):
 def rvirFromRho(haloDict,cosmo):
     """
     Find the virial radius by locating r within which average rho = delta_c*rho_c
-        ---------------------------
-        Parameters
-        ---------------------------
-        z       - Required : redshift (float)
-        rhos    - Required : characteristic density relative to critical value [] (float)
-        rc      - Required : radial length scale [Mpc] (float)
-        dmmod   - Required : halo profile code (int)
-        cos_env - Required : cosmology environment (cosmology-env)
-        alpha   - Optional : einasto parameter (float)
-        ---------------------------
-        Output
-        ---------------------------
-        rvir [Mpc] (float)
+    ---------------------------
+    Parameters
+    ---------------------------
+    z       - Required : redshift (float)
+    rhos    - Required : characteristic density relative to critical value [] (float)
+    rc      - Required : radial length scale [Mpc] (float)
+    dmmod   - Required : halo profile code (int)
+    cos_env - Required : cosmology environment (cosmology-env)
+    alpha   - Optional : einasto parameter (float)
+    ---------------------------
+    Output
+    ---------------------------
+    rvir [Mpc] (float)
     """
     def averageRho(rmax,haloDict,target=0.0):
         """
         Find average density, relative to rho_crit, in a halo within rmax (subtract target value)
-            ---------------------------
-            Parameters
-            ---------------------------
-            rmax   - Required : max integration radius [Mpc] (float)
-            rhos   - Required : characteristic density relative to critical value [] (float)
-            rc     - Required : radial length scale [Mpc] (float)
-            dmmod  - Required : halo profile code (int)
-            alpha  - Optional : einasto parameter (float)
-            target - Optional : differencing value
-            ---------------------------
-            Output
-            ---------------------------
-            average rhos - target [] (float)
+        ---------------------------
+        Parameters
+        ---------------------------
+        rmax   - Required : max integration radius [Mpc] (float)
+        rhos   - Required : characteristic density relative to critical value [] (float)
+        rc     - Required : radial length scale [Mpc] (float)
+        dmmod  - Required : halo profile code (int)
+        alpha  - Optional : einasto parameter (float)
+        target - Optional : differencing value
+        ---------------------------
+        Output
+        ---------------------------
+        average rhos - target [] (float)
         """
         r_set = np.logspace(np.log10(haloDict['haloScale']*1e-7),np.log10(rmax),num=100)
         rho = haloDensityBuilder(haloDict)(r_set)
@@ -107,7 +111,7 @@ def rvirFromRho(haloDict,cosmo):
     target = cosmology.delta_c(haloDict['haloZ'],cosmo)*cosmology.rho_crit(haloDict['haloZ'],cosmo) #density contast we need
     #print(average_rho(rc,rhos,rc,dmmod))
     #print(average_rho(rc*30,rhos,rc,dmmod))
-    return bisect(averageRho,haloDict['haloScale'],haloDict['haloScale']*1e2,args=(haloDict,target))
+    return bisect(averageRho,haloDict['haloScale'],haloDict['haloScale']*1e6,args=(haloDict,target))
 
 def rhoVirialInt(haloDict):
     r_set = np.logspace(np.log10(haloDict['haloScale']*1e-7),np.log10(haloDict['haloRvir']),num=100)

@@ -97,13 +97,10 @@ double simps(int const n,std::vector<double> &x,std::vector<double> &y){
     return result;
 }
 
-double loss_function(double E, double b_av,double ne_av,double z,int ISRF){
+double loss_function(double E, double b_av,double ne_av,double z,double uPh){
     double me = 0.511e-3;
     double eloss_tot,eloss_ic,eloss_sync,eloss_coul,eloss_brem;
-    double eloss_ic_0 = 0.25e-16*pow(1+z,4);
-    if (ISRF == 1){
-        eloss_ic_0 = 6.08e-16 + 0.25e-16*pow(1+z,4);
-    }
+    double eloss_ic_0 = 0.76e-16*uPh + 0.25e-16*pow(1+z,4);
     eloss_brem = 4.7e-16*ne_av*E*me;
     eloss_coul = 6.13e-16*ne_av*(1+log(E/ne_av)/75.0);
     eloss_sync = 0.0254e-16*pow(E*me,2)*pow(b_av,2);
@@ -199,14 +196,13 @@ double dvFunc(double E,void * params){
     std::vector<double> diffusionParams = *(std::vector<double> *)params;
     double b_av = diffusionParams[0];
     double ne_av = diffusionParams[1];
-    double lc = diffusionParams[2];
-    double delta = diffusionParams[3];
-    double z = diffusionParams[4];
-    int ISRF = (int)diffusionParams[5];
-    return pow(E*me,2.0-delta)*pow(b_av,delta-2)*pow(lc,delta-1)/loss_function(E,b_av,ne_av,z,ISRF);
+    double delta = diffusionParams[2];
+    double z = diffusionParams[3];
+    double uPh = diffusionParams[4];
+    return pow(E*me,2.0-delta)/loss_function(E,b_av,ne_av,z,uPh);
 }
 
-std::vector<double> equilibrium_p2(int const k,int const kp,std::vector<double> &E_set,std::vector<double> &Q_set,int const n,int const ngr,std::vector<double> &r_set,std::vector<double> &rho_dm_set,std::vector<double> &b_set,std::vector<double> &n_set,double z,double mchi,double lc,double delta,int diff,double b_av,double ne_av,double d0,int ISRF,double mode_exp,int num_threads,int num_images){
+std::vector<double> equilibrium_p2(int const k,int const kp,std::vector<double> &E_set,std::vector<double> &Q_set,int const n,int const ngr,std::vector<double> &r_set,std::vector<double> &rho_dm_set,std::vector<double> &b_set,std::vector<double> &n_set,double z,double mchi,double delta,int diff,double b_av,double ne_av,double d0,double uPh,double mode_exp,int num_threads,int num_images){
     /*k is length of E_set and Q_set
     ngr is length of r_set_gr and rhosq_gr
     n is length of all other arrays
@@ -218,7 +214,6 @@ std::vector<double> equilibrium_p2(int const k,int const kp,std::vector<double> 
     rhos is the value rho_s/rho_crit: central density over critical halo density
     rh is the assumed halo radius in Mpc
     rcore is the core radius in Mpc
-    lc is the turbulent length scale for B in kpc
     delta is the power-law slope for the B field turbulence spectrum 5/3 Kolmogorov, 2 is Bohm
     diff is a flag, 0 -> no diffusion, 1 -> diffusion */
 
@@ -230,14 +225,13 @@ std::vector<double> equilibrium_p2(int const k,int const kp,std::vector<double> 
     double q_array[k];
     double r_array[n];
     double rho_sq_array[n];
-    std::vector<double> dvParams (6);
+    std::vector<double> dvParams (5);
     double vResult, vError;
     dvParams[0] = b_av;
     dvParams[1] = ne_av;
-    dvParams[2] = lc;
-    dvParams[3] = delta;
-    dvParams[4] = z;
-    dvParams[5] = (double)ISRF;
+    dvParams[2] = delta;
+    dvParams[3] = z;
+    dvParams[4] = uPh;
     for (int i=0;i<k;i++){
         if ((i == k-1) || (diff == 0)){
             v_set[i] = 0.0;
@@ -284,7 +278,7 @@ std::vector<double> equilibrium_p2(int const k,int const kp,std::vector<double> 
                 }
                 int_E[l] = gsl_spline_eval(q_spline,e_prime[l],acc_q)*Gf;  //diffusion integrand
             }
-            electrons[n*i +j] = boole_rule(kp,e_prime,int_E)/loss_function(E_set[i],b_set[j],n_set[j],z,ISRF)*rho_sq_array[j]; 
+            electrons[n*i +j] = boole_rule(kp,e_prime,int_E)/loss_function(E_set[i],b_set[j],n_set[j],z,uPh)*rho_sq_array[j]; 
             #pragma omp atomic
             steps_done++;
             #pragma omp critical
@@ -296,7 +290,7 @@ std::vector<double> equilibrium_p2(int const k,int const kp,std::vector<double> 
     return electrons;              
 }
 
-std::vector<double> equilibrium_p(int const k,int const kp,std::vector<double> &E_set,std::vector<double> &Q_set,int const n,int const ngr,std::vector<double> &r_set,std::vector<double> &r_set_gr,std::vector<double> &rhosq,std::vector<double> &rhosq_gr,std::vector<double> &b_set,std::vector<double> &n_set,double z,double mchi,double lc,double delta,int diff,double b_av,double ne_av,double d0,int ISRF,double mode_exp,int num_threads,int num_images){
+std::vector<double> equilibrium_p(int const k,int const kp,std::vector<double> &E_set,std::vector<double> &Q_set,int const n,int const ngr,std::vector<double> &r_set,std::vector<double> &r_set_gr,std::vector<double> &rhosq,std::vector<double> &rhosq_gr,std::vector<double> &b_set,std::vector<double> &n_set,double z,double mchi,double delta,int diff,double b_av,double ne_av,double d0,double uPh,double mode_exp,int num_threads,int num_images){
     /*k is length of E_set and Q_set
     ngr is length of r_set_gr and rhosq_gr
     n is length of all other arrays
@@ -308,12 +302,11 @@ std::vector<double> equilibrium_p(int const k,int const kp,std::vector<double> &
     rhos is the value rho_s/rho_crit: central density over critical halo density
     rh is the assumed halo radius in Mpc
     rcore is the core radius in Mpc
-    lc is the turbulent length scale for B in kpc
     delta is the power-law slope for the B field turbulence spectrum 5/3 Kolmogorov, 2 is Bohm
     diff is a flag, 0 -> no diffusion, 1 -> diffusion */
 
     double me = 0.511e-3; //GeV - electron mass
-    double nwimp0 = pow(1.458e-33,0.5*mode_exp)*pow(1.0/mchi,mode_exp)/mode_exp;  //non-thermal wimp density (cm^-3) (central)
+    double nwimp0 = pow(1.458e-33,0.5*mode_exp)*pow(1.0/mchi,mode_exp)/mode_exp;  //non-thermal wimp density (cm^-3) (conversion factor)
     std::vector<double> electrons(k*n);   //electron equilibrium distribution
     std::vector<vector<double>> ratioRhosq(n,std::vector<double>(ngr));
     double v_set[k];
@@ -325,10 +318,9 @@ std::vector<double> equilibrium_p(int const k,int const kp,std::vector<double> &
     double vResult, vError;
     dvParams[0] = b_av;
     dvParams[1] = ne_av;
-    dvParams[2] = lc;
-    dvParams[3] = delta;
-    dvParams[4] = z;
-    dvParams[5] = (double)ISRF;
+    dvParams[2] = delta;
+    dvParams[3] = z;
+    dvParams[4] = uPh;
     for (int i=0;i<k;i++){
         if ((i == k-1) || (diff == 0)){
             v_set[i] = 0.0;
@@ -385,7 +377,7 @@ std::vector<double> equilibrium_p(int const k,int const kp,std::vector<double> &
                 }
                 int_E[l] = gsl_spline_eval(q_spline,e_prime[l],acc_q)*Gf;  //diffusion integrand
             }
-            electrons[n*i +j] = boole_rule(kp,e_prime,int_E)/loss_function(E_set[i],b_set[j],n_set[j],z,ISRF)*rhosq[j]; 
+            electrons[n*i +j] = boole_rule(kp,e_prime,int_E)/loss_function(E_set[i],b_set[j],n_set[j],z,uPh)*rhosq[j]; 
             printf("Int %le %le %le\n",E_set[i],r_set[j],electrons[i*n+j]);
             #pragma omp atomic
             steps_done++;
@@ -401,8 +393,8 @@ std::vector<double> equilibrium_p(int const k,int const kp,std::vector<double> &
 int main(int argc, char *argv[]){
     FILE *fptr;
     int num,num_threads,num_images;
-    int k,kp,n,n_gr,diff,ISRF;
-    double z,mchi,lc,delta,ne_av,b_av,d0,mode_exp;
+    int k,kp,n,n_gr,diff;
+    double z,mchi,delta,ne_av,b_av,d0,mode_exp,uPh;
 
     if (argc > 1){
         fptr = fopen(argv[1],"r");
@@ -433,10 +425,10 @@ int main(int argc, char *argv[]){
         for (int i = 0;i<n;i++){
             fscanf(fptr,"%lf", &ne_set[i]);
         }
-        fscanf(fptr,"%lf %lf %lf %lf %lf %lf",&z,&mchi,&lc,&delta,&b_av,&ne_av);
-        fscanf(fptr,"%d %d %lf %lf %d %d",&diff,&ISRF,&d0,&mode_exp,&num_threads,&num_images);
+        fscanf(fptr,"%lf %lf %lf %lf %lf",&z,&mchi,&delta,&b_av,&ne_av);
+        fscanf(fptr,"%d %lf %lf %lf %d %d",&diff,&uPh,&d0,&mode_exp,&num_threads,&num_images);
         fclose(fptr);
-        std::vector<double> electrons = equilibrium_p2(k,kp,e_set,q_set,n,n_gr,r_set,rho_dm,b_set,ne_set,z,mchi,lc,delta,diff,b_av,ne_av,d0,ISRF,mode_exp,num_threads,num_images);
+        std::vector<double> electrons = equilibrium_p2(k,kp,e_set,q_set,n,n_gr,r_set,rho_dm,b_set,ne_set,z,mchi,delta,diff,b_av,ne_av,d0,uPh,mode_exp,num_threads,num_images);
         fptr = fopen(argv[2],"w");
         for (int i = 0;i<k;i++){
             for (int j = 0;j<n;j++){

@@ -53,7 +53,7 @@ def checkMagnetic(magDict):
     inFile = open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/magFieldProfiles.yaml"),"r")
     profileDict = yaml.load(inFile,Loader=yaml.SafeLoader)
     inFile.close()
-    if 'magFieldFunc' in magDict.keys() and magDict['magFuncLock']:
+    if 'magFieldFunc' in magDict.keys() and magDict['magFuncLock']: #No functionality implemented yet
         magDict['magProfile'] = "custom"
         return magDict
     if not 'magProfile' in magDict.keys():
@@ -72,7 +72,7 @@ def checkMagnetic(magDict):
         fatal_error(f"No magFieldFunc recipe for profile {magDict['magProfile']} found in astrophysics.magneticFieldBuilder()")
     return magDict
 
-def checkHalo(haloDict,cosmoDict):
+def checkHalo(haloDict,cosmoDict,minimal=False):
     """
     Checks the properties of a halo dictionary
 
@@ -90,6 +90,14 @@ def checkHalo(haloDict,cosmoDict):
     """
     if not type(haloDict) is dict:
         fatal_error("control.checkHalo() must be passed a dictionary as its argument")
+    if ((not 'haloZ' in haloDict.keys()) or haloDict['haloZ'] == 0.0) and not 'haloDistance' in haloDict.keys():
+        fatal_error("Either haloDistance must be specified or haloZ must be non-zero")
+    elif not 'haloZ' in haloDict.keys():
+        haloDict['haloZ'] = 0.0
+    elif not 'haloDistance' in haloDict.keys():
+        haloDict['haloDistance'] = cosmology.dist_luminosity(haloDict['haloZ'],cosmoDict)
+    if minimal:
+        return haloDict
     inFile = open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/haloDensityProfiles.yaml"),"r")
     haloParams = yaml.load(inFile,Loader=yaml.SafeLoader)
     inFile.close()
@@ -108,12 +116,6 @@ def checkHalo(haloDict,cosmoDict):
     if not 'haloProfile' in haloDict.keys():
         fatal_error("halo variable haloProfile is required for non J/D-factor calculations")
     
-    if ((not 'haloZ' in haloDict.keys()) or haloDict['haloZ'] == 0.0) and not 'haloDistance' in haloDict.keys():
-        fatal_error("Either haloDistance must be specified or haloZ must be non-zero")
-    elif not 'haloZ' in haloDict.keys():
-        haloDict['haloZ'] = 0.0
-    elif not 'haloDistance' in haloDict.keys():
-        haloDict['haloDistance'] = cosmology.dist_luminosity(haloDict['haloZ'],cosmoDict)
     varSet1 = ["haloNorm","haloMvir","haloRvir","haloNormRelative"]
     varSet2 = ["haloCvir","haloScale"]
     if ((not len(set(varSet1).intersection(haloDict.keys())) > 0) or (not len(set(varSet2).intersection(haloDict.keys())) > 0)) and not ("haloRvir" in haloDict.keys() or "haloMvir" in haloDict.keys()):
@@ -130,7 +132,7 @@ def checkHalo(haloDict,cosmoDict):
             #rescale to reflect where dlnrho/dlnr = -2 (required as cvir = rvir/r_{-2})
             #isothermal, nfw, einasto all have rs = r_{-2}
             scaleMod = 1.5214
-        elif haloDict["haloProfile"] == "gnfw":
+        elif "gnfw" in haloDict["haloProfile"]:
             scaleMod = 2.0 - haloDict['haloIndex']
         else:
             scaleMod = 1.0
@@ -381,7 +383,6 @@ def checkParticles(partDict,calcDict):
             partDict['crossSection'] = 1e-26
         else:
             partDict['decayRate'] = 1e-26
-    #check spectrum files and create 2D interpolation function
     return partDict
 
 def checkDiffusion(diffDict):
@@ -402,16 +403,15 @@ def checkDiffusion(diffDict):
         fatal_error("control.checkDiffusion() must be passed a dictionary as its argument")
     if not 'lossOnly' in diffDict.keys():
         diffDict['lossOnly'] = True
-    if not 'ISRF' in diffDict.keys():
-        diffDict['ISRF'] = False
+    if not 'photonDensity' in diffDict.keys():
+        diffDict['photonDensity'] = 0.0
+    if not 'photonTemp' in diffDict.keys():
+        diffDict['photonTemp'] = 2.7255
     if not 'diffRmax' in diffDict.keys():
         diffDict['diffRmax'] = "2*Rvir"
     if diffDict['lossOnly']:
         diffDict['diffConstant'] = 0.0
     else:
-        if not 'coherenceScale' in diffDict.keys():
-            warning("diffData variable 'coherenceScale' not specified, defaulting to 1 kpc")
-            diffDict['coherenceScale'] = 1e-3
         if not 'diffConstant' in diffDict.keys():
             diffDict['diffConstant'] = 3e28
         if not 'diffIndex' in diffDict.keys():

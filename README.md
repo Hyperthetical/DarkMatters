@@ -15,7 +15,7 @@ If you want to make use of the C++ Green's function solution method you need to 
 
 On Linux, run "make" in the emissions sub-folder and you're done, yay Linux!
 
-On Windows, you are out of luck but you can use the python implementation.
+On Windows, you are out of luck, but you can use the python implementation.
 
 ## Help:
 View the [Wiki](https://github.com/Hyperthetical/DarkMatters/wiki) for help

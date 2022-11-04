@@ -35,8 +35,8 @@ magData:
 
 diffData:
   lossOnly: False
-  coherenceScale:
-    value: 2.0
-    unit: "kpc"
+  diffConstant:
+    value: 1.0e+29
+    unit: "cm^2/s"
   diffIndex: 1.66666666
 

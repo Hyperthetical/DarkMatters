@@ -12,26 +12,39 @@ spacer_length = 55
 
 
 def checkQuant(key):
+    """
+    Finds unit for a given quantity
+    
+    Arguments
+    ---------------------------
+    key : string
+        Property to find unit for
+
+    Returns
+    ---------------------------
+    h : string
+        Unit in astropy format or None, if not found
+    """
     inFile =open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/quantities.yaml"),"r")
     quantDict = yaml.load(inFile,Loader=yaml.SafeLoader)
     inFile.close()
     for h in quantDict:
         if key in quantDict[h]:
             return h
-    else:
-        return None
+    return None
 
 def fatal_error(err_string):
     """
     Display error string and exit program
-        ---------------------------
-        Parameters
-        ---------------------------
-        err_sting - Required : error message (String)
-        ---------------------------
-        Output
-        ---------------------------
-        None
+
+    Arguments
+    ---------------------------
+    err_string: string 
+        Error string to be displayed
+
+    Returns
+    ---------------------------
+    None
     """
     print("#"*spacer_length)
     print("                   Fatal Error")
@@ -40,15 +53,16 @@ def fatal_error(err_string):
 
 def warning(err_string):
     """
-    Display error string and exit program
-        ---------------------------
-        Parameters
-        ---------------------------
-        err_sting - Required : error message (String)
-        ---------------------------
-        Output
-        ---------------------------
-        None
+    Display error string
+
+    Arguments
+    ---------------------------
+    err_string: string 
+        Error string to be displayed
+
+    Returns
+    ---------------------------
+    None
     """
     print("*"*spacer_length)
     print("                   Warning")
@@ -59,20 +73,24 @@ def warning(err_string):
 def getCalcID(calcData,haloData,partData,diffData,tag=None):
     """
     Builds an output file id code
-        ---------------------------
-        Parameters
-        ---------------------------
-        sim       - Required : simulation environment (simulation_env)
-        phys      - Required : physical environment (phys_env)
-        cos_env   - Required : cosmology environment (cosmology_env)
-        halo      - Required : halo environment(halo_env)
-        noBfield  - Optional : if True leave out the B field model details
-        noGas     - Optional : if True leave out the gas model details
-        short_id  - Optional : if True include only halo label and WIMP model details
-        ---------------------------
-        Output
-        ---------------------------
-        Unique file ID prefix (string)
+
+    Arguments
+    ---------------------------
+    calcData : dictionary
+        Calculation properties
+    haloData : dictionary
+        Halo properties
+    partData : dictionary
+        Particle physics properties
+    diffData : dictionary
+        Diffusion properties
+    tag : string (optional)
+        String added to file ID
+
+    Returns
+    ---------------------------
+    file_id : string
+        File name for calculations
     """
     dm_str = haloData['haloProfile']
     if 'haloIndex' in haloData.keys():
@@ -112,7 +130,7 @@ def getCalcID(calcData,haloData,partData,diffData,tag=None):
 
     mxStr = "mx-"
     for mx in calcData['mWIMP']:
-        mxStr += f"{mx}"
+        mxStr += f"{int(mx)}"
         if not mx == calcData['mWIMP'][-1]:
             mxStr += "-"
         else:
@@ -131,6 +149,19 @@ def getCalcID(calcData,haloData,partData,diffData,tag=None):
     return haloData['haloName']+"_"+model_str+mxStr+wimp_str+dm_str+fm_str+w_str+dist_str+diff_str+tag_str
 
 def fluxLabel(calcData):
+    """
+    Find frequency label string for calculation
+    
+    Arguments
+    ---------------------------
+    calcData : dictionary
+        Calculation properties
+
+    Returns
+    ---------------------------
+    fluxStr : string
+        Frequency label for output file
+    """
     if calcData['freqMode'] == "radio":
         fluxStr = "sync"
     elif calcData['freqMode'] == "gamma":
@@ -145,7 +176,37 @@ def fluxLabel(calcData):
         fluxStr = "multi_frequency"
     return fluxStr
 
-def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,outMode="yaml",fName=None,emOnly=False):
+def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,outMode="yaml",tag=None,emOnly=False):
+    """
+    Write calculation data to an output file
+    
+    Arguments
+    ---------------------------
+    calcData : dictionary
+        Calculation properties
+    haloData : dictionary
+        Halo properties
+    partData : dictionary
+        Particle physics properties
+    magData : dictionary
+        Magnetic field properties
+    gasData : dictionary
+        Gas density properties
+    diffData : dictionary
+        Diffusion properties
+    cosmoData : dictionary
+        Cosmology properties
+    outMode : string, optional
+        Can be "yaml","json","pickle"
+    tag : string, optional
+        String added to file name
+    emOnly: boolean, optional
+        True means calcData['results']['finalData'] is not written
+
+    Returns
+    ---------------------------
+    None
+    """
     if np.any(calcData['results']['finalData'] is None):
         fatal_error("output.makeOutput() cannot be invoked without a full set of calculated results, some masses have not had calculations run")
     def default(obj):
@@ -169,7 +230,7 @@ def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,out
     else:
         writeCalc['results'] = {key: value for key, value in calcData['results'].items()}
     outData = {'calcData':writeCalc,'haloData':writeHalo,'partData':writePart,'magData':writeMag,'gasData':writeGas,'diffData':diffData,'cosmoData':cosmoData}
-    fName = getCalcID(calcData,haloData,partData,diffData,tag=fName)+fluxLabel(calcData)
+    fName = getCalcID(calcData,haloData,partData,diffData,tag=tag)+fluxLabel(calcData)
     if not emOnly:
         fName += "_"+calcData['calcMode']
     else:
@@ -188,6 +249,22 @@ def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,out
         outFile.close()
 
 def wimpWrite(mx,partData,target=None):
+    """
+    Write WIMP parameters to a target output
+    
+    Arguments
+    ---------------------------
+    mx : float
+        WIMP mass [GeV]
+    partData : dictionary
+        Particle physics properties
+    target : string (optional)
+        Output file or stream name, None goes to stdout
+
+    Returns
+    ---------------------------
+    None
+    """
     class stringStream:
         def __init__(self,string):
             self.text = string
@@ -218,16 +295,27 @@ def wimpWrite(mx,partData,target=None):
 def calcWrite(calcData,haloData,partData,magData,gasData,diffData,target=None):
     """
     Write calculation data to a target output
-        ---------------------------
-        Parameters
-        ---------------------------
-        log       - Optional : log file name (if None uses stdout) (String or None)
-        writeMode - Optional : 'flux' displays all information (String)
-        fluxMode  - Optional : can be used to exclude irrelevant Bfield and gas info (jflux,gflux,nuflux,nu_jflux) (String)
-        ---------------------------
-        Output
-        ---------------------------
-        Writes to a file or stdout
+    
+    Arguments
+    ---------------------------
+    calcData : dictionary
+        Calculation properties
+    haloData : dictionary
+        Halo properties
+    partData : dictionary
+        Particle physics properties
+    magData : dictionary
+        Magnetic field properties
+    gasData : dictionary
+        Gas density properties
+    diffData : dictionary
+        Diffusion properties
+    target : string (optional)
+        Output file or stream name, None goes to stdout
+
+    Returns
+    ---------------------------
+    None
     """
     class stringStream:
         def __init__(self,string):
@@ -318,7 +406,6 @@ def calcWrite(calcData,haloData,partData,magData,gasData,diffData,target=None):
             outstream.write(f"{prefix}No Diffusion{end}")
         else:
             outstream.write(f"{prefix}Spatial Diffusion{end}")
-            outstream.write(f"{prefix}Turbulence scale: {diffData['coherenceScale']*1e3:.2e} kpc{end}")
             outstream.write(f"{prefix}Turbulence index: {diffData['diffIndex']:.2f}{end}")
             outstream.write(f"{prefix}Diffusion constant: {diffData['diffConstant']:.2e} cm^2 s^-1{end}")
     if stringOut:
@@ -326,7 +413,43 @@ def calcWrite(calcData,haloData,partData,magData,gasData,diffData,target=None):
     elif not target is None:
         outstream.close()
 
-def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26,halfPix=3000,useHalfPix=500,display_slice=None):
+def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26,halfPix=3000,useHalfPix=500,display_slice=None,rMax=None):
+    """
+    Output a fits file with radio maps
+    
+    Arguments
+    ---------------------------
+    skyCoords : SkyCoord (astropy object)
+        Sky coordinates object from astropy
+    targetFreqs : list
+        Frequencies for fits slices [MHz]
+    calcData : dictionary
+        Calculation properties
+    haloData : dictionary
+        Halo properties
+    partData : dictionary
+        Particle physics properties
+    magData : dictionary
+        Magnetic field properties
+    gasData : dictionary
+        Gas density properties
+    diffData : dictionary
+        Diffusion properties
+    sigV : float
+        Cross-section or decay rate [cm^3 s^-1 or s^-1]
+    halfPix : int
+        Half number of image pixels
+    useHalfPix : int
+        Number of pixels that are retained (reduces square-circle distortion)
+    display_slice : int
+        Index of frequency to display in a plot
+    rMax : float
+        Radial extent of fits map [Mpc]
+
+    Returns
+    ---------------------------
+    None
+    """
     if not calcData['calcMode'] == "sb":
         fatal_error("output.fitsMap() can only be run with surface brightness data")
     if np.any(calcData['results']['finalData'] is None):
@@ -347,9 +470,18 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26
             fatal_error("output.fitsMap() parameter display_slice must be an integer that addresses an element of targetFreqs")
         if display_slice >= len(targetFreqs) or display_slice < 0 or display_slice != int(display_slice):
             fatal_error("output.fitsMap() parameter display_slice must be an integer that addresses an element of targetFreqs")
+    if diffData['diffRmax'] == "2*Rvir":
+        rLimit = 2*haloData['haloRvir']
+    else:
+        rLimit = diffData['diffRmax']
+    if not rMax is None:
+        if rMax > rLimit:
+            fatal_error(f"Argument rMax cannot be greater than largest sampled r value {rLimit} Mpc")
+    else:
+        rMax = rLimit
     useStartPix = halfPix-useHalfPix
     useEndPix = useStartPix + 2*useHalfPix
-    rSet = np.logspace(np.log10(haloData['haloScale']*10**calcData['log10RSampleMinFactor']),np.log10(haloData['haloRvir']*2),num=calcData['rSampleNum'])
+    rSet = np.logspace(np.log10(haloData['haloScale']*10**calcData['log10RSampleMinFactor']),np.log10(rLimit),num=calcData['rSampleNum'])
     rSet = np.arctan(rSet/haloData['haloDistance'])/np.pi*180*60 #must be arcmins for the algorithm below
     fSet = calcData['fSampleValues']
     hduList = []
@@ -363,7 +495,7 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26
             circle = np.ogrid[-halfPix:halfPix,-halfPix:halfPix]
             rPlot = np.sqrt(circle[0]**2  + circle[1]**2)
             n = circle[0].shape[0]
-            rMax = rSet[-1]/45
+            #rMax = rSet[-1]
             rMin = rSet[0]
             angleAlpha = (rMax-rMin)/(n-1) #for a conversion from array index to angular values
             angleBeta = rMax - angleAlpha*(n-1)
@@ -420,12 +552,14 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26
         hdr['CRPIX3'] = 1
         hdr['CRVAL3'] = targetFreqs[0]*1e6
         hdr['CDELT3'] = (targetFreqs[1] - targetFreqs[0])*1e6
-        hdr['CUNIT3'] = 'Hz'
+        hdr['CUNIT3'] = 'HZ'
         hdr['CTYPE4'] = 'STOKES'
         hdr['CRPIX4'] = 1
         hdr['CRVAL4'] = 1
         hdr['CDELT4'] = 1
         hdr['CUNIT4'] = ''
+        hdr['WIMPMASS'] = f'{mx}'
+        hdr['MASSUNIT'] = "GEV"
         hduList.append(hdu)
 
     hduList = fits.HDUList(hduList)

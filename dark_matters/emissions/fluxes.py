@@ -6,19 +6,24 @@ from astropy import constants as const
 def surfaceBrightnessLoop(nu_sb,fSample,rSample,emm,deltaOmega=4*np.pi):
     """
     Surface brightness from emmissivity 
-        ---------------------------
-        Parameters
-        ---------------------------
-        nu          - Required : frequency value for calculation (float) [MHz]
-        rvir        - Required : virial radius of target (float) [Mpc]
-        fSample     - Required : frequency points for calculation (1d array-like length n) [MHz]
-        rSample     - Required : radial points for calculation (1d array-like length m) [Mpc]
-        emm         - Required : emmissivity (2d array-like, dimension (n,m)) []
-        deltaOmega  - Optional : angular area of flux distribution (float) [sr]
-        ---------------------------
-        Output
-        ---------------------------
-        1D float array of surface-brightness (length n) [Jy arcminute^-2]
+
+    Arguments
+    ---------------------------
+    nu_sb : float
+        Output frequency [MHz]
+    fSample : array-like float (m)
+        All sampled frequencies [Mpc]
+    rSample : array-like float (n)
+        Sampled radii for emissivity [Mpc]
+    emm : array-like float (m,n)
+        Emissivity [GeV cm^-3]
+    deltaOmega : float
+        Angular area photons are distributed over [sr]
+
+    Returns
+    ---------------------------
+    surface_brightness : array-like float (n)
+        Surface brightness at frequency nu_sb [Jy arcminute^-2]
     """
     n = len(rSample)
     sb = np.zeros(n,dtype=float) #surface brightness (nu,r)
@@ -36,21 +41,27 @@ def surfaceBrightnessLoop(nu_sb,fSample,rSample,emm,deltaOmega=4*np.pi):
 
 def fluxGrid(rf,dl,fSample,rSample,emm,boostMod=1.0):
     """
-    Radio flux from emmissivity 
-        ---------------------------
-        Parameters
-        ---------------------------
-        rf          - Required : radial limit of flux integration (float) [Mpc]
-        dl          - Required : luminosity distance of target (float) [Mpc]
-        fSample     - Required : frequency points for calculation (1d array-like length n) [MHz]
-        rSample     - Required : radial points for calculation (1d array-like length m) [Mpc]
-        emm         - Required : emmissivity (2d array-like, dimension (n,m)) []
-        boost       - Optional : flux boost factor (float) []
-        radio_boost - Optional : radio flux boost factor (float) []
-        ---------------------------
-        Output
-        ---------------------------
-        1D float array of fluxes (length n) [Jy]
+    Flux calculated from an emisssivity
+
+    Arguments
+    ---------------------------
+    rf : float
+        Radial integration limit [Mpc]
+    dl : float
+        Luminosity distance [Mpc] 
+    fSample : array-like float (n)
+        Output frequency values [MHz]
+    rSample : array-like float (m)
+        Sampled radii for emissivity [Mpc]
+    emm : array-like float (n,m) 
+        Emissivity [GeV cm^-3]
+    boostMod : float
+        Flux boosting factor
+
+    Returns
+    ---------------------------
+    flux : array-like float (n)
+        Output fluxes [Jy]
     """
     emmInt = interp2d(rSample,fSample,emm)
     if len(rSample) < 200:
@@ -63,17 +74,29 @@ def fluxGrid(rf,dl,fSample,rSample,emm,boostMod=1.0):
 
 def fluxFromJFactor(mx,z,jFactor,fSample,gSample,qSample,mode_exp):
     """
-    High energy emmisivity from direct gamma-rays via J-factor
-        ---------------------------
-        Parameters
-        ---------------------------
-        halo - Required : halo environment (halo_env)
-        phys - Required : physical environment (physical_env)
-        sim  - Required : simulation environment (simulation_env)
-        ---------------------------
-        Output
-        ---------------------------
-        2D float array (sim.num x sim.n) [cm^-2 s^-1]
+    Prompt gamma-ray flux determined via J-factor
+
+    Arguments
+    ---------------------------
+    mx : float
+        WIMP mass [GeV]
+    z : float
+        Halo redshift
+    jFactor : float
+        The "J-factor" of the halo [GeV^2/cm^5]
+    fSample : array-like float
+        Output frequency values [MHz]
+    gSample : array-like float
+        Yield spectrum Lorentz-gamma values
+    qSample : array-like float
+        (Yield spectrum * electron mass) [particles per annihilation]
+    mode_exp : float
+        2 for annihilation, 1 for decay
+
+    Returns
+    ---------------------------
+    flux : array-like float
+        Output flux from annihilation in GeV cm^-2 s^-1
     """
     num = len(fSample)
     h = const.h.to('GeV s').value

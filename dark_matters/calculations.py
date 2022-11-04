@@ -9,7 +9,6 @@ from sympy.utilities.lambdify import lambdify
 
 from .output import fatal_error,calcWrite,wimpWrite,spacer_length
 from .dictionary_checks import checkCosmology,checkCalculation,checkDiffusion,checkGas,checkHalo,checkMagnetic,checkParticles
-from .astro_cosmo import astrophysics
 from .emissions import adi_electron,green_electron,fluxes,emissivity
 
 def getIndex(set,val):
@@ -131,18 +130,12 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
     else:
         mode_exp = 1.0
     mxEff = mx*0.5*mode_exp #this takes into account decay when mode_exp = 1, annihilation mode_exp = 2 means mxEff = mx
-    if diffData["ISRF"]:
-        ISRF = 1
-    else:
-        ISRF = 0
     if diffData['lossOnly']:
         diff = 0
-        lc = 1.0
         delta = 0
         d0 = diffData['diffConstant']
     else:
         diff = 1
-        lc = diffData['coherenceScale']*1e3 #kpc
         delta = diffData['diffIndex']
         d0 = diffData['diffConstant']
     if diffData['diffRmax'] == "2*Rvir":
@@ -181,7 +174,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
         print("Solution via: Green's function (python implementation)")
         print(f'Magnetic Field Average Strength: {b_av:.2e} micro Gauss')
         print(f'Gas Average Density: {ne_av:.2e} cm^-3')
-        calcData['results']['electronData'][mIndex] = green_electron.equilibriumElectronsGridPartial(calcData['eGreenSampleNum'],E_set,Q_set,calcData['rGreenSampleNum'],r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,calcData['threadNumber'],calcData['imageNumber'])*sigV
+        calcData['results']['electronData'][mIndex] = green_electron.equilibriumElectronsGridPartial(calcData['eGreenSampleNum'],E_set,Q_set,calcData['rGreenSampleNum'],r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],delta,diff,d0,diffData["photonDensity"],calcData['threadNumber'],calcData['imageNumber'])*sigV
     elif calcData['electronMode'] == "green-c":
         print("Solution via: Green's function (c++ implementation)")
         print(f'Magnetic Field Average Strength: {b_av:.2e} micro Gauss')
@@ -189,7 +182,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
         py_file = "temp_electrons_py.out"
         c_file = "temp_electrons_c.in"
         wd = os.getcwd()
-        calcData['results']['electronData'][mIndex] = green_electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calcData['electronExecFile'],calcData['eGreenSampleNum'],E_set,Q_set,calcData['rGreenSampleNum'],r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],lc,delta,diff,d0,ISRF,num_threads=calcData['threadNumber'],num_images=calcData['imageNumber'])
+        calcData['results']['electronData'][mIndex] = green_electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calcData['electronExecFile'],calcData['eGreenSampleNum'],E_set,Q_set,calcData['rGreenSampleNum'],r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],delta,diff,d0,diffData['photonDensity'],num_threads=calcData['threadNumber'],num_images=calcData['imageNumber'])
         if calcData['results']['electronData'][mIndex] is None:
             fatal_error(f"The electron executable {calcData['electronExecFile']} is not compiled or location not specified correctly")
         else:
@@ -201,7 +194,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
         if np.isscalar(dBdr_sample):
             dBdr_sample = dBdr_sample*np.ones_like(r_sample)
         adiSolver = adi_electron.adi_scheme(benchmark_flag=calcData['adiBenchMarkMode'],const_Delta_t=calcData['adiDeltaTConstant'])
-        calcData['results']['electronData'][mIndex] = adiSolver.solveElectrons(mx,haloData['haloZ'],haloData['haloRvir'],E_set,r_sample,rho_dm_sample,Q_set,b_sample,dBdr_sample,ne_sample,haloData['haloScale'],1.0,lc,diffData['diffIndex'],diff0=diffData['diffConstant'],Delta_t_min=calcData['adiDeltaTMin'],lossOnly=diffData['lossOnly'],mode_exp=mode_exp,Delta_ti=calcData['adiDeltaTi'],max_t_part=calcData['adiMaxSteps'],Delta_t_reduction=calcData['adiDeltaTReduction'])*(constants.m_e*constants.c**2).to("GeV").value
+        calcData['results']['electronData'][mIndex] = adiSolver.solveElectrons(mx,haloData['haloZ'],E_set,r_sample,rho_dm_sample,Q_set,b_sample,dBdr_sample,ne_sample,haloData['haloScale'],1.0,diffData['diffIndex'],uPh=diffData['photonDensity'],diff0=diffData['diffConstant'],Delta_t_min=calcData['adiDeltaTMin'],lossOnly=diffData['lossOnly'],mode_exp=mode_exp,Delta_ti=calcData['adiDeltaTi'],max_t_part=calcData['adiMaxSteps'],Delta_t_reduction=calcData['adiDeltaTReduction'])*(constants.m_e*constants.c**2).to("GeV").value
     print("Process Complete")
     return calcData
 
@@ -253,7 +246,8 @@ def calcRadioEm(mx,calcData,haloData,partData,magData,gasData,diffData):
     if calcData['results']['electronData'][mIndex] is None:
         calcData = calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData)
     electrons = calcData['results']['electronData'][mIndex]
-    calcData['results']['radioEmData'][mIndex] = emissivity.radioEmGrid(electrons,fSample,rSample,gSample,bSample,neSample)
+    if calcData['results']['radioEmData'][mIndex] is None:
+        calcData['results']['radioEmData'][mIndex] = emissivity.radioEmGrid(electrons,fSample,rSample,gSample,bSample,neSample)
     print("Process Complete")
     return calcData
 
@@ -360,7 +354,7 @@ def calcSecondaryEm(mx,calcData,haloData,partData,magData,gasData,diffData):
     if calcData['results']['electronData'][mIndex] is None:
         calcData = calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData)
     electrons = calcData['results']['electronData'][mIndex]
-    calcData['results']['secondaryEmData'][mIndex] = emissivity.secondaryEmHighE(electrons,haloData['haloZ'],gSample,fSample,neSample)
+    calcData['results']['secondaryEmData'][mIndex] = emissivity.secondaryEmHighE(electrons,haloData['haloZ'],gSample,fSample,neSample,diffData['photonTemp'])
     print("Process Complete")
     return calcData  
 
@@ -527,6 +521,8 @@ def runChecks(calcData,haloData,partData,magData,gasData,diffData,cosmoData,clea
             gasData = checkGas(gasData)
             diffData = checkDiffusion(diffData)
         haloData = checkHalo(haloData,cosmoData)
+    else:
+        haloData = checkHalo(haloData,cosmoData,minimal=True)
     calcData = checkCalculation(calcData)
     if clear == "all":
         calcData['results'] = {'electronData':[],'radioEmData':[],'primaryEmData':[],'secondaryEmData':[],'finalData':[],'neutrinoEmData':[]}

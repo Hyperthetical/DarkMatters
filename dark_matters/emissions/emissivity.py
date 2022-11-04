@@ -1,6 +1,7 @@
+from matplotlib import units
 import numpy as np
-from scipy.integrate import simps as integrate
-from astropy import constants as const
+from scipy.integrate import simpson as integrate
+from astropy import constants,units
 from .progress_bar import progress
 import sys,warnings
 import scipy.interpolate as sp
@@ -106,13 +107,14 @@ def primaryEmHighE(mx,rhoSample,z,gSample,qSample,fSample,mode_exp):
     """
     n = len(rhoSample)
     num = len(fSample)
-    h = const.h.to('GeV s').value
-    me = (const.m_e*const.c**2).to('GeV').value #electron mass (GeV)
+    h = constants.h.to('GeV s').value
+    me = (constants.m_e*constants.c**2).to('GeV').value #electron mass (GeV)
     #msun converted to kg, convert to GeV, convert Mpc to cm 
-    nwimp0 = 3.8109e-17**mode_exp/mode_exp*(1.0/mx)**mode_exp  #non-thermal wimp density [cm^-3] (central)
+    unit_factor = (1*units.Unit("Msun/Mpc^3")*constants.c**2).to("GeV/cm^3").value
+    nwimp0 = unit_factor**mode_exp/mode_exp*(1.0/mx)**mode_exp  #non-thermal wimp density [cm^-3] (central)
     rhodm = nwimp0*rhoSample**mode_exp
     emm = np.zeros((num,n),dtype=float)
-    Q_func = sp.interp1d(gSample,qSample)
+    Q_func = sp.interp1d(gSample,qSample,fill_value=0.0,bounds_error=False)
     eGrid = np.tensordot(h*fSample*1e6*(1+z)/me,np.ones_like(rhodm),axes=0)
     rhoGrid = np.tensordot(np.ones_like(fSample),rhodm,axes=0)
     emm = Q_func(eGrid)*eGrid*rhoGrid
@@ -165,7 +167,7 @@ def klein_nishina(E_g,E,g):
         """
         return 2*q*np.log(q) + (1+2*q)*(1-q) + (L*q)**2*(1-q)/(2+2*L*q)
     re = 2.82e-13  #electron radius (cm)
-    me = (const.m_e*const.c**2).to('GeV').value #electron mass (GeV)
+    me = (constants.m_e*constants.c**2).to('GeV').value #electron mass (GeV)
     E_e = g*me
     sig_thom = 8*np.pi/3.0*re**2 
     Le = 4*E*g/me
@@ -191,7 +193,7 @@ def sigma_brem(E_g,g):
         Bremsstrahlung cross-section value [GeV^-1 cm^2]
     """
     re = 2.82e-13  #electron radius (cm)
-    me = (const.m_e*const.c**2).to('GeV').value #electron mass (GeV)
+    me = (constants.m_e*constants.c**2).to('GeV').value #electron mass (GeV)
     sig_thom = 8*np.pi/3.0*re**2 
     E = g*me
     a = 7.29735257e-3 
@@ -222,14 +224,14 @@ def black_body(E,T):
         Black body photon density [GeV^-1 cm^-3]
     """
     #h = 6.62606957e-34 #h in J s
-    h = const.h.to('GeV s').value #h in GeV s
-    c = const.c.to('cm/s').value     #speed of light (cm s^-1)
-    k = const.k_B.to('GeV/K').value #k in GeV K^-1
+    h = constants.h.to('GeV s').value #h in GeV s
+    c = constants.c.to('cm/s').value     #speed of light (cm s^-1)
+    k = constants.k_B.to('GeV/K').value #k in GeV K^-1
     b = 1.0/(k*T)
     isnan = (1-np.exp(-E*b))
     return np.where(isnan == 0.0, 0.0, 2*4*np.pi*E**2/(h*c)**3*np.exp(-E*b)*(1-np.exp(-E*b))**(-1))
 
-def secondaryEmHighE(electrons,z,gSample,fSample,neSample):
+def secondaryEmHighE(electrons,z,gSample,fSample,neSample,photonTemp):
     """
     High-energy emmisivity from ICS and Bremstrahlung
 
@@ -262,10 +264,11 @@ def secondaryEmHighE(electrons,z,gSample,fSample,neSample):
     e_int = np.zeros(ntheta,dtype=float) #angular integral sampling
     int_1 = np.zeros(k,dtype=float) #energy integral sampling
 
-    c = const.c.to('cm/s').value     #speed of light (cm s^-1)
-    h = const.h.to('GeV s').value
-    me = (const.m_e*const.c**2).to('GeV').value #electron mass (GeV)
-     
+    c = constants.c.to('cm/s').value     #speed of light (cm s^-1)
+    h = constants.h.to('GeV s').value
+    me = (constants.m_e*constants.c**2).to('GeV').value #electron mass (GeV)
+    if photonTemp == 2.7255:
+        photonTemp *= (1+z)
     for i in range(0,num):  #loop over freq
         nu = fSample[i]*(1+z) 
         E_g = nu*h*1e6 #MHz to GeV
@@ -279,7 +282,7 @@ def secondaryEmHighE(electrons,z,gSample,fSample,neSample):
                 emin = emax/(4*g**2)
                 e_set = np.logspace(np.log10(emin),np.log10(emax),num=ntheta)
                 with np.errstate(invalid="ignore",over="ignore"):
-                    e_int = black_body(e_set,2.73*(1+z))*klein_nishina(E_g,e_set,g)
+                    e_int = black_body(e_set,photonTemp)*klein_nishina(E_g,e_set,g)
                 P_IC[i][l] = c*E_g*integrate(e_int,e_set)
                 P_B[i][l] = c*E_g*sigma_brem(E_g,g)
         progress(i+1,num*2)

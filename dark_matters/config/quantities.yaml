@@ -38,9 +38,13 @@ numDensity:
 - gasNorm
 - gasNorm2
 - gasAverageDensity
+energyDensity:
+- photonDensity
 diffConstant:
 - diffConstant
 crossSection:
 - crossSection
 decayRate:
 - decayRate
+temperature:
+- photonTemp
