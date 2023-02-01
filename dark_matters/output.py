@@ -1,6 +1,6 @@
 import numpy as np
 import sys
-import pickle,yaml,json
+import yaml,json
 import os
 from scipy.interpolate import interp2d,interp1d
 from astropy import wcs
@@ -94,7 +94,7 @@ def getCalcID(calcData,haloData,partData,diffData,tag=None):
     """
     dm_str = haloData['haloProfile']
     if 'haloIndex' in haloData.keys():
-        dm_str += f"-{haloData['haloIndex']:.1f}"
+        dm_str += f"-{haloData['haloIndex']:.2f}"
     dm_str += "_"
 
     if not calcData['calcMode'] == "jflux":
@@ -136,10 +136,13 @@ def getCalcID(calcData,haloData,partData,diffData,tag=None):
         else:
             mxStr += "GeV_"
 
+    diff_str = ""
     if diffData['lossOnly']:
-        diff_str = "loss-only_"
+        if calcData['freqMode'] in ['gamma','sgamma','radio','all']:
+            diff_str = "loss-only_"
     else:
-        diff_str = ""
+        if calcData['freqMode'] in ['gamma','sgamma','radio','all']:
+            diff_str = f"D0-{diffData['diffConstant']}_"
 
     model_str = partData['partModel']+"_"
     if not tag is None:
@@ -176,7 +179,30 @@ def fluxLabel(calcData):
         fluxStr = "multi_frequency"
     return fluxStr
 
-def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,outMode="yaml",tag=None,emOnly=False):
+def processDict(d,exclude=None,exclude_recurse=False):
+    new_d = {}
+    if exclude_recurse:
+        r_ex = exclude
+    else:
+        r_ex = None
+    for key,value in d.items():
+        if isinstance(value,dict):
+            new_d[key] = processDict(value,r_ex)
+        else:
+            try:
+                new_d[key] = np.array(value).tolist()
+            except:
+                if isinstance(value,np.generic):
+                    new_d[key] = value.item()
+                else:
+                    new_d[key] = value
+    if not exclude is None:
+        for x in exclude:
+            if x in new_d.keys():
+                new_d.pop(x)
+    return new_d
+
+def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,outMode="yaml",tag=None,emOnly=False,noNumpy=False):
     """
     Write calculation data to an output file
     
@@ -202,6 +228,8 @@ def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,out
         String added to file name
     emOnly: boolean, optional
         True means calcData['results']['finalData'] is not written
+    noNumpy : boolean, optional
+        True means all data converted to native python formats, False writes numpy arrays as is (yaml only) 
 
     Returns
     ---------------------------
@@ -216,20 +244,30 @@ def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,out
             else:
                 return obj.item()
         raise TypeError('Unknown type:', type(obj))
-    writeHalo = {key: value for key, value in haloData.items() if not key == 'haloDensityFunc'}
-    writeMag = {key: value for key, value in magData.items() if not key == 'magFieldFunc'}
-    writeGas = {key: value for key, value in gasData.items() if not key == 'gasDensityFunc'}
-    writePart = {key: value for key, value in partData.items() if not key == 'dNdxInterp'}
-    writeCalc = {key: value for key, value in calcData.items() if not key == 'results'}
-    if emOnly:
-        writeCalc['results'] = {key: value for key, value in calcData['results'].items() if not key == 'finalData'}
-        if calcData['calcMode'] == "jflux":
-            print("Warning from output.makeOutput(): jflux calculations have no emissivity, emOnly = True cannot be used!, reverting to emOnly = False")
-            writeCalc['results'] = {key: value for key, value in calcData['results'].items()}
-            emOnly = False
+
+    if noNumpy and outMode=="yaml":
+        writeHalo = processDict(haloData,exclude=['haloDensityFunc'])
+        writeGas = processDict(gasData,exclude=['gasDensityFunc'])
+        writeMag = processDict(magData,exclude=['magFieldFunc'])
+        writePart = processDict(partData,exclude=['dNdxInterp'])
+        writeDiff = processDict(diffData)
+        writeCalc = processDict(calcData)
+        writeCosmo = processDict(cosmoData)
     else:
-        writeCalc['results'] = {key: value for key, value in calcData['results'].items()}
-    outData = {'calcData':writeCalc,'haloData':writeHalo,'partData':writePart,'magData':writeMag,'gasData':writeGas,'diffData':diffData,'cosmoData':cosmoData}
+        writeHalo = {key: value for key, value in haloData.items() if not key == 'haloDensityFunc'}
+        writeMag = {key: value for key, value in magData.items() if not key == 'magFieldFunc'}
+        writeGas = {key: value for key, value in gasData.items() if not key == 'gasDensityFunc'}
+        writePart = {key: value for key, value in partData.items() if not key == 'dNdxInterp'}
+        writeCalc = {key: value for key, value in calcData.items()}
+        writeCosmo = cosmoData
+        writeDiff = diffData
+
+    if emOnly and calcData['calcMode'] == "jflux":
+        warning("output.makeOutput(): jflux calculations have no emissivity, emOnly = True cannot be used!, reverting to emOnly = False")
+        emOnly = False
+    if emOnly:
+        writeCalc['results'].pop('finalData')
+    outData = {'calcData':writeCalc,'haloData':writeHalo,'partData':writePart,'magData':writeMag,'gasData':writeGas,'diffData':writeDiff,'cosmoData':writeCosmo}
     fName = getCalcID(calcData,haloData,partData,diffData,tag=tag)+fluxLabel(calcData)
     if not emOnly:
         fName += "_"+calcData['calcMode']
@@ -238,10 +276,6 @@ def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,out
     if outMode == "yaml":
         outFile = open(fName+".yaml","w")
         yaml.dump(outData, outFile)
-        outFile.close()
-    elif outMode == "pickle":
-        outFile = open(fName+".pkl","w")
-        pickle.dump(outData,outFile)
         outFile.close()
     elif outMode == "json":
         outFile = open(fName+".json","w")

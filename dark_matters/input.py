@@ -3,7 +3,7 @@ import yaml,json
 from astropy import units
 from scipy.interpolate import interp2d
 import os
-from .output import fatal_error,checkQuant
+from .output import fatal_error,checkQuant,warning
 
 def getSpectralData(spec_dir,partModel,specSet,mode="annihilation"):
     """
@@ -105,7 +105,7 @@ def readInputFile(inputFile,inMode="yaml"):
     if inMode == "yaml":
         inputData = yaml.load(stream,Loader=yaml.SafeLoader)
     elif inMode == "json":
-        inputData = json.loads(stream)
+        inputData = json.load(stream)
     else:
         fatal_error(f"The argument inMode = {inMode} given to input.readInputFile() does not match any valid input modes")
     stream.close()
@@ -136,7 +136,7 @@ def readInputFile(inputFile,inMode="yaml"):
         dataSets['magData']['magFuncLock'] = False
     return dataSets
 
-def readDMOutput(fName):
+def readDMOutput(fName,inMode="yaml"):
     """
     Reads in an output yaml file created by DarkMatters
 
@@ -149,8 +149,23 @@ def readDMOutput(fName):
     ---------------------------
     Dictionaries storing information on: calculations, halo properties, particle physics, magnetic fields, gas distribution, diffusion, and cosmology
     """
-    stream = open(fName, 'r')
-    inData = yaml.load(stream,Loader=yaml.UnsafeLoader)
+    try:
+        stream = open(fName, 'r')
+    except IOError:
+        fatal_error(f"File {fName} not found")
+    if inMode == "yaml":
+        try:
+            inData = yaml.load(stream,Loader=yaml.SafeLoader)
+        except:
+            stream.close()
+            stream = open(fName, 'r')
+            warning(f"Loading {fName} with unsafeLoader (probably due to numpy objects)")
+            inData = yaml.load(stream,Loader=yaml.UnsafeLoader)
+            print(inData)
+    elif inMode == "json":
+        inData = json.load(stream)
+    else:
+        fatal_error(f"The argument inMode = {inMode} given to input.readInputFile() does not match any valid input modes")
     stream.close()
-    return inData['calcData'],inData['haloData'],inData['partData'],inData['magData'],inData['gasData'],inData['diffData'],inData['cosmoData']
+    return inData
 

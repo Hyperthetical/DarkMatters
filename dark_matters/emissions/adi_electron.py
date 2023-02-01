@@ -3,7 +3,7 @@ import numpy as np
 from scipy import sparse
 from astropy import units, constants
 from .progress_bar import progress
-from ..output import warning
+from ..output import warning,spacer_length
 
 
 class adi_scheme:
@@ -202,7 +202,9 @@ class adi_scheme:
         electrons : array-like float (n,m)
             Equilibrium distribution solution [GeV cm^-3]
         """
-        print("=========================\nEquation environment details\n=========================")
+        print("="*spacer_length)
+        print("ADI environment details")
+        print("="*spacer_length)
         
         self.effect = "loss" if lossOnly else "all" 
         
@@ -289,7 +291,9 @@ class adi_scheme:
         print(f"Constant time step: {self.const_Delta_t}\n")
         
         """ADI method """
-        print("=========================\nADI run details\n=========================")
+        print("="*spacer_length)
+        print("ADI run details")
+        print("="*spacer_length)
         return self.adi_2D(self.Q).transpose()       
         
     """ 
@@ -829,11 +833,23 @@ class adi_scheme:
         print(f"Convergence: {convergence_check}")
         if not convergence_check:
             warning(f"ADI method did not converge! See diagnostics below as to trustworthiness of the solution\nAverage relative change in psi after last step: {np.sum(rel_diff)/np.size(rel_diff)}\nMaximum relative change in psi after last step: {np.max(rel_diff)}")
+            unit_fac = units.Unit("cm").to("Mpc")
+            from matplotlib import pyplot as plt
+            plt.imshow(np.log10(rel_diff),extent=[np.log10(self.E_grid[0]),np.log10(self.E_grid[-1]),np.log10(self.r_grid[-1]*unit_fac),np.log10(self.r_grid[0]*unit_fac)],aspect="auto")
+            cb = plt.colorbar()
+            cb.set_label(label=r"$\log_{10}\left(\frac{\psi_n}{\psi_{n-1}}\right)$",fontsize=16)
+            plt.ylabel(r"log$_{10}$(r/Mpc)",fontsize=16)
+            plt.xlabel(r"log$_{10}$(E/GeV)",fontsize=16)
+            plt.title("Relative change in solution at final iteration")
+            plt.tight_layout()
+            plt.show()
         print(f"Total number of iterations: {t}")
         print(f"Total elapsed time at final iteration: {(t_elapsed*units.Unit('s')).to('yr').value:2g} yr")        
 
         if self.benchmark_flag is True:
-            print("\n=========================\nBenchmark Run!\n=========================") 
+            print("="*spacer_length)
+            print("Benchmark Run!") 
+            print("="*spacer_length)
             print(f"Benchmark test - all(dpsi/dt == 0): {benchmark_check}")        
 
         print("ADI solution complete.")

@@ -40,3 +40,27 @@ diffData:
     unit: "cm^2/s"
   diffIndex: 1.66666666
 
+partData:
+  partModel: "bb"
+  emModel: "annihilation"
+
+calcData:
+  calcMode: "sb"
+  freqMode: "radio"
+  mWIMP:
+    value:
+      - 10
+      - 100
+      - 1000
+    unit: "GeV"
+  fSampleLimits:
+    value:
+      - 1.e+2
+      - 1.e+5
+    unit: "MHz"
+  fSampleNum: 40
+  fSampleSpacing: "log"
+  adiMaxSteps: 20
+  log10RSampleMinFactor: -3
+  electronMode: "adi-python"
+

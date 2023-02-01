@@ -109,6 +109,6 @@ def fluxFromJFactor(mx,z,jFactor,fSample,gSample,qSample,mode_exp):
         if E_g < gSample[0] or E_g > gSample[-1]:
             emm[i] = 0.0
         else:
-            emm[i] = Q_func(E_g)*jFactor*nwimp0*E_g #units of flux
+            emm[i] = Q_func(E_g)*jFactor*nwimp0*E_g #units of cm^-2 s^-1
             #print halo.J,Q_func(E_g)*nwimp0*E_g/(1+halo.z),1+halo.z
-    return 2.0*emm #2 gamma-rays per event 
+    return 2.0*emm*const.h.to("J/Hz").value/1e-26*1e4 #2 gamma-rays per event in Jy (cm^-2 -> m^-2 (1e4), Jy = 1e-26 W/m^2/Hz)

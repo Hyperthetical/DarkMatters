@@ -16,8 +16,8 @@ distance:
 - haloCoreScale
 - geenAveragingScale
 time:
-- crankDeltaTi
-- crankDeltaTMin
+- adiDeltaTi
+- adiDeltaTMin
 energy:
 - mWIMP
 - eSampleMin

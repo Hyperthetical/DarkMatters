@@ -253,7 +253,7 @@ def checkCalculation(calcDict):
 
     if not 'fSampleValues' in calcDict.keys(): 
         if not 'fSampleLimits' in calcDict.keys():
-            fatal_error("calcDict requires the variable fSampleLimits, giving the minimum and maximum frequencies to be studied")
+            fatal_error("calcDict requires one of the following variables: fSampleLimits, giving the minimum and maximum frequencies to be studied OR fSampleValues, an array of explicitly sampled frequencies")
         if not 'fSampleNum' in calcDict.keys():
             calcDict['fSampleNum'] = int((np.log10(calcDict['fSampleLimits'][1]) - np.log10(calcDict['fSampleLimits'][0]))/5)
         if not 'fSampleSpacing' in calcDict.keys():

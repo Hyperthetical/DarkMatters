@@ -634,6 +634,6 @@ def runCalculation(calcData,haloData,partData,magData,gasData,diffData,cosmoData
         os.remove(join(wd,py_file))
     if isfile(join(wd,c_file)):
         os.remove(join(wd,c_file))
-    return calcData,haloData,partData,magData,gasData,diffData,cosmoData
+    return {'calcData':calcData,'haloData':haloData,'partData':partData,'magData':magData,'gasData':gasData,'diffData':diffData,'cosmoData':cosmoData}
 
 
