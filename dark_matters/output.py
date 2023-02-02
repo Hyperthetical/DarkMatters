@@ -447,7 +447,7 @@ def calcWrite(calcData,haloData,partData,magData,gasData,diffData,target=None):
     elif not target is None:
         outstream.close()
 
-def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26,halfPix=3000,useHalfPix=500,display_slice=None,rMax=None):
+def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26,maxPix=6000,display_slice=None,rMax=None,targetResolution=5.0/60):
     """
     Output a fits file with radio maps
     
@@ -469,7 +469,7 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26
         Gas density properties
     diffData : dictionary
         Diffusion properties
-    sigV : float
+    sigV : float, optional
         Cross-section or decay rate [cm^3 s^-1 or s^-1]
     halfPix : int, optional
         Half number of image pixels
@@ -489,14 +489,7 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26
     if np.any(calcData['results']['finalData'] is None):
         fatal_error("output.fitsMap() cannot be invoked without a full set of calculated results, some masses have not had calculations run")
     #we use more pixels than we want to discard outer ones with worse resolution distortion from ogrid
-    if halfPix < useHalfPix:
-        fatal_error("output.fitsMap() arguments must be such that useHalfPix <= halfPix")
-    else:
-        try:
-            halfPix = int(halfPix)
-            useHalfPix = int(useHalfPix)
-        except:
-            fatal_error("output.fitsMap() parameters halfPix and useHalfPix must be integers")
+
     if not display_slice is None:
         try:
             int(display_slice)
@@ -510,14 +503,19 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26
         rLimit = diffData['diffRmax']
     if not rMax is None:
         if rMax > rLimit:
-            fatal_error(f"Argument rMax cannot be greater than largest sampled r value {rLimit} Mpc")
+            fatal_error(f"output.fitsMap() argument rMax cannot be greater than largest sampled r value {rLimit} Mpc")
     else:
         rMax = rLimit
+    halfPix = int(np.arctan(rLimit/haloData['haloDistance'])/np.pi*180*60/targetResolution)
+    if halfPix > maxPix/2:
+        halfPix = int(maxPix/2)
+    useHalfPix = int(halfPix*rMax/rLimit)
     useStartPix = halfPix-useHalfPix
     useEndPix = useStartPix + 2*useHalfPix
     rSet = np.logspace(np.log10(haloData['haloScale']*10**calcData['log10RSampleMinFactor']),np.log10(rLimit),num=calcData['rSampleNum'])
     rSet = np.arctan(rSet/haloData['haloDistance'])/np.pi*180*60 #must be arcmins for the algorithm below
     fSet = calcData['fSampleValues']
+    rMax = np.arctan(rMax/haloData['haloDistance'])/np.pi*180*60
     hduList = []
     for mx in calcData['mWIMP']:
         fitsOutSet = []
@@ -529,12 +527,10 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26
             circle = np.ogrid[-halfPix:halfPix,-halfPix:halfPix]
             rPlot = np.sqrt(circle[0]**2  + circle[1]**2)
             n = circle[0].shape[0]
-            rMax = rSet[-1] #rMax now in arcmins
-            rMin = rSet[0]
-            angleAlpha = (rMax-rMin)/(n-1) #for a conversion from array index to angular values
-            angleBeta = rMax - angleAlpha*(n-1)
+            angleAlpha = (rSet[-1]-rSet[0])/(n-1) #for a conversion from array index to angular values
+            angleBeta = rSet[-1] - angleAlpha*(n-1)
             rPlot = angleAlpha*rPlot + angleBeta
-            arcMinPerPixel = rMax*2/n
+            arcMinPerPixel = rSet[-1]*2/n
             sPlot = intp(rPlot*1.00000001)*sigV/1e-26*arcMinPerPixel**2
             raVal = skyCoords.ra.value*60 #arcmin
             decVal = skyCoords.dec.value*60 #arcmin
@@ -543,7 +539,7 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26
                     fig = plt.gcf()
                     ax = fig.gca()
                     ax.set_aspect('equal')
-                    im = plt.imshow(sPlot,cmap="RdYlBu",norm=LogNorm(vmin=np.min(sPlot),vmax=np.max(sPlot)),extent=[(rMax+raVal)/60,(-rMax+raVal)/60,(-rMax+decVal)/60,(rMax+decVal)/60])
+                    im = plt.imshow(sPlot[useStartPix:useEndPix,useStartPix:useEndPix],cmap="RdYlBu",norm=LogNorm(vmin=np.min(sPlot[useStartPix:useEndPix,useStartPix:useEndPix]),vmax=np.max(sPlot[useStartPix:useEndPix,useStartPix:useEndPix])),extent=[(rMax+raVal)/60,(-rMax+raVal)/60,(-rMax+decVal)/60,(rMax+decVal)/60])
                     plt.xlabel("RA--SIN (degrees)")
                     plt.ylabel("DEC--SIN (degrees)")
                     cbar = plt.colorbar(im)
