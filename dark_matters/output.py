@@ -471,13 +471,13 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26
         Diffusion properties
     sigV : float
         Cross-section or decay rate [cm^3 s^-1 or s^-1]
-    halfPix : int
+    halfPix : int, optional
         Half number of image pixels
-    useHalfPix : int
+    useHalfPix : int, optional
         Number of pixels that are retained (reduces square-circle distortion)
-    display_slice : int
+    display_slice : int, optional
         Index of frequency to display in a plot
-    rMax : float
+    rMax : float, optional
         Radial extent of fits map [Mpc]
 
     Returns
@@ -529,7 +529,7 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26
             circle = np.ogrid[-halfPix:halfPix,-halfPix:halfPix]
             rPlot = np.sqrt(circle[0]**2  + circle[1]**2)
             n = circle[0].shape[0]
-            #rMax = rSet[-1]
+            rMax = rSet[-1] #rMax now in arcmins
             rMin = rSet[0]
             angleAlpha = (rMax-rMin)/(n-1) #for a conversion from array index to angular values
             angleBeta = rMax - angleAlpha*(n-1)

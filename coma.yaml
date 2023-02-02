@@ -61,6 +61,8 @@ calcData:
   fSampleNum: 40
   fSampleSpacing: "log"
   adiMaxSteps: 20
+  rSampleNumber: 50
+  eSampleNumber: 50
   log10RSampleMinFactor: -3
   electronMode: "adi-python"
 
