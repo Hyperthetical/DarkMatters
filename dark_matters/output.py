@@ -471,14 +471,14 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26
         Diffusion properties
     sigV : float, optional
         Cross-section or decay rate [cm^3 s^-1 or s^-1]
-    halfPix : int, optional
-        Half number of image pixels
-    useHalfPix : int, optional
-        Number of pixels that are retained (reduces square-circle distortion)
+    maxPix : int, optional
+        Maximum number of image pixels per axis
+    targetResolution : float, optional
+        Angular width of pixel (will be final resolution unless it exceeds maxPix limit) [arcmin]
     display_slice : int, optional
         Index of frequency to display in a plot
     rMax : float, optional
-        Radial extent of fits map [Mpc]
+        Radial extent of fits map to be saved [Mpc]
 
     Returns
     ---------------------------
@@ -548,8 +548,8 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26
             fitsOutSet.append(sPlot[useStartPix:useEndPix,useStartPix:useEndPix])
         fitsOutSet = np.array(fitsOutSet)
 
-        angleAlpha = 2*rMax/(n-1)
-        angleBeta = rMax - angleAlpha*(n-1)
+        angleAlpha = 2*rSet[-1]/(n-1)
+        angleBeta = rSet[-1] - angleAlpha*(n-1)
 
         raSet = np.flipud((np.arange(n)*angleAlpha+angleBeta+raVal)/60) #ra declines to the right in RA---SIN
         decSet = (np.arange(n)*angleAlpha+angleBeta+decVal)/60 
