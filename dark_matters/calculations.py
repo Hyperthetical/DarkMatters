@@ -7,7 +7,7 @@ from astropy import constants
 import sympy
 from sympy.utilities.lambdify import lambdify
 
-from .output import fatal_error,calcWrite,wimpWrite,spacer_length
+from .output import fatal_error,warning,calcWrite,wimpWrite,spacer_length
 from .dictionary_checks import checkCosmology,checkCalculation,checkDiffusion,checkGas,checkHalo,checkMagnetic,checkParticles
 from .emissions import adi_electron,green_electron,fluxes,emissivity
 
@@ -143,11 +143,14 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
     else:
         rLimit = diffData['diffRmax']
 
-    b_av,ne_av = physical_averages(haloData['greenAveragingScale'],mode_exp,calcData,haloData,magData,gasData)
-    if "gasAverageDensity" in gasData.keys():
-        ne_av = gasData['gasAverageDensity']
-    if "magFieldAverage" in magData.keys():
-        b_av = gasData['magFieldAverage']
+    if "green" in calcData['electronMode']:
+        b_av,ne_av = physical_averages(haloData['greenAveragingScale'],mode_exp,calcData,haloData,magData,gasData)
+        if "gasAverageDensity" in gasData.keys():
+            ne_av = gasData['gasAverageDensity']
+        if "magFieldAverage" in magData.keys():
+            b_av = gasData['magFieldAverage']
+    elif "greenAveragingScale" in haloData.keys():
+        haloData.pop('greenAveragingScale')
         
     if partData['emModel'] == "annihilation":
         sigV = partData['crossSection']
@@ -160,12 +163,16 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
     ne_sample = gasData['gasDensityFunc'](r_sample)
 
     if "green" in calcData['electronMode']:
+        #Note sigV is left out here to simplify numerical convergence, it is restored below
         E_set = takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")
         Q_set = partData['dNdxInterp']['positrons'](mxEff,E_set).flatten()/np.log(1e1)/10**E_set/mxEff*(constants.m_e*constants.c**2).to("GeV").value
         E_set = 10**E_set*mxEff/(constants.m_e*constants.c**2).to("GeV").value
     else:
         E_set = 10**takeSamples(np.log10(calcData['eSampleMin']/mxEff),0,calcData['eSampleNum'],spacing="lin")*mxEff
         Q_set = partData['dNdxInterp']['positrons'](mxEff,np.log10(E_set/mxEff)).flatten()/np.log(1e1)/E_set*sigV
+
+    if np.all(Q_set == 0.0):
+        warning("At WIMP mass {mx} GeV dN/dE functions are zero at all considered energies!\nNote that in decay cases we sample mxEff= 0.5*mx")
 
     print("="*spacer_length)
     print("Calculating Electron Equilibriumn Distributions")
@@ -174,11 +181,13 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
         print("Solution via: Green's function (python implementation)")
         print(f'Magnetic Field Average Strength: {b_av:.2e} micro Gauss')
         print(f'Gas Average Density: {ne_av:.2e} cm^-3')
+        print(f'Averaging scale: {haloData["greenAveragingScale"]:.2e} Mpc')
         calcData['results']['electronData'][mIndex] = green_electron.equilibriumElectronsGridPartial(calcData['eGreenSampleNum'],E_set,Q_set,calcData['rGreenSampleNum'],r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],delta,diff,d0,diffData["photonDensity"],calcData['threadNumber'],calcData['imageNumber'])*sigV
     elif calcData['electronMode'] == "green-c":
         print("Solution via: Green's function (c++ implementation)")
         print(f'Magnetic Field Average Strength: {b_av:.2e} micro Gauss')
         print(f'Gas Average Density: {ne_av:.2e} cm^-3')
+        print(f'Averaging scale: {haloData["greenAveragingScale"]:.2e} Mpc')
         py_file = "temp_electrons_py.out"
         c_file = "temp_electrons_c.in"
         wd = os.getcwd()
@@ -303,7 +312,9 @@ def calcPrimaryEm(mx,calcData,haloData,partData,diffData):
     gSample = 10**xSample*mxEff/(constants.m_e*constants.c**2).to("GeV").value
     rhoSample = haloData['haloDensityFunc'](rSample)
     qSample = partData['dNdxInterp'][specType](mxEff,xSample).flatten()/np.log(1e1)/10**xSample/mxEff*(constants.m_e*constants.c**2).to("GeV").value*sigV
+    print(qSample)
     calcData['results'][emmType][mIndex] = emissivity.primaryEmHighE(mx,rhoSample,haloData['haloZ'],gSample,qSample,fSample,mode_exp)
+    print(np.where(emissivity.primaryEmHighE(mx,rhoSample,haloData['haloZ'],gSample,qSample,fSample,mode_exp)!=0))
     print("Process Complete")
     return calcData
 
@@ -409,9 +420,10 @@ def calcFlux(mx,calcData,haloData,diffData):
         emm = calcData['results']['radioEmData'][mIndex] 
     elif "neutrinos" in calcData['freqMode']:
         emm = calcData['results']['neutrinoEmData'][mIndex]
+        print(emm)
     rSample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum'])
     fSample = calcData['fSampleValues']
-    calcData['results']['finalData'][mIndex] = fluxes.fluxGrid(rmax,haloData['haloDistance'],fSample,rSample,emm,boostMod=1.0)
+    calcData['results']['finalData'][mIndex] = fluxes.fluxGrid(rmax,haloData['haloDistance'],fSample,rSample,emm,boostMod=1.0,ergs=calcData["outCGS"])
     print("Process Complete")
     return calcData
 
@@ -458,7 +470,7 @@ def calcSB(mx,calcData,haloData,diffData):
     rSample = takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum'])
     fSample = calcData['fSampleValues']
     for nu in fSample:
-        nuSB.append(fluxes.surfaceBrightnessLoop(nu,fSample,rSample,emm)[1])
+        nuSB.append(fluxes.surfaceBrightnessLoop(nu,fSample,rSample,emm,ergs=calcData["outCGS"])[1])
     calcData['results']['finalData'][mIndex] = np.array(nuSB)
     calcData['angSampleValues'] = np.arctan(takeSamples(haloData['haloScale']*10**calcData['log10RSampleMinFactor'],rLimit,calcData['rSampleNum'])/haloData['haloDistance']*(1+haloData['haloZ'])**2)/np.pi*180*60
     print("Process Complete")
@@ -516,10 +528,10 @@ def calcJFlux(mx,calcData,haloData,partData):
 def runChecks(calcData,haloData,partData,magData,gasData,diffData,cosmoData,clear):
     cosmoData = checkCosmology(cosmoData)
     if not calcData['calcMode'] == "jflux":
-        if not calcData['freqMode'] == "pgamma":
+        if (not calcData['freqMode'] == "pgamma") and (not "neutrinos" in calcData['freqMode']):
             magData = checkMagnetic(magData)
             gasData = checkGas(gasData)
-            diffData = checkDiffusion(diffData)
+        diffData = checkDiffusion(diffData)
         haloData = checkHalo(haloData,cosmoData)
     else:
         haloData = checkHalo(haloData,cosmoData,minimal=True)
@@ -565,6 +577,19 @@ def runChecks(calcData,haloData,partData,magData,gasData,diffData,cosmoData,clea
         calcData['results']['finalData'] = []
         for i in range(len(calcData['mWIMP'])):
             calcData['results']['finalData'].append(None)
+    resultUnits = {"electronData":"1/cm^3","radioEmData":"GeV/cm^3","primaryEmData":"GeV/cm^3","secondaryEmData":"GeV/cm^3","fSampleValues":"MHz"}
+    if "flux" in calcData['calcMode']:
+        if calcData['outCGS']:
+            resultUnits['finalData'] = "erg/(cm^2 s)"
+        else:
+            resultUnits['finalData'] = "Jy"
+    else:
+        if calcData['outCGS']:
+            resultUnits['finalData'] = "erg/(cm^2 s arcmin^2)"
+        else:
+            resultUnits['finalData'] = "Jy/arcmin^2"
+        resultUnits['angSampleValues'] = "arcmin"
+    calcData['results']['units'] = resultUnits
     partData = checkParticles(partData,calcData)
     return calcData,haloData,partData,magData,gasData,diffData,cosmoData
 

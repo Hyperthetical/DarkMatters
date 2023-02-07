@@ -16,7 +16,7 @@ def getSpectralData(spec_dir,partModel,specSet,mode="annihilation"):
     partModel : str 
         Label of particle physics model
     specSet :  str, list
-        Particle yield spectra to be loadedAllowed entries are "gammas", "positrons", "neutrinos_x" where x = mu,e, or tau
+        Particle yield spectra to be loaded. Allowed entries are "gammas", "positrons", "neutrinos_x" where x = mu,e, or tau
     mode : str, optional 
         Annihilation or decay
     pppcdb4dm : bool
@@ -161,7 +161,6 @@ def readDMOutput(fName,inMode="yaml"):
             stream = open(fName, 'r')
             warning(f"Loading {fName} with unsafeLoader (probably due to numpy objects)")
             inData = yaml.load(stream,Loader=yaml.UnsafeLoader)
-            print(inData)
     elif inMode == "json":
         inData = json.load(stream)
     else:

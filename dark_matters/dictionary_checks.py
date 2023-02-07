@@ -185,7 +185,7 @@ def checkHalo(haloDict,cosmoDict,minimal=False):
         else:
             fatal_error(f"haloData is underspecified by {haloDict}")
     haloDict['haloDensityFunc'] = astrophysics.haloDensityBuilder(haloDict)
-    if not "greenAvergingScale" in haloDict.keys():
+    if not "greenAveragingScale" in haloDict.keys():
         haloDict["greenAveragingScale"] = haloDict['haloScale']
     if haloDict['haloDensityFunc'] is None:
         fatal_error(f"No haloDensityFunc recipe for profile {haloDict['haloProfile']} found in astrophysics.haloDensityBuilder()")
@@ -249,8 +249,9 @@ def checkCalculation(calcDict):
     if not 'electronMode' in calcDict.keys():
         calcDict['electronMode'] = "adi-python"  
     elif calcDict['electronMode'] not in calcParams['allElectronModes']:
-        fatal_error(f"electronMode can only take the values: green-python, green-c, or adi-python. Your value of {calcDict['electronMode']} is invalid") 
-
+        fatal_error(f"electronMode can only take the values: green-python, green-c, or adi-python. Your value of {calcDict['electronMode']} is invalid")
+    if not 'outCGS' in calcDict.keys():
+        calcDict['outCGS'] = False
     if not 'fSampleValues' in calcDict.keys(): 
         if not 'fSampleLimits' in calcDict.keys():
             fatal_error("calcDict requires one of the following variables: fSampleLimits, giving the minimum and maximum frequencies to be studied OR fSampleValues, an array of explicitly sampled frequencies")
@@ -415,5 +416,5 @@ def checkDiffusion(diffDict):
         if not 'diffConstant' in diffDict.keys():
             diffDict['diffConstant'] = 3e28
         if not 'diffIndex' in diffDict.keys():
-            diffDict['diffIndex'] = 5.0/3
+            diffDict['diffIndex'] = 1.0/3
     return diffDict

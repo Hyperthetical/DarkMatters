@@ -48,15 +48,15 @@ def radioEmGrid(electrons,fSample,rSample,gSample,bSample,neSample):
 
     k = len(gSample) #number of E bins
     num = len(fSample)  #number of frequency sampling points
-    ntheta = 60   #angular integration points
+    ntheta = 61   #angular integration points
     theta_set = np.linspace(1e-2,np.pi,num=ntheta)  #choose angles 0 -> pi
 
-    r0 = 2.82e-13  #electron radius (cm)
-    me = 0.511e-3  #electron mass (GeV)
-    c = 2.998e10     #speed of light (cm s^-1)
+    r0 = 2.82e-13  #classical electron radius (cm)
+    me = (constants.m_e*constants.c**2).to("GeV").value  #electron mass (GeV)
+    c = constants.c.to("cm/s").value     #speed of light (cm s^-1)
     if k < 200:
         intpElec = sp.interp2d(rSample,gSample,electrons)
-        gSample = np.logspace(np.log10(gSample[0]),np.log10(gSample[-1]),num=200)
+        gSample = np.logspace(np.log10(gSample[0]),np.log10(gSample[-1]),num=201)
         k = len(gSample) #number of E bins
         electrons_new = intpElec(rSample,gSample)
     else:
@@ -66,7 +66,7 @@ def radioEmGrid(electrons,fSample,rSample,gSample,bSample,neSample):
     bGrid = np.tensordot(np.tensordot(np.ones(num),bSample,axes=0),np.ones((k,ntheta)),axes=0)
     neGrid = np.tensordot(np.tensordot(np.ones(num),neSample,axes=0),np.ones((k,ntheta)),axes=0)
     electronGrid = np.tensordot(np.tensordot(np.ones(num),electrons_new.transpose(),axes=0),np.ones(ntheta),axes=0)
-    nu0 = 2.8*bGrid*1e-6      #non-relativistic gyro freq
+    nu0 = 2.8*bGrid*1e-6      #non-relativistic gyro freq in MHz
     nup = 8980.0*np.sqrt(neGrid)*1e-6
     with np.errstate(divide="ignore"):
         with warnings.catch_warnings():
@@ -107,6 +107,7 @@ def primaryEmHighE(mx,rhoSample,z,gSample,qSample,fSample,mode_exp):
     """
     n = len(rhoSample)
     num = len(fSample)
+    print(qSample)
     h = constants.h.to('GeV s').value
     me = (constants.m_e*constants.c**2).to('GeV').value #electron mass (GeV)
     #msun converted to kg, convert to GeV, convert Mpc to cm 
@@ -118,6 +119,7 @@ def primaryEmHighE(mx,rhoSample,z,gSample,qSample,fSample,mode_exp):
     eGrid = np.tensordot(h*fSample*1e6*(1+z)/me,np.ones_like(rhodm),axes=0)
     rhoGrid = np.tensordot(np.ones_like(fSample),rhodm,axes=0)
     emm = Q_func(eGrid)*eGrid*rhoGrid
+    print(Q_func(eGrid))
     emm = np.where(np.logical_or(eGrid<gSample[0],eGrid>gSample[-1]),0.0,emm)
     # for i in range(0,num):
     #     E_g = h*fSample[i]*1e6*(1+z)/me
@@ -166,7 +168,7 @@ def klein_nishina(E_g,E,g):
             ICS G factor value
         """
         return 2*q*np.log(q) + (1+2*q)*(1-q) + (L*q)**2*(1-q)/(2+2*L*q)
-    re = 2.82e-13  #electron radius (cm)
+    re = 2.82e-13  #classical electron radius (cm)
     me = (constants.m_e*constants.c**2).to('GeV').value #electron mass (GeV)
     E_e = g*me
     sig_thom = 8*np.pi/3.0*re**2 

@@ -161,7 +161,7 @@ double dvFunc(double E,void * params){
     double delta = diffusionParams[2];
     double z = diffusionParams[3];
     double uPh = diffusionParams[4];
-    return pow(E*me,2.0-delta)/loss_function(E,b_av,ne_av,z,uPh);
+    return pow(E*me,delta)/loss_function(E,b_av,ne_av,z,uPh);
 }
 
 std::vector<double> equilibrium_p2(int const k,int const kp,std::vector<double> &E_set,std::vector<double> &Q_set,int const n,int const ngr,std::vector<double> &r_set,std::vector<double> &rho_dm_set,std::vector<double> &b_set,std::vector<double> &n_set,double z,double mchi,double delta,int diff,double b_av,double ne_av,double d0,double uPh,double mode_exp,int num_threads,int num_images){
@@ -176,7 +176,7 @@ std::vector<double> equilibrium_p2(int const k,int const kp,std::vector<double> 
     rhos is the value rho_s/rho_crit: central density over critical halo density
     rh is the assumed halo radius in Mpc
     rcore is the core radius in Mpc
-    delta is the power-law slope for the B field turbulence spectrum 5/3 Kolmogorov, 2 is Bohm
+    delta is the power-law slope for the B field turbulence spectrum 1/3 Kolmogorov, 0 is Bohm
     diff is a flag, 0 -> no diffusion, 1 -> diffusion */
 
     double me = 0.511e-3; //GeV - electron mass

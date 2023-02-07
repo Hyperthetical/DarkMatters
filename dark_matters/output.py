@@ -223,7 +223,7 @@ def makeOutput(calcData,haloData,partData,magData,gasData,diffData,cosmoData,out
     cosmoData : dictionary
         Cosmology properties
     outMode : string, optional
-        Can be "yaml","json","pickle"
+        Can be "yaml" or "json"
     tag : string, optional
         String added to file name
     emOnly: boolean, optional
@@ -484,10 +484,13 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26
     ---------------------------
     None
     """
+    targetFreqs = np.atleast_1d(targetFreqs)
     if not calcData['calcMode'] == "sb":
         fatal_error("output.fitsMap() can only be run with surface brightness data")
     if np.any(calcData['results']['finalData'] is None):
         fatal_error("output.fitsMap() cannot be invoked without a full set of calculated results, some masses have not had calculations run")
+    if np.any(targetFreqs < calcData['fSampleLimits'][0]) or np.any(targetFreqs > calcData['fSampleLimits'][-1]):
+        fatal_error(f"Requested frequencies lie outside the calculation range {calcData['fSampleLimits'][0]} - {calcData['fSampleLimits'][-1]} MHz")
     #we use more pixels than we want to discard outer ones with worse resolution distortion from ogrid
 
     if not display_slice is None:
@@ -520,18 +523,28 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26
     for mx in calcData['mWIMP']:
         fitsOutSet = []
         massIndex = np.where(calcData['mWIMP']==mx)[0][0]
-        fullDataIntp = interp2d(rSet,fSet,calcData['results']['finalData'][massIndex],bounds_error=False,fill_value=0.0)
+        if len(calcData['fSampleValues']) == 1:
+            fullDataIntp = interp1d(rSet,calcData['results']['finalData'][massIndex][0],bounds_error=False,fill_value=0.0)
+        else:
+            fullDataIntp = interp2d(rSet,fSet,calcData['results']['finalData'][massIndex],bounds_error=False,fill_value=0.0)
         for i in range(len(targetFreqs)):
-            rData = fullDataIntp(rSet,targetFreqs[i])
-            intp = interp1d(rSet,rData)
+            if len(calcData['fSampleValues']) == 1:
+                intp = fullDataIntp
+            else:
+                rData = fullDataIntp(rSet,targetFreqs[i])
+                intp = interp1d(rSet,rData)
             circle = np.ogrid[-halfPix:halfPix,-halfPix:halfPix]
             rPlot = np.sqrt(circle[0]**2  + circle[1]**2)
             n = circle[0].shape[0]
             angleAlpha = (rSet[-1]-rSet[0])/(n-1) #for a conversion from array index to angular values
             angleBeta = rSet[-1] - angleAlpha*(n-1)
-            rPlot = angleAlpha*rPlot + angleBeta
+            rPlot = angleAlpha*rPlot + angleBeta #linear set of angular samples (1 per pixel) - upgrade to binned?
             arcMinPerPixel = rSet[-1]*2/n
-            sPlot = intp(rPlot*1.00000001)*sigV/1e-26*arcMinPerPixel**2
+            sPlot = intp(rPlot*1.00000001)*arcMinPerPixel**2
+            if partData['emModel'] == "annihilation":
+                sPlot *= sigV/partData['crossSection']
+            else:
+                sPlot *= sigV/partData['decayRate']
             raVal = skyCoords.ra.value*60 #arcmin
             decVal = skyCoords.dec.value*60 #arcmin
             if not display_slice is None:
@@ -581,7 +594,10 @@ def fitsMap(skyCoords,targetFreqs,calcData,haloData,partData,diffData,sigV=1e-26
         hdr['CTYPE3'] = 'FREQ'
         hdr['CRPIX3'] = 1
         hdr['CRVAL3'] = targetFreqs[0]*1e6
-        hdr['CDELT3'] = (targetFreqs[1] - targetFreqs[0])*1e6
+        if len(targetFreqs) == 1:
+            hdr['CDELT3'] = 0
+        else:
+            hdr['CDELT3'] = (targetFreqs[1] - targetFreqs[0])*1e6
         hdr['CUNIT3'] = 'HZ'
         hdr['CTYPE4'] = 'STOKES'
         hdr['CRPIX4'] = 1

@@ -14,7 +14,7 @@ distance:
 - diffRmax
 - coherenceScale
 - haloCoreScale
-- geenAveragingScale
+- greenAveragingScale
 time:
 - adiDeltaTi
 - adiDeltaTMin

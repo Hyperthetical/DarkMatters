@@ -177,7 +177,7 @@ def electrons_from_c(outfile,infile,exec_electron_c,kPrime,E_set,Q_set,ngr,r_sam
     if not os.path.isfile(exec_electron_c):
         return None
     try:
-        if platform.system() == "Linux":
+        if platform.system() == "Linux" or platform.system() == "Darwin":
             call([exec_electron_c+" "+outfile+" "+infile],shell=True)#,cwd=cdir)
         else:
             call([exec_electron_c,outfile,infile],shell=True)#,cwd=cdir)
@@ -231,7 +231,7 @@ def diffFuncNormed(gamma,delta):
     """
     me = (constants.m_e*constants.c**2).to("GeV").value
     E = gamma*me
-    return E**(2-delta)
+    return E**(delta)
 
 def vFunc(mx,gamma,B,ne,delta,z,uPh):
     """

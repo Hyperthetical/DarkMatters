@@ -2,35 +2,35 @@ haloData:
   haloName: "coma"
   haloProfile: "nfw"
   haloScale:
-    value: 0.287
+    value: 0.287 #astro-ph/0302461
     unit: "Mpc"
-  haloCvir: 9.4
+  haloCvir: 9.4 #astro-ph/0302461
   haloRvir:
-    value: 2.7
+    value: 2.7 #astro-ph/0302461
     unit: "Mpc"
   haloMvir: 
-    value: 1.2e+15
+    value: 1.2e+15 #astro-ph/0302461
     unit: "solMass"
-  haloZ: 0.0231
+  haloZ: 0.0231 #astro-ph/0302461
 
 gasData:
   gasProfile: "beta"
   gasNorm: 
-    value: 3.49e-3
+    value: 3.49e-3 #astro-ph/0702482
     unit: "1/cm^3"
   gasScale:
-    value: 253
+    value: 253 #astro-ph/0702482
     unit: "kpc"
-  gasIndex: -0.654
+  gasIndex: -0.654 #astro-ph/0702482
   
 magData:
   magProfile: "beta"
   magNorm:
-    value: 4.7e-6
+    value: 4.7e-6 #1002.0594
     unit: "gauss"
-  magIndex: -0.327
+  magIndex: -0.327 #1002.0594
   magScale:
-    value: 0.253
+    value: 0.253 #1002.0594
     unit: "Mpc"
 
 diffData:
@@ -38,7 +38,7 @@ diffData:
   diffConstant:
     value: 1.0e+29
     unit: "cm^2/s"
-  diffIndex: 1.66666666
+  diffIndex: 0.33333
 
 partData:
   partModel: "bb"
@@ -53,10 +53,14 @@ calcData:
       - 100
       - 1000
     unit: "GeV"
-  fSampleLimits:
+  # fSampleLimits:
+  #   value:
+  #     - 1.e+2
+  #     - 1.e+5
+  #   unit: "MHz"
+  fSampleValues:
     value:
-      - 1.e+2
-      - 1.e+5
+      - 1.e+3
     unit: "MHz"
   fSampleNum: 40
   fSampleSpacing: "log"
@@ -64,5 +68,7 @@ calcData:
   rSampleNumber: 50
   eSampleNumber: 50
   log10RSampleMinFactor: -3
-  electronMode: "adi-python"
+  electronMode: "green-python"
+  imageNumber: 10
+  threadNumber: 8 
 

@@ -317,12 +317,11 @@ class adi_scheme:
         """
         #set and return diffusion function [cm^2 s^-1]
         D0 = self.D0     #[D0] = cm^2 s^-1
-        alpha = 2 - self.delta
         with np.errstate(divide="ignore",invalid="ignore"):
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', r'overflow')
                 #D = D0*d0**(1-alpha)*E**alpha*B**(-alpha)
-                D = D0*E**alpha*(B/np.max(B))**(-alpha)
+                D = D0*E**self.delta*(B/np.max(B))**(-self.delta)
         self.D = D
         return D
     
@@ -346,7 +345,6 @@ class adi_scheme:
         """
         #set and return spatial derivative of diffusion function [cm s^-1]
         D0 = self.D0     #[D0] = cm^2 s^-1
-        alpha = 2 - self.delta
 
         #prefactor (pf) needed for log-transformed derivative 
         pf = np.tile(self.r_prefactor(np.arange(self.r_bins)),(self.E_bins,1)).transpose()
@@ -354,7 +352,7 @@ class adi_scheme:
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', r'overflow')
                 #dDdr = -(1.0/pf*D0*alpha)*d0**(1-alpha)*B**(-alpha-1)*dBdr*E**alpha
-                dDdr = -(1.0/pf*D0*alpha)*(B/np.max(B))**(-alpha-1)*dBdr/np.max(B)*E**alpha
+                dDdr = -(1.0/pf*D0*self.delta)*(B/np.max(B))**(-self.delta-1)*dBdr/np.max(B)*E**self.delta
         self.dDdr = dDdr
         return dDdr
         
