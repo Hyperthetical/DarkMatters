@@ -1,6 +1,7 @@
 import os,yaml
 import numpy as np
 from astropy import constants
+from genericpath import isdir
 
 from .input import getSpectralData
 from .output import fatal_error,warning
@@ -29,7 +30,11 @@ def checkCosmology(cosmoDict):
         cosmoDict['omega_m'] = 1 - cosmoDict['omega_l']
     elif not 'omega_l' in cosmoDict.keys():
         cosmoDict['omega_l'] = 1 - cosmoDict['omega_m']
-
+    if not 'cvirMode' in cosmoDict.keys():
+        cosmoDict['cvirMode'] = 'p12'
+    cvir_modes = ['p12','munoz_2010','bullock_2001','cpu_2006']
+    if not cosmoDict['cvirMode'] in cvir_modes:
+        fatal_error(f"cosmoData['cvirMode'] = {cosmoDict['cvirMode']} is not valid, use one of {cvir_modes}")
     if not 'h' in cosmoDict.keys():
         cosmoDict['h'] = 0.6774
     return cosmoDict
@@ -132,7 +137,7 @@ def checkHalo(haloDict,cosmoDict,minimal=False):
             #rescale to reflect where dlnrho/dlnr = -2 (required as cvir = rvir/r_{-2})
             #isothermal, nfw, einasto all have rs = r_{-2}
             scaleMod = 1.5214
-        elif "gnfw" in haloDict["haloProfile"]:
+        elif haloDict["haloProfile"] == "gnfw":
             scaleMod = 2.0 - haloDict['haloIndex']
         else:
             scaleMod = 1.0
@@ -179,7 +184,7 @@ def checkHalo(haloDict,cosmoDict,minimal=False):
                 haloDict['haloMvir'] = cosmology.mvirFromRvir(haloDict['haloRvir'],haloDict['haloZ'],cosmoDict)
             if not 'haloRvir' in haloDict.keys():
                 haloDict['haloRvir'] = cosmology.rvirFromMvir(haloDict['haloMvir'],haloDict['haloZ'],cosmoDict)
-            haloDict['haloCvir'] = cosmology.cvir_p12_param(haloDict['haloMvir'],haloDict['haloZ'],cosmoDict)
+            haloDict['haloCvir'] = cosmology.cvir(haloDict['haloMvir'],haloDict['haloZ'],cosmoDict)
             haloDict['haloScale'] = haloDict['haloRvir']/haloDict['haloCvir']/scaleMod
             haloDict = rhoNorm(haloDict,cosmoDict)
         else:
@@ -279,7 +284,7 @@ def checkCalculation(calcDict):
         else:
             calcDict['rSampleNum'] = 80
     if not 'log10RSampleMinFactor' in calcDict.keys():
-        calcDict['log10RSampleMinFactor'] = -3
+        calcDict['log10RSampleMinFactor'] = -2
     if not 'eSampleMin' in calcDict.keys():
         calcDict['eSampleMin'] = (constants.m_e*constants.c**2).to("GeV").value #GeV
 
@@ -363,11 +368,12 @@ def checkParticles(partDict,calcDict):
         partDict['emModel'] = "annihilation"
     elif not partDict['emModel'] in ["annihilation","decay"]:
         fatal_error("emModel must be set to either annihilation or decay")
+    if not 'decayInput' in partDict.keys():
+        partDict['decayInput'] = False
     if not 'spectrumDirectory' in partDict.keys():
         partDict['spectrumDirectory'] = os.path.join(os.path.dirname(os.path.realpath(__file__)),"particle_physics")
-    try:
-        open(partDict['spectrumDirectory'],"r")
-    except:
+    if not isdir(partDict['spectrumDirectory']):
+        warning(f"partData['spectrumDirectory'] = {partDict['spectrumDirectory']} is not a valid folder, using default instead")
         partDict['spectrumDirectory'] = os.path.join(os.path.dirname(os.path.realpath(__file__)),"particle_physics")
     specSet = []
     if "neutrinos" in calcDict['freqMode']:
@@ -403,7 +409,7 @@ def checkDiffusion(diffDict):
     if not type(diffDict) is dict:
         fatal_error("control.checkDiffusion() must be passed a dictionary as its argument")
     if not 'lossOnly' in diffDict.keys():
-        diffDict['lossOnly'] = True
+        diffDict['lossOnly'] = False
     if not 'photonDensity' in diffDict.keys():
         diffDict['photonDensity'] = 0.0
     if not 'photonTemp' in diffDict.keys():

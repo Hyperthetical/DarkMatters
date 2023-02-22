@@ -32,7 +32,7 @@ class adi_scheme:
     E_bins : int
         Number of electron energy samples
     Q : array-like float (n,m)
-        Source function   [GeV^-1 s^-1]
+        Source function   [GeV^-1 cm^-3 s^-1]
     D : array-like float (n,m)
         Diffusion function [cm^2 s^-1]
     dDdr : array-like float (n,m)
@@ -94,17 +94,17 @@ class adi_scheme:
     E_prefactor : function
         Builds prefactor for energy log-spaced solution
     r_alpha1 : function
-        First propagator coefficients in space 
+        First propagator coefficient in space 
     r_alpha2 : function
-        Second propagator coefficients in space 
+        Second propagator coefficient in space 
     r_alpha3 : function
-        Third propagator coefficients in space 
+        Third propagator coefficient in space 
     E_alpha1 : function
-        First propagator coefficients in energy
+        First propagator coefficient in energy
     E_alpha2 : function
-        Second propagator coefficients in energy 
+        Second propagator coefficient in energy 
     E_alpha3 : function
-        Third propagator coefficients in energy 
+        Third propagator coefficient in energy 
     spmatrices_loss : function
         Builds sparse matrices for energy propagator
     spmatrices_diff : function
@@ -161,7 +161,7 @@ class adi_scheme:
         z : float
             Redshift of halo
         E_sample : array-like float (k)
-            Yield function Lrentz-gamma values
+            Yield function Lorentz-gamma values
         Q_sample : array-like float (k)
             (Yield function * electron mass) [particles per annihilation]
         r_sample : array-like float (n)
@@ -215,9 +215,9 @@ class adi_scheme:
         self.E_grid = E_sample          #[GeV] -> check conversion
         self.delta = delta
         self.D0 = diff0
-        #variable transformations:  r --> r~ ; E --> E~
         self.r0 = (rScale*units.Unit("Mpc")).to("cm").value    #scale variable [cm]
         self.E0 = eScale        #scale variable [GeV]
+        #variable transformations:  r --> r~ ; E --> E~
         def logr(r):             
             return np.log10(r/self.r0)
         def logE(E):             
@@ -228,7 +228,7 @@ class adi_scheme:
         self.logE_grid = logE(self.E_grid)           #[/]
         
         """ Diffusion/energy loss functions """
-        self.loss_constants = {'ICISRF':6.08e-16 + 0.25e-16*(1+z)**4, 'ICCMB': 0.25e-16*(1+z)**4, 'sync':0.0254e-16, 'coul':6.13e-16, 'brem':4.7e-16}
+        self.loss_constants = {'IC1eVcm-3': 0.76e-16, 'ICCMB': 0.25e-16*(1+z)**4, 'sync':0.0254e-16, 'coul':6.13e-16, 'brem':4.7e-16}
 
         rho_sample = (rho_sample*units.Unit("Msun/Mpc^3")*constants.c**2).to("GeV/cm^3").value
         dBdr_sample = (dBdr_sample*units.Unit("1/Mpc")).to("1/cm").value
@@ -320,7 +320,6 @@ class adi_scheme:
         with np.errstate(divide="ignore",invalid="ignore"):
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', r'overflow')
-                #D = D0*d0**(1-alpha)*E**alpha*B**(-alpha)
                 D = D0*E**self.delta*(B/np.max(B))**(-self.delta)
         self.D = D
         return D
@@ -351,7 +350,6 @@ class adi_scheme:
         with np.errstate(divide="ignore",invalid="ignore"):
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', r'overflow')
-                #dDdr = -(1.0/pf*D0*alpha)*d0**(1-alpha)*B**(-alpha-1)*dBdr*E**alpha
                 dDdr = -(1.0/pf*D0*self.delta)*(B/np.max(B))**(-self.delta-1)*dBdr/np.max(B)*E**self.delta
         self.dDdr = dDdr
         return dDdr
@@ -381,7 +379,7 @@ class adi_scheme:
         #i.e. they are integrated over gamma not E, solution to diffusion equation is prop to 1/b fixing the emissivity dimensions
         b = self.loss_constants
         me = (constants.m_e*constants.c**2).to("GeV").value      #[me] = GeV/c^2 
-        eloss = 0.76e-16*uPh*E**2 + b['ICCMB']*E**2 + b['sync']*E**2*B**2 + b['brem']*ne*E
+        eloss = b['IC1eVcm-3']*uPh*E**2 + b['ICCMB']*E**2 + b['sync']*E**2*B**2 + b['brem']*ne*E
         with np.errstate(divide="ignore",invalid="ignore"):
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', r'overflow')
@@ -663,7 +661,9 @@ class adi_scheme:
         psi_prev = np.empty(psi.shape)          #copy of psi at t-1, for determining stability and convergence checks
         Delta_t_reduction = self.Delta_t_reduction    #factor by which to reduce Delta_t during timestep-switching in accelerated method
         stability_tol = 1.0e-5                  #relative difference tolerance between iterations (for stability_check)
+        final_stability_tol = 1e-3              #as above but used for convergence at final time-step size
         print(f"Stability tolerance: {stability_tol}")
+        print(f"Stability tolerance at final time-scale: {final_stability_tol}")
 
         #other loop items
         t = 0                                   #total iteration counter 
@@ -719,7 +719,10 @@ class adi_scheme:
                 with np.errstate(divide="ignore",invalid="ignore"):
                     rel_diff = np.abs(psi[:-1]/psi_prev[:-1]-1.0)
                     rel_diff = np.where(np.isnan(rel_diff),0.0,rel_diff)
-                    rel_diff_check = bool(np.all(rel_diff < stability_tol))    #[:-1] slice to ignore boundary condition, type conversion because np.bool != bool, get unexpected results sometimes 
+                    if self.Delta_t <= self.smallest_Delta_t:
+                        rel_diff_check = bool(np.all(rel_diff < final_stability_tol)) 
+                    else:
+                        rel_diff_check = bool(np.all(rel_diff < stability_tol))    #[:-1] slice to ignore boundary condition, type conversion because np.bool != bool, get unexpected results sometimes 
 
                 #stability conditions - s1,s2
                 if self.const_Delta_t:
@@ -807,13 +810,8 @@ class adi_scheme:
             t_elapsed += self.Delta_t
             t += 1
             t_part += 1
-            progress(t,max_t,prefix="ADI Progess:")
-            
             """ progress feedback during loop """ 
-            # progress_check = t%(max_t/10)
-            # if progress_check == 0 and t!= 0:
-            #     print(f"progress to max {max_t:.2g} iterations...{(t/max_t)*100}%")     
-
+            progress(t,max_t,prefix="ADI Progess:")
             """ Store solution for animation """
             if self.animation_flag is True:
                 snapshot = (psi.copy()[:-1],self.Delta_t)

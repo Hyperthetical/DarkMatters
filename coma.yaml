@@ -53,14 +53,10 @@ calcData:
       - 100
       - 1000
     unit: "GeV"
-  # fSampleLimits:
-  #   value:
-  #     - 1.e+2
-  #     - 1.e+5
-  #   unit: "MHz"
-  fSampleValues:
+  fSampleLimits:
     value:
-      - 1.e+3
+      - 1.e+1
+      - 1.e+5
     unit: "MHz"
   fSampleNum: 40
   fSampleSpacing: "log"
@@ -68,7 +64,4 @@ calcData:
   rSampleNumber: 50
   eSampleNumber: 50
   log10RSampleMinFactor: -3
-  electronMode: "green-python"
-  imageNumber: 10
-  threadNumber: 8 
-
+  electronMode: "adi-python" 

@@ -1,6 +1,3 @@
-"""
-Header
-"""
 import numpy as np
 try:
     import cosmology
@@ -12,18 +9,17 @@ from scipy.optimize import bisect
 
 def haloDensityBuilder(haloDict):
     """
-    Calculates the density profile over r_set
+    Returns a lambda function for DM density rho(r)
+
+    Arguments
     ---------------------------
-    Parameters
+    haloDict : dictionary
+        Halo properties
+
+    Returns
     ---------------------------
-    r_set - Required : radial sample values [Mpc] (float)
-    rc    - Required : halo radial scale length [Mpc] (float)
-    dmmod - Required : halo profile code (int)
-    alpha - Optional : Einasto parameter (float)
-    ---------------------------
-    Output
-    ---------------------------
-    Radial density profile values (float len(r_set))
+    rho(r) : lambda function
+        Returns DM density function, units Msun/Mpc^3
     """
     if haloDict['haloProfile'] == "nfw":
         return lambda x: haloDict['haloNorm']/(x/haloDict['haloScale'])/(1+x/haloDict['haloScale'])**2
@@ -41,6 +37,19 @@ def haloDensityBuilder(haloDict):
         return None
 
 def magneticFieldBuilder(magDict):
+    """
+    Returns a lambda function for magnetic field strength B(r)
+
+    Arguments
+    ---------------------------
+    magDict : dictionary
+        Magnetic field properties
+
+    Returns
+    ---------------------------
+    B(r) : lambda function
+        Returns magnetic field strength function, units uG
+    """
     if magDict['magProfile'] in ["pl","powerlaw"]:
         return lambda x: magDict['magNorm']*(x/magDict['magScale'])**magDict['magIndex']
     elif magDict['magProfile'] == "beta":
@@ -58,6 +67,19 @@ def magneticFieldBuilder(magDict):
 
 
 def gasDensityBuilder(gasDict):
+    """
+    Returns a lambda function for ambient gas number density n(r)
+
+    Arguments
+    ---------------------------
+    gasDict : dictionary
+        Ambient gas properties
+
+    Returns
+    ---------------------------
+    n(r) : lambda function
+        Returns gas number density function, units 1/cm^3
+    """
     if gasDict['gasProfile'] in ["pl","powerlaw"]:
         return lambda x: gasDict['gasNorm']*(x/gasDict['gasScale'])**gasDict['gasIndex']
     elif gasDict['gasProfile'] == "beta":
@@ -73,37 +95,35 @@ def gasDensityBuilder(gasDict):
 
 def rvirFromRho(haloDict,cosmo):
     """
-    Find the virial radius by locating r within which average rho = delta_c*rho_c
+    Returns rvir from a density profile rho(r)
+
+    Arguments
     ---------------------------
-    Parameters
+    haloDict : dictionary
+        DM halo properties
+
+    Returns
     ---------------------------
-    z       - Required : redshift (float)
-    rhos    - Required : characteristic density relative to critical value [] (float)
-    rc      - Required : radial length scale [Mpc] (float)
-    dmmod   - Required : halo profile code (int)
-    cos_env - Required : cosmology environment (cosmology-env)
-    alpha   - Optional : einasto parameter (float)
-    ---------------------------
-    Output
-    ---------------------------
-    rvir [Mpc] (float)
+    rvir : float
+        Virial radius [Mpc]
     """
     def averageRho(rmax,haloDict,target=0.0):
         """
-        Find average density, relative to rho_crit, in a halo within rmax (subtract target value)
+        Returns average DM density over radius rmax
+
+        Arguments
         ---------------------------
-        Parameters
+        rmax : float
+            Radius for averaging DM density [Mpc]
+        haloDict : dictionary
+            DM halo properties
+        target : float, optional
+            Target density contrast [Msun/Mpc^3]
+
+        Returns
         ---------------------------
-        rmax   - Required : max integration radius [Mpc] (float)
-        rhos   - Required : characteristic density relative to critical value [] (float)
-        rc     - Required : radial length scale [Mpc] (float)
-        dmmod  - Required : halo profile code (int)
-        alpha  - Optional : einasto parameter (float)
-        target - Optional : differencing value
-        ---------------------------
-        Output
-        ---------------------------
-        average rhos - target [] (float)
+        rhobar : float
+            Average DM density, within rmax, - target [Msun/Mpc^3]
         """
         r_set = np.logspace(np.log10(haloDict['haloScale']*1e-7),np.log10(rmax),num=100)
         rho = haloDensityBuilder(haloDict)(r_set)
@@ -114,6 +134,19 @@ def rvirFromRho(haloDict,cosmo):
     return bisect(averageRho,haloDict['haloScale'],haloDict['haloScale']*1e6,args=(haloDict,target))
 
 def rhoVirialInt(haloDict):
+    """
+    Returns mass within virial radius
+
+    Arguments
+    ---------------------------
+    haloDict : dictionary
+        DM halo properties
+
+    Returns
+    ---------------------------
+    mvir : float
+        Virial mass [Msun]
+    """
     r_set = np.logspace(np.log10(haloDict['haloScale']*1e-7),np.log10(haloDict['haloRvir']),num=100)
     if not 'haloNorm' in haloDict.keys():
         haloDict['haloNorm'] = 1.0
