@@ -1,3 +1,6 @@
+"""
+DarkMatters.emissions module for calculating electron equilibrium distributions with Green's functions
+"""
 import numpy as np
 import platform
 from scipy.integrate import simpson as integrate

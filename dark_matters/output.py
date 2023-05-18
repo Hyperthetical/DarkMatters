@@ -1,3 +1,6 @@
+"""
+DarkMatters module for handling output
+"""
 import numpy as np
 import sys
 import yaml,json

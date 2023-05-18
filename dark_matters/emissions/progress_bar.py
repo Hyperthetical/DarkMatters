@@ -1,3 +1,6 @@
+"""
+DarkMatters.emissions module for showing progress bars
+"""
 import sys
 
 def progress(iteration, total,prefix = '', suffix = '', decimals = 1, length = 30, fill = '█'):

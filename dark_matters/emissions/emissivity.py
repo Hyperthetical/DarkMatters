@@ -1,3 +1,6 @@
+"""
+DarkMatters.emissions module for calculating multi-frequency emissivities
+"""
 from matplotlib import units
 import numpy as np
 from scipy.integrate import simpson as integrate

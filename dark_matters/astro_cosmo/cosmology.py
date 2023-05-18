@@ -1,3 +1,6 @@
+"""
+DarkMatters.astro_cosmo module for calculating cosmology dependent functions
+"""
 from scipy.integrate import quad
 from scipy.optimize import newton
 from scipy.integrate import simps as integrate

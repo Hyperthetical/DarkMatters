@@ -1,3 +1,6 @@
+"""
+DarkMatters.emissions module for calculating flux and surface brightness
+"""
 import numpy as np 
 from scipy.integrate import simpson as integrate
 from scipy.interpolate import interp1d,interp2d

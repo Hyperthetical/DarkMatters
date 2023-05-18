@@ -1,3 +1,6 @@
+"""
+DarkMatters.emissions module for calculating  electron equilibrium distributions with ADI method
+"""
 import time,warnings
 import numpy as np
 from scipy import sparse
