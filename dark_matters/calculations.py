@@ -1,6 +1,7 @@
-from genericpath import isfile
+"""
+DarkMatters module for controlling execution of calculations
+"""
 import numpy as np
-from os.path import join
 import os
 from scipy.integrate import simpson
 from astropy import constants
@@ -194,7 +195,7 @@ def calcElectrons(mx,calcData,haloData,partData,magData,gasData,diffData,overWri
         py_file = "temp_electrons_py.out"
         c_file = "temp_electrons_c.in"
         wd = os.getcwd()
-        calcData['results']['electronData'][mIndex] = green_electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calcData['electronExecFile'],calcData['eGreenSampleNum'],E_set,Q_set,calcData['rGreenSampleNum'],r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],delta,diff,d0,diffData['photonDensity'],num_threads=calcData['threadNumber'],num_images=calcData['imageNumber'])
+        calcData['results']['electronData'][mIndex] = green_electron.electrons_from_c(os.path.join(wd,py_file),os.path.join(wd,c_file),calcData['electronExecFile'],calcData['eGreenSampleNum'],E_set,Q_set,calcData['rGreenSampleNum'],r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,haloData['haloZ'],delta,diff,d0,diffData['photonDensity'],num_threads=calcData['threadNumber'],num_images=calcData['imageNumber'])
         if calcData['results']['electronData'][mIndex] is None:
             fatal_error(f"The electron executable {calcData['electronExecFile']} is not compiled or location not specified correctly")
         else:
@@ -539,6 +540,34 @@ def calcJFlux(mx,calcData,haloData,partData):
     return calcData
 
 def runChecks(calcData,haloData,partData,magData,gasData,diffData,cosmoData,clear):
+    """
+    Processes dictionaries to prepare for calculations, will crash if this is not possible
+
+    Arguments
+    ---------------------------
+    calcData : dictionary
+        Calculation properties
+    haloData : dictionary
+        Halo properties
+    partData : dictionary
+        Particle physics
+    magData : dictionary
+        Magnetic field
+    gasData : dictionary
+        Das distribution
+    diffData : dictionary
+        Diffusion properties
+    diffData : dictionary
+        Diffusion properties
+    cosmoData : dictionary
+        Cosmology properties
+    clear : string (optional)
+        What results to clear, can be 'all', 'observables' or 'final' (defaults to 'all')
+
+    Returns
+    ---------------------------
+    All given dictionaries checked and ready for calculations
+    """
     cosmoData = checkCosmology(cosmoData)
     if not calcData['calcMode'] == "jflux":
         if (not calcData['freqMode'] == "pgamma") and (not "neutrinos" in calcData['freqMode']):
@@ -628,10 +657,10 @@ def runCalculation(calcData,haloData,partData,magData,gasData,diffData,cosmoData
         Diffusion properties
     cosmoData : dictionary
         Cosmology properties
-    overWriteElectrons : boolean
-        if False will not overWrite existing electronData values
-    clear : string
-        What results to clear, can be 'all', 'observables' or 'final'
+    overWriteElectrons : boolean (optional)
+        if False will not overWrite existing electronData values (defaults to True)
+    clear : string (optional)
+        What results to clear, can be 'all', 'observables' or 'final' (defaults to 'all')
 
     Returns
     ---------------------------
@@ -687,10 +716,10 @@ def runCalculation(calcData,haloData,partData,magData,gasData,diffData,cosmoData
     py_file = "temp_electrons_py.out"
     c_file = "temp_electrons_c.in"
     wd = os.getcwd()
-    if isfile(join(wd,py_file)):
-        os.remove(join(wd,py_file))
-    if isfile(join(wd,c_file)):
-        os.remove(join(wd,c_file))
+    if os.path.isfile(os.path.join(wd,py_file)):
+        os.remove(os.path.join(wd,py_file))
+    if os.path.isfile(os.path.join(wd,c_file)):
+        os.remove(os.path.join(wd,c_file))
     return {'calcData':calcData,'haloData':haloData,'partData':partData,'magData':magData,'gasData':gasData,'diffData':diffData,'cosmoData':cosmoData}
 
 

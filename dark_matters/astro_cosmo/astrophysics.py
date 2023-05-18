@@ -1,3 +1,6 @@
+"""
+DarkMatters.astro_cosmo module for calculating halo densities, magnetic fields, gas densities
+"""
 import numpy as np
 try:
     import cosmology

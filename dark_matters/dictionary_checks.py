@@ -1,7 +1,9 @@
+"""
+DarkMatters module for checking input dictionaries are usuable 
+"""
 import os,yaml
 import numpy as np
 from astropy import constants
-from genericpath import isdir
 
 from .input import getSpectralData
 from .output import fatal_error,warning
@@ -372,7 +374,7 @@ def checkParticles(partDict,calcDict):
         partDict['decayInput'] = False
     if not 'spectrumDirectory' in partDict.keys():
         partDict['spectrumDirectory'] = os.path.join(os.path.dirname(os.path.realpath(__file__)),"particle_physics")
-    if not isdir(partDict['spectrumDirectory']):
+    if not os.path.isdir(partDict['spectrumDirectory']):
         warning(f"partData['spectrumDirectory'] = {partDict['spectrumDirectory']} is not a valid folder, using default instead")
         partDict['spectrumDirectory'] = os.path.join(os.path.dirname(os.path.realpath(__file__)),"particle_physics")
     specSet = []
