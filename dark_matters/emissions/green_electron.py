@@ -183,8 +183,8 @@ def electrons_from_c(outfile,infile,exec_electron_c,kPrime,E_set,Q_set,ngr,r_sam
             call([exec_electron_c,outfile,infile],shell=True)#,cwd=cdir)
     except:
         return None
-    electronData = read_electrons_c(infile,E_set,r_sample)
-    return electronData
+    electron_data = read_electrons_c(infile,E_set,r_sample)
+    return electron_data
 
 def eloss_vector(E_vec,B,ne,z,uPh=0.0):
     """
@@ -213,7 +213,7 @@ def eloss_vector(E_vec,B,ne,z,uPh=0.0):
     eloss_tot = coeffs[0]*(me*E_vec)**2 + coeffs[1]*(me*E_vec)**2*B**2 + coeffs[2]*ne*(1+np.log(E_vec/ne)/75.0)+ coeffs[3]*ne*E_vec*me
     return eloss_tot/me #make it gamma s^-1 units
 
-def diffFuncNormed(gamma,delta):
+def diff_func_normed(gamma,delta):
     """
     Normalised diffusion function
 
@@ -233,7 +233,7 @@ def diffFuncNormed(gamma,delta):
     E = gamma*me
     return E**(delta)
 
-def vFunc(mx,gamma,B,ne,delta,z,uPh):
+def v_func(mx,gamma,B,ne,delta,z,uPh):
     """
     V function
 
@@ -256,7 +256,7 @@ def vFunc(mx,gamma,B,ne,delta,z,uPh):
     
     Returns
     ---------------------------
-    vFunc : array-like float
+    v_func : array-like float
         V function [Gev^-1 s]
     """
     me = (constants.m_e*constants.c**2).to("GeV").value
@@ -377,7 +377,7 @@ def booles_rule_log10(y, x, axis=-1):
 
     return result
 
-def equilibriumElectronsGridPartial(kPrime,E_set,Q_set,nPrime,r_sample,rho_dm_sample,b_set,ne_set,mx,mode_exp,b_av,ne_av,z,delta,diff,d0,uPh,num_threads,num_images):
+def equilibrium_electrons_grid_partial(kPrime,E_set,Q_set,nPrime,r_sample,rho_dm_sample,b_set,ne_set,mx,mode_exp,b_av,ne_av,z,delta,diff,d0,uPh,num_threads,num_images):
     """
     Calculates equilibrium electron distribution via Green's function
 
@@ -437,7 +437,7 @@ def equilibriumElectronsGridPartial(kPrime,E_set,Q_set,nPrime,r_sample,rho_dm_sa
     images = np.arange(-(num_images),(num_images+1),dtype=int)
 
     with np.errstate(invalid="ignore",divide="ignore"):
-        vSample = vFunc(mx,E_set,b_av,ne_av,delta,z,uPh)*d0/3.086e24**2
+        vSample = v_func(mx,E_set,b_av,ne_av,delta,z,uPh)*d0/3.086e24**2
     vSample = np.where(np.isnan(vSample),0.0,vSample)
     vIntp = interp1d(E_set,vSample)
 

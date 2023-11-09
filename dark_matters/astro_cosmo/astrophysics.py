@@ -1,19 +1,16 @@
 import numpy as np
-try:
-    import cosmology
-except:
-    import dark_matters.astro_cosmo.cosmology as cosmology
+from . import cosmology
 from scipy.integrate import simps as integrate
 from scipy.optimize import bisect
 
 
-def haloDensityBuilder(haloDict):
+def halo_density_builder(halo_dict):
     """
     Returns a lambda function for DM density rho(r)
 
     Arguments
     ---------------------------
-    haloDict : dictionary
+    halo_dict : dictionary
         Halo properties
 
     Returns
@@ -21,28 +18,28 @@ def haloDensityBuilder(haloDict):
     rho(r) : lambda function
         Returns DM density function, units Msun/Mpc^3
     """
-    if haloDict['haloProfile'] == "nfw":
-        return lambda x: haloDict['haloNorm']/(x/haloDict['haloScale'])/(1+x/haloDict['haloScale'])**2
-    elif haloDict['haloProfile'] == "burkert":
-        return lambda x: haloDict['haloNorm']/(1+x/haloDict['haloScale'])/(1+(x/haloDict['haloScale'])**2)
-    elif haloDict['haloProfile'] == "gnfw":
-        return lambda x: haloDict['haloNorm']/(x/haloDict['haloScale'])**haloDict['haloIndex']/(1+x/haloDict['haloScale'])**(3-haloDict['haloIndex'])
-    elif haloDict['haloProfile'] == "einasto":
-        return lambda x: haloDict['haloNorm']*np.exp(-2/haloDict['haloIndex']*((x/haloDict['haloScale'])**haloDict['haloIndex']-1))
-    elif haloDict['haloProfile'] == "isothermal":
-        return lambda x: haloDict['haloNorm']/(1+(x/haloDict['haloScale'])**2)
-    elif haloDict['haloProfile'] == "cgnfw":
-        return lambda x: haloDict['haloNorm']*((x+haloDict['haloCoreScale'])/haloDict['haloScale'])**(-haloDict['haloIndex'])*(1+x/haloDict['haloScale'])**(haloDict['haloIndex']-3)
+    if halo_dict['halo_profile'] == "nfw":
+        return lambda x: halo_dict['halo_norm']/(x/halo_dict['halo_scale'])/(1+x/halo_dict['halo_scale'])**2
+    elif halo_dict['halo_profile'] == "burkert":
+        return lambda x: halo_dict['halo_norm']/(1+x/halo_dict['halo_scale'])/(1+(x/halo_dict['halo_scale'])**2)
+    elif halo_dict['halo_profile'] == "gnfw":
+        return lambda x: halo_dict['halo_norm']/(x/halo_dict['halo_scale'])**halo_dict['halo_index']/(1+x/halo_dict['halo_scale'])**(3-halo_dict['halo_index'])
+    elif halo_dict['halo_profile'] == "einasto":
+        return lambda x: halo_dict['halo_norm']*np.exp(-2/halo_dict['halo_index']*((x/halo_dict['halo_scale'])**halo_dict['halo_index']-1))
+    elif halo_dict['halo_profile'] == "isothermal":
+        return lambda x: halo_dict['halo_norm']/(1+(x/halo_dict['halo_scale'])**2)
+    elif halo_dict['halo_profile'] == "cgnfw":
+        return lambda x: halo_dict['halo_norm']*((x+halo_dict['halo_core_scale'])/halo_dict['halo_scale'])**(-halo_dict['halo_index'])*(1+x/halo_dict['halo_scale'])**(halo_dict['halo_index']-3)
     else:
         return None
 
-def magneticFieldBuilder(magDict):
+def magnetic_field_builder(mag_dict):
     """
     Returns a lambda function for magnetic field strength B(r)
 
     Arguments
     ---------------------------
-    magDict : dictionary
+    mag_dict : dictionary
         Magnetic field properties
 
     Returns
@@ -50,29 +47,29 @@ def magneticFieldBuilder(magDict):
     B(r) : lambda function
         Returns magnetic field strength function, units uG
     """
-    if magDict['magProfile'] in ["pl","powerlaw"]:
-        return lambda x: magDict['magNorm']*(x/magDict['magScale'])**magDict['magIndex']
-    elif magDict['magProfile'] == "beta":
-        return lambda x: magDict['magNorm']*(1 +(x/magDict['magScale'])**2)**(3*magDict['magIndex']/2)
-    elif magDict['magProfile'] == "doublebeta":
-        return lambda x: magDict['magNorm']*(1 +(x/magDict['magScale'])**2)**(3*magDict['magIndex']/2) + magDict['magNorm2']*(1 +(x/magDict['magScale2'])**2)**(3*magDict['magIndex2']/2)
-    elif magDict['magProfile'] == "exp":
-        return lambda x: magDict['magNorm']*np.exp(1.0)**(-x/magDict['magScale'])
-    elif magDict['magProfile'] == "m31":
-        return lambda x: (magDict['magNorm']*magDict['magScale'] + 64e-3)/(magDict['magScale'] + x)
-    elif magDict['magProfile'] == "flat":
-        return lambda x: magDict['magNorm']*np.ones_like(x)
+    if mag_dict['mag_profile'] in ["pl","powerlaw"]:
+        return lambda x: mag_dict['mag_norm']*(x/mag_dict['mag_scale'])**mag_dict['mag_index']
+    elif mag_dict['mag_profile'] == "beta":
+        return lambda x: mag_dict['mag_norm']*(1 +(x/mag_dict['mag_scale'])**2)**(3*mag_dict['mag_index']/2)
+    elif mag_dict['mag_profile'] == "doublebeta":
+        return lambda x: mag_dict['mag_norm']*(1 +(x/mag_dict['mag_scale'])**2)**(3*mag_dict['mag_index']/2) + mag_dict['mag_norm2']*(1 +(x/mag_dict['mag_scale2'])**2)**(3*mag_dict['mag_index2']/2)
+    elif mag_dict['mag_profile'] == "exp":
+        return lambda x: mag_dict['mag_norm']*np.exp(1.0)**(-x/mag_dict['mag_scale'])
+    elif mag_dict['mag_profile'] == "m31":
+        return lambda x: (mag_dict['mag_norm']*mag_dict['mag_scale'] + 64e-3)/(mag_dict['mag_scale'] + x)
+    elif mag_dict['mag_profile'] == "flat":
+        return lambda x: mag_dict['mag_norm']*np.ones_like(x)
     else:
         return None
 
 
-def gasDensityBuilder(gasDict):
+def gas_density_builder(gas_dict):
     """
     Returns a lambda function for ambient gas number density n(r)
 
     Arguments
     ---------------------------
-    gasDict : dictionary
+    gas_dict : dictionary
         Ambient gas properties
 
     Returns
@@ -80,26 +77,26 @@ def gasDensityBuilder(gasDict):
     n(r) : lambda function
         Returns gas number density function, units 1/cm^3
     """
-    if gasDict['gasProfile'] in ["pl","powerlaw"]:
-        return lambda x: gasDict['gasNorm']*(x/gasDict['gasScale'])**gasDict['gasIndex']
-    elif gasDict['gasProfile'] == "beta":
-        return lambda x: gasDict['gasNorm']*(1 +(x/gasDict['gasScale'])**2)**(3*gasDict['gasIndex']/2)
-    elif gasDict['gasProfile'] == "doublebeta":
-        return lambda x: gasDict['gasNorm']*(1 +(x/gasDict['gasScale'])**2)**(3*gasDict['gasIndex']/2) + gasDict['gasNorm2']*(1 +(x/gasDict['gasScale2'])**2)**(3*gasDict['gasIndex2']/2)
-    elif gasDict['gasProfile'] == "exp":
-        return lambda x: gasDict['gasNorm']*np.exp(-x/gasDict['gasScale'])
-    elif gasDict['gasProfile'] == "flat":
-        return lambda x: gasDict['gasNorm']*np.ones_like(x)
+    if gas_dict['gas_profile'] in ["pl","powerlaw"]:
+        return lambda x: gas_dict['gas_norm']*(x/gas_dict['gas_scale'])**gas_dict['gas_index']
+    elif gas_dict['gas_profile'] == "beta":
+        return lambda x: gas_dict['gas_norm']*(1 +(x/gas_dict['gas_scale'])**2)**(3*gas_dict['gas_index']/2)
+    elif gas_dict['gas_profile'] == "doublebeta":
+        return lambda x: gas_dict['gas_norm']*(1 +(x/gas_dict['gas_scale'])**2)**(3*gas_dict['gas_index']/2) + gas_dict['gas_norm2']*(1 +(x/gas_dict['gas_scale2'])**2)**(3*gas_dict['gas_index2']/2)
+    elif gas_dict['gas_profile'] == "exp":
+        return lambda x: gas_dict['gas_norm']*np.exp(-x/gas_dict['gas_scale'])
+    elif gas_dict['gas_profile'] == "flat":
+        return lambda x: gas_dict['gas_norm']*np.ones_like(x)
     else:
         return None
 
-def rvirFromRho(haloDict,cosmo):
+def rvir_from_rho(halo_dict,cosmo):
     """
     Returns rvir from a density profile rho(r)
 
     Arguments
     ---------------------------
-    haloDict : dictionary
+    halo_dict : dictionary
         DM halo properties
 
     Returns
@@ -107,7 +104,7 @@ def rvirFromRho(haloDict,cosmo):
     rvir : float
         Virial radius [Mpc]
     """
-    def averageRho(rmax,haloDict,target=0.0):
+    def average_rho(rmax,halo_dict,target=0.0):
         """
         Returns average DM density over radius rmax
 
@@ -115,7 +112,7 @@ def rvirFromRho(haloDict,cosmo):
         ---------------------------
         rmax : float
             Radius for averaging DM density [Mpc]
-        haloDict : dictionary
+        halo_dict : dictionary
             DM halo properties
         target : float, optional
             Target density contrast [Msun/Mpc^3]
@@ -125,21 +122,21 @@ def rvirFromRho(haloDict,cosmo):
         rhobar : float
             Average DM density, within rmax, - target [Msun/Mpc^3]
         """
-        r_set = np.logspace(np.log10(haloDict['haloScale']*1e-7),np.log10(rmax),num=100)
-        rho = haloDensityBuilder(haloDict)(r_set)
+        r_set = np.logspace(np.log10(halo_dict['halo_scale']*1e-7),np.log10(rmax),num=100)
+        rho = halo_density_builder(halo_dict)(r_set)
         return integrate(r_set**2*rho,r_set)/integrate(r_set**2,r_set)-target
-    target = cosmology.delta_c(haloDict['haloZ'],cosmo)*cosmology.rho_crit(haloDict['haloZ'],cosmo) #density contast we need
+    target = cosmology.delta_c(halo_dict['halo_z'],cosmo)*cosmology.rho_crit(halo_dict['halo_z'],cosmo) #density contast we need
     #print(average_rho(rc,rhos,rc,dmmod))
     #print(average_rho(rc*30,rhos,rc,dmmod))
-    return bisect(averageRho,haloDict['haloScale'],haloDict['haloScale']*1e6,args=(haloDict,target))
+    return bisect(average_rho,halo_dict['halo_scale'],halo_dict['halo_scale']*1e6,args=(halo_dict,target))
 
-def rhoVirialInt(haloDict):
+def rho_virial_int(halo_dict):
     """
     Returns mass within virial radius
 
     Arguments
     ---------------------------
-    haloDict : dictionary
+    halo_dict : dictionary
         DM halo properties
 
     Returns
@@ -147,8 +144,8 @@ def rhoVirialInt(haloDict):
     mvir : float
         Virial mass [Msun]
     """
-    r_set = np.logspace(np.log10(haloDict['haloScale']*1e-7),np.log10(haloDict['haloRvir']),num=100)
-    if not 'haloNorm' in haloDict.keys():
-        haloDict['haloNorm'] = 1.0
-    rho = haloDensityBuilder(haloDict)(r_set)
+    r_set = np.logspace(np.log10(halo_dict['halo_scale']*1e-7),np.log10(halo_dict['halo_rvir']),num=100)
+    if not 'halo_norm' in halo_dict.keys():
+        halo_dict['halo_norm'] = 1.0
+    rho = halo_density_builder(halo_dict)(r_set)
     return 4*np.pi*integrate(r_set**2*rho,r_set)

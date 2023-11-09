@@ -1,50 +1,50 @@
 angle:
-- calcAngmaxIntegrate
+- calc_angmax_integrate
 density:
-- haloNorm
+- halo_norm
 distance:
-- haloDistance
-- haloScale
-- haloRvir
-- magScale
-- magScale2
-- gasScale
-- gasScale2
-- calcRmaxIntegrate
-- diffRmax
-- coherenceScale
-- haloCoreScale
-- greenAveragingScale
+- halo_distance
+- halo_scale
+- halo_rvir
+- mag_scale
+- mag_scale2
+- gas_scale
+- gas_scale2
+- calc_rmax_integrate
+- diff_rmax
+- coherence_scale
+- halo_core_scale
+- green_averaging_scale
 time:
-- adiDeltaTi
-- adiDeltaTMin
+- adi_delta_ti
+- adi_delta_t_min
 energy:
-- mWIMP
-- eSampleMin
+- m_wimp
+- e_sample_min
 frequency:
-- fSampleLimits
-- fSampleValues
-jFactor:
-- haloJFactor
-dFactor:
-- haloDFactor
+- f_sample_limits
+- f_sample_values
+j_factor:
+- halo_j_factor
+d_factor:
+- halo_d_factor
 magnetic:
-- magNorm
-- magNorm2
-- magFieldAverage
+- mag_norm
+- mag_norm2
+- mag_field_average
 mass:
-- haloMvir
-numDensity:
-- gasNorm
-- gasNorm2
-- gasAverageDensity
-energyDensity:
-- photonDensity
-diffConstant:
-- diffConstant
-crossSection:
-- crossSection
-decayRate:
-- decayRate
+- halo_mvir
+num_density:
+- gas_norm
+- gas_norm2
+- gas_average_density
+energy_density:
+- photon_density
+diff_constant:
+- diff_constant
+cross_section:
+- cross_section
+decay_rate:
+- decay_rate
 temperature:
-- photonTemp
+- photon_temp

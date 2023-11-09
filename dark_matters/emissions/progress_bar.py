@@ -31,7 +31,7 @@ def progress(iteration, total,prefix = '', suffix = '', decimals = 1, length = 3
     if iteration == total: 
         print()
 
-def printProgressBar(i,max,postText):
+def print_progress_bar(i,max,postText):
     n_bar =10 #size of progress bar
     j= i/max
     sys.stdout.write('\r')

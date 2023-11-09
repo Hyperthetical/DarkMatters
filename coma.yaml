@@ -1,67 +1,62 @@
-haloData:
-  haloName: "coma"
-  haloProfile: "nfw"
-  haloScale:
-    value: 0.287 #astro-ph/0302461
-    unit: "Mpc"
-  haloCvir: 9.4 #astro-ph/0302461
-  haloRvir:
-    value: 2.7 #astro-ph/0302461
-    unit: "Mpc"
-  haloMvir: 
-    value: 1.2e+15 #astro-ph/0302461
-    unit: "solMass"
-  haloZ: 0.0231 #astro-ph/0302461
-
-gasData:
-  gasProfile: "beta"
-  gasNorm: 
-    value: 3.49e-3 #astro-ph/0702482
-    unit: "1/cm^3"
-  gasScale:
-    value: 253 #astro-ph/0702482
-    unit: "kpc"
-  gasIndex: -0.654 #astro-ph/0702482
-  
-magData:
-  magProfile: "beta"
-  magNorm:
-    value: 4.7e-6 #1002.0594
-    unit: "gauss"
-  magIndex: -0.327 #1002.0594
-  magScale:
-    value: 0.253 #1002.0594
-    unit: "Mpc"
-
-diffData:
-  lossOnly: False
-  diffConstant:
+calc_data:
+  adi_max_steps: 20
+  calc_mode: sb
+  e_sample_number: 50
+  electron_mode: adi-python
+  f_sample_limits:
+    unit: MHz
+    value:
+    - 10.0
+    - 100000.0
+  f_sample_num: 40
+  f_sample_spacing: log
+  freq_mode: radio
+  log10_r_sample_min_factor: -3
+  m_wimp:
+    unit: GeV
+    value:
+    - 10
+    - 100
+    - 1000
+  r_sample_number: 50
+diff_data:
+  diff_constant:
+    unit: cm^2/s
     value: 1.0e+29
-    unit: "cm^2/s"
-  diffIndex: 0.33333
-
-partData:
-  partModel: "bb"
-  emModel: "annihilation"
-
-calcData:
-  calcMode: "sb"
-  freqMode: "radio"
-  mWIMP:
-    value:
-      - 10
-      - 100
-      - 1000
-    unit: "GeV"
-  fSampleLimits:
-    value:
-      - 1.e+1
-      - 1.e+5
-    unit: "MHz"
-  fSampleNum: 40
-  fSampleSpacing: "log"
-  adiMaxSteps: 20
-  rSampleNumber: 50
-  eSampleNumber: 50
-  log10RSampleMinFactor: -3
-  electronMode: "adi-python" 
+  diff_index: 0.33333
+  loss_only: false
+gas_data:
+  gas_index: -0.654
+  gas_norm:
+    unit: 1/cm^3
+    value: 0.00349
+  gas_profile: beta
+  gas_scale:
+    unit: kpc
+    value: 253
+halo_data:
+  halo_cvir: 9.4
+  halo_mvir:
+    unit: solMass
+    value: 1200000000000000.0
+  halo_name: coma
+  halo_profile: nfw
+  halo_rvir:
+    unit: Mpc
+    value: 2.7
+  halo_scale:
+    unit: Mpc
+    value: 0.287
+  halo_z: 0.0231
+mag_data:
+  mag_index: -0.327
+  mag_norm:
+    unit: gauss
+    value: 4.7e-06
+  mag_profile: beta
+  mag_scale:
+    unit: Mpc
+    value: 0.253
+part_data:
+  em_model: annihilation
+  part_model: bb
