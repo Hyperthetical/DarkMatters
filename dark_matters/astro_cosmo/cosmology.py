@@ -22,7 +22,7 @@ def rho_crit(z,cosmo):
     rho_crit : float
         Critical density [Msun/Mpc^3]
     """
-    return 1e9*2.7755e-2/hubbleFunc(z,cosmo)**2
+    return 1e9*2.7755e-2/hubble_func(z,cosmo)**2
 
 def omega_m(z,cosmo):
     """
@@ -61,7 +61,7 @@ def delta_c(z,cosmo):
     x = 1.0 - omega_m(z,cosmo)
     return (18.0*np.pi**2 - 82.0*x - 39.0*x**2)#/omega_m(z,cosmo)
 
-def rvirFromMvir(mvir,z,cosmo):
+def rvir_from_mvir(mvir,z,cosmo):
     """
     Virial radius from virial mass
 
@@ -81,7 +81,7 @@ def rvirFromMvir(mvir,z,cosmo):
     """
     return (0.75*mvir/(np.pi*delta_c(z,cosmo)*rho_crit(z,cosmo)))**(1.0/3.0) #in Mpc
 
-def mvirFromRvir(rvir,z,cosmo):
+def mvir_from_rvir(rvir,z,cosmo):
     """
     Virial mass from virial radius
 
@@ -101,7 +101,7 @@ def mvirFromRvir(rvir,z,cosmo):
     """
     return 4*np.pi/3.0*delta_c(z,cosmo)*rho_crit(z,cosmo)*rvir**3
 
-def haloScale(M,z,cosmo):
+def halo_scale(M,z,cosmo):
     """
     Halo scale radius
 
@@ -119,9 +119,9 @@ def haloScale(M,z,cosmo):
     rs : float
         Scale radius [Mpc]
     """
-    return rvirFromMvir(M,z,cosmo)/cvir_munoz(M,z,cosmo)
+    return rvir_from_mvir(M,z,cosmo)/cvir_munoz(M,z,cosmo)
 
-def rhoNFWNormRelative(cv,z,cosmo):
+def rho_nfw_norm_relative(cv,z,cosmo):
     """
     Rhos relative to rho_crit for NFW halo
 
@@ -136,12 +136,12 @@ def rhoNFWNormRelative(cv,z,cosmo):
 
     Returns
     ---------------------------
-    rhoNormRelative : float
+    rho_normRelative : float
         Rhos/rho_crit
     """
     return delta_c(z,cosmo)/3.0*cv**3/(np.log(cv+1.0) - cv/(1.0+cv))
 
-def hubbleFunc(z,cosmo):
+def hubble_func(z,cosmo):
     """
     1/H(z)
 
@@ -179,7 +179,7 @@ def dist_co_move(z,cosmo):
     """
     c = 2.99792458e5 #km s^-1
     w_k = 1 - cosmo['omega_m'] - cosmo['omega_l']
-    dc = quad(hubbleFunc,0,z,args=(cosmo))[0]*c
+    dc = quad(hubble_func,0,z,args=(cosmo))[0]*c
     dh = c/(100*cosmo['h'])
     if(w_k == 0.0):
         dcm = dc
@@ -246,16 +246,16 @@ def cvir(Mvir,z,cosmo):
     cvir : float
         Virial concentration
     """
-    if cosmo['cvirMode'] == "p12":
-        cvirFunc = cvir_p12
-    elif cosmo['cvirMode'] == "munoz_2010":
-        cvirFunc = cvir_munoz
-    elif cosmo['cvirMode'] == "bullock_2001":
-        cvirFunc = cvir_bullock2001
-    elif cosmo['cvirMode'] == "cpu_2006":
-        cvirFunc = cvir_cpu
+    if cosmo['cvir_mode'] == "p12":
+        cvir_func = cvir_p12
+    elif cosmo['cvir_mode'] == "munoz_2010":
+        cvir_func = cvir_munoz
+    elif cosmo['cvir_mode'] == "bullock_2001":
+        cvir_func = cvir_bullock2001
+    elif cosmo['cvir_mode'] == "cpu_2006":
+        cvir_func = cvir_cpu
 
-    return cvirFunc(Mvir,z,cosmo)
+    return cvir_func(Mvir,z,cosmo)
 
 def cvir_bullock2001(M,z,cosmo):
     """
@@ -299,9 +299,9 @@ def cvir_p12_param(M,z,cosmo):
     cv = 0.0
     for i in range(0,len(c)):
         cv += c[i]*np.log(M*cosmo['h'])**i
-    return c200ToCvir(cv,z,cosmo)
+    return c200_to_cvir(cv,z,cosmo)
 
-def c200ToCvir(c200,z,cosmo):
+def c200_to_cvir(c200,z,cosmo):
     """
     Fitting function from 1005.0411, valid for NFW
 
@@ -409,7 +409,7 @@ def cvir_p12(M,z,cosmo):
     A = 2.881;b=1.257;c=1.022;d=0.060
     csig = A*((sigma_p/b)**c + 1)*np.exp(d/sigma_p**2)
     c200 = b0*csig
-    return c200ToCvir(c200,z,cosmo)
+    return c200_to_cvir(c200,z,cosmo)
 
 def cvir_cpu(Mvir,z,cosmo):
     """

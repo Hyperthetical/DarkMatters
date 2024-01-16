@@ -5,13 +5,13 @@ A code to calculate multi-frequency and multi-messenger emissions from WIMP anni
 This software requires python3 with the numpy, scipy, sympy, matplotlib, pyyaml, jupyter, tqdm, joblib, and astropy packages installed. A requirements.txt file is provided for use with pip.
 
 ### Green's function solutions
-On unix systems you can use these in their faster C++ implementation, this requires a C++ compiler (g++ recommended) and the Gnu Scientific Libray (GSL), particularly the libgsl-dev package.
+**These do not currently work as they are being reimplemented** On unix systems you can use these in their faster C++ implementation, this requires a C++ compiler (g++ recommended) and the Gnu Scientific Libray (GSL), particularly the libgsl-dev package.
 
 ## Installation:
 Clone the repo to your local machine. 
 
 ### Green's function solutions
-If you want to make use of the C++ Green's function solution method you need to compile an executable.
+**These do not currently work as they are being reimplemented** If you want to make use of the C++ Green's function solution method you need to compile an executable.
 
 On Linux, run "make" in the emissions sub-folder and you're done, yay Linux!
 

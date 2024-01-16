@@ -6,9 +6,9 @@ import yaml,json
 from astropy import units
 from scipy.interpolate import interp2d
 import os
-from .output import fatal_error,checkQuant,warning
+from .output import fatal_error,check_quant,warning
 
-def getSpectralData(spec_dir,partModel,specSet,mode="annihilation"):
+def get_spectral_data(spec_dir,part_model,spec_set,mode="annihilation"):
     """
     Retrieves particle yield spectra for a given model, set of WIMP masses, and products
 
@@ -16,9 +16,9 @@ def getSpectralData(spec_dir,partModel,specSet,mode="annihilation"):
     ---------------------------
     spec_dir : str
         Path of folder where spectra are stored
-    partModel : str 
+    part_model : str 
         Label of particle physics model
-    specSet :  str, list
+    spec_set :  str, list
         Particle yield spectra to be loaded. Allowed entries are "gammas", "positrons", "neutrinos_x" where x = mu,e, or tau
     mode : str, optional 
         Annihilation or decay
@@ -27,18 +27,18 @@ def getSpectralData(spec_dir,partModel,specSet,mode="annihilation"):
 
     Returns
     ---------------------------
-    specDict : dictionary
-        Dictionary of yield spectra, keys matching specSet, values are interpolating functions
+    spec_dict : dictionary
+        Dictionary of yield spectra, keys matching spec_set, values are interpolating functions
     """
-    specDict = {}
-    for f in specSet:
-        if partModel in ["bb","qq","ww","ee","hh","tautau","mumu","tt","zz"]:
-            specDict[f] = readSpectrum(os.path.join(spec_dir,f"AtProduction_{f}.dat"),partModel,mode=mode,pppc4dmid=True)
+    spec_dict = {}
+    for f in spec_set:
+        if part_model in ["bb","qq","ww","ee","hh","tautau","mumu","tt","zz"]:
+            spec_dict[f] = read_spectrum(os.path.join(spec_dir,f"AtProduction_{f}.dat"),part_model,mode=mode,pppc4dmid=True)
         else:
-            specDict[f] = readSpectrum(os.path.join(spec_dir,f"{partModel}_AtProduction_{f}.dat"),partModel,mode=mode,pppc4dmid=False)
-    return specDict
+            spec_dict[f] = read_spectrum(os.path.join(spec_dir,f"{part_model}_AtProduction_{f}.dat"),part_model,mode=mode,pppc4dmid=False)
+    return spec_dict
 
-def readSpectrum(spec_file,partModel,mode="annihilation",pppc4dmid=True):
+def read_spectrum(spec_file,part_model,mode="annihilation",pppc4dmid=True):
     """
     Reads file to get particle yield spectra for a given model and set of WIMP masses
 
@@ -46,7 +46,7 @@ def readSpectrum(spec_file,partModel,mode="annihilation",pppc4dmid=True):
     ---------------------------
     spec_file : str
         Path of spectrum file
-    partModel : str 
+    part_model : str 
         Label of particle physics model
     mode : float, optional 
         Flag, 2.0 for annihilation or 1.0 for decay
@@ -60,92 +60,92 @@ def readSpectrum(spec_file,partModel,mode="annihilation",pppc4dmid=True):
 
     Notes
     ---------------------------
-    file names format : "AtProduction_partModel_products.dat", "products" can be "positrons", "gammas", or "neutrinos_e" etc 
+    file names format : "AtProduction_part_model_products.dat", "products" can be "positrons", "gammas", or "neutrinos_e" etc 
     A custom spec_file must be formatted as follows:
     column 0: WIMP mass in GeV, column 1: log10(energy/mx) , column 2: dN/dlog10(energy/mx)
     """
     #mDM      Log[10,x]   eL         eR         e          \[Mu]L     \[Mu]R     \[Mu]      \[Tau]L    \[Tau]R    \[Tau]     q            c            b            t            WL          WT          W           ZL          ZT          Z           g            \[Gamma]    h           \[Nu]e     \[Nu]\[Mu]   \[Nu]\[Tau]   V->e       V->\[Mu]   V->\[Tau]
-    chCols = {"ee":4,"mumu":7,"tautau":10,"qq":11,"bb":13,"tt":14,"ww":17,"zz":20,"gamma":22,'hh':23}
+    ch_cols = {"ee":4,"mumu":7,"tautau":10,"qq":11,"bb":13,"tt":14,"ww":17,"zz":20,"gamma":22,'hh':23}
     if pppc4dmid:
-        nCol = chCols[partModel]
+        n_col = ch_cols[part_model]
     else:
-        nCol = 2
-    mCol = 0
-    xCol = 1
+        n_col = 2
+    m_col = 0
+    x_col = 1
     try:
-        specData = np.loadtxt(spec_file,unpack=True)
+        spec_data = np.loadtxt(spec_file,unpack=True)
     except IOError:
         fatal_error("Spectrum File: "+spec_file+" does not exist at the specified location")
-    mx = np.unique(specData[mCol])
-    xLog = np.unique(specData[xCol])
-    dnData = specData[nCol]
-    #dnData.reshape((len(mx),len(xLog)))
+    mx = np.unique(spec_data[m_col])
+    x_log = np.unique(spec_data[x_col])
+    dn_data = spec_data[n_col]
+    #dn_data.reshape((len(mx),len(x_log)))
     if mode == "annihilation":
-        intp = interp2d(mx,xLog,dnData,fill_value=0.0)
+        intp = interp2d(mx,x_log,dn_data,fill_value=0.0)
     else:
-        intp = interp2d(mx,xLog,dnData,fill_value=0.0)
+        intp = interp2d(mx,x_log,dn_data,fill_value=0.0)
     return intp    
 
-def readInputFile(inputFile,inMode="yaml"):
+def read_input_file(input_file,in_mode="yaml"):
     """
     Reads a yaml file and builds dictionaries 
 
     Arguments
     ---------------------------
-    inputFile : str 
+    input_file : str 
         Path of input file
 
     Returns
     ---------------------------
-    datasets : dictionaries
+    data_sets : dictionaries
         Dictionaries storing information on: calculations, halo properties, particle physics, magnetic fields, gas distribution, diffusion, and cosmology
 
     Notes
     ---------------------------
     All dictionaries are returned, empty dictionaries indicate no properties were set in the file
     """
-    stream = open(inputFile, 'r')
-    if inMode == "yaml":
-        inputData = yaml.load(stream,Loader=yaml.SafeLoader)
-    elif inMode == "json":
-        inputData = json.load(stream)
+    stream = open(input_file, 'r')
+    if in_mode == "yaml":
+        input_data = yaml.load(stream,Loader=yaml.SafeLoader)
+    elif in_mode == "json":
+        input_data = json.load(stream)
     else:
-        fatal_error(f"The argument inMode = {inMode} given to input.readInputFile() does not match any valid input modes")
+        fatal_error(f"The argument in_mode = {in_mode} given to input.readinput_file() does not match any valid input modes")
     stream.close()
-    validKeys = ["haloData","magData","gasData","diffData","partData","calcData","cosmoData"]
-    dmUnits = {"temperature":"K","energyDensity":"eV/cm^3","decayRate":"1/s","crossSection":"cm^3/s","time":"yr","distance":"Mpc","mass":"solMass","density":"Msun/Mpc^3","numDensity":"1/cm^3","magnetic":"microGauss","energy":"GeV","frequency":"MHz","angle":"arcmin","jFactor":"GeV^2/cm^5","dFactor":"GeV/cm^2","diffConstant":"cm^2/s"}
-    dataSets = {}
-    for key in validKeys:
-        dataSets[key] = {}
-    for h in inputData.keys():
-        if not h in validKeys:
-            fatal_error(f"The key {h} in the file {inputFile} is not valid, options are {validKeys}")
-        for x in inputData[h].keys():
-            if not isinstance(inputData[h][x],dict):
-                dataSets[h][x] = inputData[h][x]
-            elif 'unit' in inputData[h][x].keys():
-                quant = checkQuant(x) #we find out what kind of units x has, i.e. distance, mass etc
+    valid_keys = ["halo_data","mag_data","gas_data","diff_data","part_data","calc_data","cosmo_data"]
+    dm_units = {"temperature":"K","energy_density":"eV/cm^3","decay_rate":"1/s","cross_section":"cm^3/s","time":"yr","distance":"Mpc","mass":"solMass","density":"Msun/Mpc^3","num_density":"1/cm^3","magnetic":"microGauss","energy":"GeV","frequency":"MHz","angle":"arcmin","j_factor":"GeV^2/cm^5","d_factor":"GeV/cm^2","diff_constant":"cm^2/s"}
+    data_sets = {}
+    for key in valid_keys:
+        data_sets[key] = {}
+    for h in input_data.keys():
+        if not h in valid_keys:
+            fatal_error(f"The key {h} in the file {input_file} is not valid, options are {valid_keys}")
+        for x in input_data[h].keys():
+            if not isinstance(input_data[h][x],dict):
+                data_sets[h][x] = input_data[h][x]
+            elif 'unit' in input_data[h][x].keys():
+                quant = check_quant(x) #we find out what kind of units x has, i.e. distance, mass etc
                 if not quant is None:
-                    unitStr = dmUnits[quant] #get the unit DM uses internally
+                    unit_str = dm_units[quant] #get the unit DM uses internally
                 else:
                     fatal_error(f"{h} property {x} does not accept a unit argument")
                 try:
-                    dataSets[h][x] = ((inputData[h][x]['value']*units.Unit(inputData[h][x]['unit'])).to(unitStr)).value #convert the units to internal system
+                    data_sets[h][x] = ((input_data[h][x]['value']*units.Unit(input_data[h][x]['unit'])).to(unit_str)).value #convert the units to internal system
                 except AttributeError:
-                    dataSets[h][x] = (inputData[h][x]['value']*units.Unit(inputData[h][x]['unit'])).to(unitStr)
+                    data_sets[h][x] = (input_data[h][x]['value']*units.Unit(input_data[h][x]['unit'])).to(unit_str)
                 except:
                     fatal_error(f"Processing failed on {h} property {x} ")
-    if len(dataSets['magData']) > 0:
-        dataSets['magData']['magFuncLock'] = False
-    return dataSets
+    if len(data_sets['mag_data']) > 0:
+        data_sets['mag_data']['mag_func_lock'] = False
+    return data_sets
 
-def readDMOutput(fName,inMode="yaml"):
+def read_dm_output(f_name,in_mode="yaml"):
     """
     Reads in an output yaml file created by DarkMatters
 
     Arguments
     ---------------------------
-    fName : str 
+    f_name : str 
         Path of file
 
     Returns
@@ -153,21 +153,20 @@ def readDMOutput(fName,inMode="yaml"):
     Dictionaries storing information on: calculations, halo properties, particle physics, magnetic fields, gas distribution, diffusion, and cosmology
     """
     try:
-        stream = open(fName, 'r')
+        stream = open(f_name, 'r')
     except IOError:
-        fatal_error(f"File {fName} not found")
-    if inMode == "yaml":
+        fatal_error(f"File {f_name} not found")
+    if in_mode == "yaml":
         try:
-            inData = yaml.load(stream,Loader=yaml.SafeLoader)
+            in_data = yaml.load(stream,Loader=yaml.SafeLoader)
         except:
             stream.close()
-            stream = open(fName, 'r')
-            warning(f"Loading {fName} with unsafeLoader (probably due to numpy objects)")
-            inData = yaml.load(stream,Loader=yaml.UnsafeLoader)
-    elif inMode == "json":
-        inData = json.load(stream)
+            stream = open(f_name, 'r')
+            warning(f"Loading {f_name} with unsafeLoader (probably due to numpy objects)")
+            in_data = yaml.load(stream,Loader=yaml.UnsafeLoader)
+    elif in_mode == "json":
+        in_data = json.load(stream)
     else:
-        fatal_error(f"The argument inMode = {inMode} given to input.readInputFile() does not match any valid input modes")
+        fatal_error(f"The argument in_mode = {in_mode} given to input.readinput_file() does not match any valid input modes")
     stream.close()
-    return inData
-
+    return in_data
