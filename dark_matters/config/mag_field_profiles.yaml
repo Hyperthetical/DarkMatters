@@ -1,0 +1,23 @@
+beta:
+- mag_norm
+- mag_scale
+- mag_index
+doublebeta:
+- mag_norm
+- mag_scale
+- mag_index
+- mag_norm2
+- mag_scale2
+- mag_index2
+exp:
+- mag_scale
+- mag_norm
+flat:
+- mag_norm
+m31:
+- mag_scale
+- mag_norm
+pl:
+- mag_scale
+- mag_index
+- mag_norm
