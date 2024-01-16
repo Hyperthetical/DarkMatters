@@ -1,3 +1,6 @@
+"""
+DarkMatters.emissions module for calculating  electron equilibrium distributions with ADI method
+"""
 import time,warnings
 import numpy as np
 from scipy import sparse
@@ -14,7 +17,7 @@ class adi_scheme:
     ---------------------------
     benchmark_flag : boolean
         Flag for strong convergence condition (testing only)
-    const_Delta_t : boolean
+    const_delta_t : boolean
         Flag for constant time-step (testing only)
     animation_flag : boolean
         Flag for producing animation showing evolution of solution (slow)
@@ -55,15 +58,15 @@ class adi_scheme:
         Log10 of normalised energy samples
     Delta_E : float
         Log-spacing of normalised energy samples
-    Delta_t : float
+    delta_t : float
         Current time-step [s]
-    Delta_ti : float
+    delta_ti : float
         Initial time-step [s]
     max_t_part : int
         Number of iterations between time-step reductions
-    Delta_t_reduction : float
+    delta_t_reduction : float
         Reduction factor for time-step after max_t_part iterations
-    smallest_Delta_t : float
+    smallest_delta_t : float
         Smallest time-step in use [s]
     loss_ts : array-like float (n,m)
         Energy-loss time-scale [s]
@@ -75,7 +78,7 @@ class adi_scheme:
         Diffusion constant [cm^2 s^-1]
     benchmark_flag : boolean
         Flag for strong convergence condition (testing only)
-    const_Delta_t : boolean
+    const_delta_t : boolean
         Flag for constant time-step (testing only)
     animation_flag : boolean
         Flag for producing animation showing evolution of solution (slow)
@@ -112,7 +115,7 @@ class adi_scheme:
     adi2D : function
         Runs ADI solution
     """
-    def __init__(self,benchmark_flag=False,const_Delta_t=False,animation_flag=False):
+    def __init__(self,benchmark_flag=False,const_delta_t=False,animation_flag=False):
         self.effect = None      #which effects to include in the solution of the transport equation (in set {"loss","diffusion","all"})
 
         self.Q = None           #source function (2D np array, size r_bins x E_bins) [pc, GeV^-1]
@@ -135,22 +138,22 @@ class adi_scheme:
 
         self.Delta_r = None     #step size for space dimension after transform (dimensionless)
         self.Delta_E = None     #step size for energy dimension after transform (dimensionless)
-        self.Delta_t = None     #step size for temporal dimension [s]
-        self.Delta_ti = None    #initial value for Delta_t
+        self.delta_t = None     #step size for temporal dimension [s]
+        self.delta_ti = None    #initial value for delta_t
 
         self.loss_ts = None     #loss time_scale
         self.diff_ts = None     #diffusion time_scale
 
         self.benchmark_flag = benchmark_flag    #flag for whether run should use benchmark convergence condition  
-        self.const_Delta_t = const_Delta_t    #flag for using a constant step size or not. If False, Delta_t is reduced during method (accelerated method), if True Delta_t remains constant.
-        self.smallest_Delta_t = None    #smallest value of Delta_t before final convergence (for accelerated timestep switching method)
-        self.max_t_part = None    #maximum number of iterations for each value of Delta_t in accelerated method
-        self.Delta_t_reduction = None    #factor by which to reduce Delta_t during timestep-switching in accelerated method
+        self.const_delta_t = const_delta_t    #flag for using a constant step size or not. If False, delta_t is reduced during method (accelerated method), if True delta_t remains constant.
+        self.smallest_delta_t = None    #smallest value of delta_t before final convergence (for accelerated timestep switching method)
+        self.max_t_part = None    #maximum number of iterations for each value of delta_t in accelerated method
+        self.delta_t_reduction = None    #factor by which to reduce delta_t during timestep-switching in accelerated method
         
         self.animation_flag = animation_flag      #flag for whether animations take place or not
-        self.snapshots = None   #stores snapshots of psi and Delta_t at each iteration for animation
+        self.snapshots = None   #stores snapshots of psi and delta_t at each iteration for animation
         
-    def solve_electrons(self,mx,z,E_sample,r_sample,rho_sample,Q_sample,b_sample,dBdr_sample,ne_sample,r_scale,e_scale,delta,diff0=3.1e28,uPh=0.0,loss_only=False,mode_exp=2,Delta_t_min=1e1,Delta_ti=1e9,max_t_part=100,Delta_t_reduction=0.5):
+    def solve_electrons(self,mx,z,E_sample,r_sample,rho_sample,q_sample,b_sample,dBdr_sample,ne_sample,r_scale,e_scale,delta,diff0=3.1e28,u_ph=0.0,loss_only=False,mode_exp=2,delta_t_min=1e1,delta_ti=1e9,max_t_part=100,delta_t_reduction=0.5):
         """
         Set up and solve for electron distribution
 
@@ -162,7 +165,7 @@ class adi_scheme:
             Redshift of halo
         E_sample : array-like float (k)
             Yield function Lorentz-gamma values
-        Q_sample : array-like float (k)
+        q_sample : array-like float (k)
             (Yield function * electron mass) [particles per annihilation]
         r_sample : array-like float (n)
             Sampled radii [Mpc]
@@ -186,15 +189,15 @@ class adi_scheme:
             Diffusion constant [cm^2 s^-1]
         loss_only : boolean
             Flag that sets diffusion on or off
-        uPh : float
+        u_ph : float
             Ambient photon energy density [eV cm^-3]
-        Delta_ti : float
+        delta_ti : float
             Initial time-step [s]
         max_t_part : int
             Number of iterations between time-step reductions
-        Delta_t_reduction : float
+        delta_t_reduction : float
             Reduction factor for time-step after max_t_part iterations
-        Delta_t_min : float
+        delta_t_min : float
             Smallest time-step in use [s]
         
         Returns
@@ -232,7 +235,7 @@ class adi_scheme:
 
         rho_sample = (rho_sample*units.Unit("Msun/Mpc^3")*constants.c**2).to("GeV/cm^3").value
         dBdr_sample = (dBdr_sample*units.Unit("1/Mpc")).to("1/cm").value
-        self.Q = 1/mode_exp*(np.tensordot(rho_sample,np.ones_like(self.E_grid),axes=0)/mx)**mode_exp*np.tensordot(np.ones_like(rho_sample),Q_sample,axes=0)
+        self.Q = 1/mode_exp*(np.tensordot(rho_sample,np.ones_like(self.E_grid),axes=0)/mx)**mode_exp*np.tensordot(np.ones_like(rho_sample),q_sample,axes=0)
         Etens = np.tensordot(np.ones(self.r_bins),self.E_grid,axes=0)
         Btens = np.tensordot(b_sample, np.ones(self.E_bins),axes=0)           
         netens = np.tensordot(ne_sample, np.ones(self.E_bins),axes=0)          
@@ -240,7 +243,7 @@ class adi_scheme:
 
         self.D = self.set_d(Btens,Etens)
         self.dDdr = self.set_dDdr(Btens,dBdrtens,Etens)
-        self.b = self.set_b(Btens,netens,Etens,uPh=uPh)
+        self.b = self.set_b(Btens,netens,Etens,u_ph=u_ph)
         
         """ Physical scales """
         #virial diffusion velocity ->  used to limit the diffusion function so that it respects the speed of light
@@ -263,32 +266,32 @@ class adi_scheme:
         self.Delta_E = self.logE_grid[1]-self.logE_grid[0]          #[/]
         
         if self.benchmark_flag is True:
-            self.const_Delta_t = True
+            self.const_delta_t = True
             
-        if self.const_Delta_t is False:
+        if self.const_delta_t is False:
             #accelerated method
-            self.Delta_ti = (Delta_ti*units.Unit('yr')).to('s').value   #large initial timestep to cover all possible time_scales
-            self.smallest_Delta_t = (Delta_t_min*units.Unit('yr')).to('s').value    #value of Delta_t at which iterations stop when convergence is reached
+            self.delta_ti = (delta_ti*units.Unit('yr')).to('s').value   #large initial timestep to cover all possible time_scales
+            self.smallest_delta_t = (delta_t_min*units.Unit('yr')).to('s').value    #value of delta_t at which iterations stop when convergence is reached
             self.max_t_part = max_t_part
-            self.Delta_t_reduction = Delta_t_reduction
-        elif self.const_Delta_t is True:    
+            self.delta_t_reduction = delta_t_reduction
+        elif self.const_delta_t is True:    
             #choose smallest (relevant) time_scale as the initial timestep
             if self.effect == "loss":
-                self.Delta_ti = loss_min                                #[s] 
+                self.delta_ti = loss_min                                #[s] 
             elif self.effect == "diffusion":
-                self.Delta_ti = diff_min                                #[s]
+                self.delta_ti = diff_min                                #[s]
             elif self.effect == "all":
-                self.Delta_ti = np.min([loss_min,diff_min])             #[s]   
+                self.delta_ti = np.min([loss_min,diff_min])             #[s]   
         
-        #final value for Delta_ti
-        stability_factor = 0.1 if self.benchmark_flag is True else 1.0  #factor that modifies Delta_t by a certain amount (can be used to be 'safely' beneath the time_scale of the effects for example)  
-        self.Delta_t = self.Delta_ti*stability_factor        #[s]     
+        #final value for delta_ti
+        stability_factor = 0.1 if self.benchmark_flag is True else 1.0  #factor that modifies delta_t by a certain amount (can be used to be 'safely' beneath the time_scale of the effects for example)  
+        self.delta_t = self.delta_ti*stability_factor        #[s]     
 
         print(f"Included effects: {self.effect}")
         print(f"Domain grid sizes: r_bins: {self.r_bins}, E_bins: {self.E_bins}")
         print(f"Step sizes: Delta_r = {self.Delta_r:.2g}, Delta_E = {self.Delta_E:.2g}")
-        print(f"Initial time step: Delta_t = {(self.Delta_t*units.Unit('s')).to('yr').value:.2g} yr")
-        print(f"Constant time step: {self.const_Delta_t}\n")
+        print(f"Initial time step: delta_t = {(self.delta_t*units.Unit('s')).to('yr').value:.2g} yr")
+        print(f"Constant time step: {self.const_delta_t}\n")
         
         """ADI method """
         print("="*spacer_length)
@@ -354,7 +357,7 @@ class adi_scheme:
         self.dDdr = dDdr
         return dDdr
         
-    def set_b(self,B,ne,E,uPh=0.0):
+    def set_b(self,B,ne,E,u_ph=0.0):
         """
         Energy-loss function
 
@@ -366,7 +369,7 @@ class adi_scheme:
             Gas density [cm^-3] 
         E : array-like float (n,m)
             Energy array [GeV]
-        uPh : float
+        u_ph : float
             Photon energy density [eV cm^-3]
         
         Returns
@@ -379,7 +382,7 @@ class adi_scheme:
         #i.e. they are integrated over gamma not E, solution to diffusion equation is prop to 1/b fixing the emissivity dimensions
         b = self.loss_constants
         me = (constants.m_e*constants.c**2).to("GeV").value      #[me] = GeV/c^2 
-        eloss = b['IC1eVcm-3']*uPh*E**2 + b['ICCMB']*E**2 + b['sync']*E**2*B**2 + b['brem']*ne*E
+        eloss = b['IC1eVcm-3']*u_ph*E**2 + b['ICCMB']*E**2 + b['sync']*E**2*B**2 + b['brem']*ne*E
         with np.errstate(divide="ignore",invalid="ignore"):
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', r'overflow')
@@ -447,7 +450,7 @@ class adi_scheme:
         Alpha_1 coefficient [cm^-2]
         """
         alpha = np.zeros(i.shape)
-        alpha[:] = self.Delta_t*self.r_prefactor(i)**2*(-(np.log10(10)*self.D[i,j] + self.dDdr[i,j])/(2*self.Delta_r) + self.D[i,j]/self.Delta_r**2)
+        alpha[:] = self.delta_t*self.r_prefactor(i)**2*(-(np.log10(10)*self.D[i,j] + self.dDdr[i,j])/(2*self.Delta_r) + self.D[i,j]/self.Delta_r**2)
         
         return alpha
             
@@ -467,8 +470,8 @@ class adi_scheme:
         Alpha_2 coefficient [cm^-2]
         """
         alpha = np.zeros(i.shape)
-        alpha[1:] = self.Delta_t*self.r_prefactor(i[1:])**2*(2*self.D[i[1:],j]/self.Delta_r**2)
-        alpha[0] = self.Delta_t*self.r_prefactor(0)**2*4*self.D[0,j]/self.Delta_r**2
+        alpha[1:] = self.delta_t*self.r_prefactor(i[1:])**2*(2*self.D[i[1:],j]/self.Delta_r**2)
+        alpha[0] = self.delta_t*self.r_prefactor(0)**2*4*self.D[0,j]/self.Delta_r**2
         
         return alpha
             
@@ -488,8 +491,8 @@ class adi_scheme:
         Alpha_3 coefficient [cm^-2]
         """
         alpha = np.zeros(i.shape)
-        alpha[0] = self.Delta_t*self.r_prefactor(0)**2*4*self.D[0,j]/self.Delta_r**2 
-        alpha[1:] = self.Delta_t*self.r_prefactor(i[1:])**2*((np.log10(10)*self.D[i[1:],j] + self.dDdr[i[1:],j])/(2*self.Delta_r) + self.D[i[1:],j]/self.Delta_r**2)
+        alpha[0] = self.delta_t*self.r_prefactor(0)**2*4*self.D[0,j]/self.Delta_r**2 
+        alpha[1:] = self.delta_t*self.r_prefactor(i[1:])**2*((np.log10(10)*self.D[i[1:],j] + self.dDdr[i[1:],j])/(2*self.Delta_r) + self.D[i[1:],j]/self.Delta_r**2)
 
         return alpha
          
@@ -525,7 +528,7 @@ class adi_scheme:
         -----------------------
         Alpha_2 coefficient [GeV^-1]
         """
-        return self.Delta_t*self.e_prefactor(j)*self.b[i,j]/self.Delta_E
+        return self.delta_t*self.e_prefactor(j)*self.b[i,j]/self.Delta_E
     
     def e_alpha3(self,i,j):
         """
@@ -543,8 +546,8 @@ class adi_scheme:
         Alpha_3 coefficient [GeV^-1]
         """
         alpha = np.zeros(j.shape)
-        alpha[:-1] = self.Delta_t*np.array([self.e_prefactor(j[:-1]+1)*self.b[i,j[:-1]+1]/self.Delta_E]) 
-        alpha[-1] = self.Delta_t*np.array([self.e_prefactor(j[-1])*self.b[i,j[-1]]/self.Delta_E])
+        alpha[:-1] = self.delta_t*np.array([self.e_prefactor(j[:-1]+1)*self.b[i,j[:-1]+1]/self.Delta_E]) 
+        alpha[-1] = self.delta_t*np.array([self.e_prefactor(j[-1])*self.b[i,j[-1]]/self.Delta_E])
 
         return alpha
         
@@ -659,7 +662,7 @@ class adi_scheme:
         rel_diff_check = False                  #relative difference between (t-1) and (t) < stability_tol
         psi_ts = np.empty(psi.shape)            #for calculating psi_ts
         psi_prev = np.empty(psi.shape)          #copy of psi at t-1, for determining stability and convergence checks
-        Delta_t_reduction = self.Delta_t_reduction    #factor by which to reduce Delta_t during timestep-switching in accelerated method
+        delta_t_reduction = self.delta_t_reduction    #factor by which to reduce delta_t during timestep-switching in accelerated method
         stability_tol = 1.0e-5                  #relative difference tolerance between iterations (for stability_check)
         final_stability_tol = 1e-3              #as above but used for convergence at final time-step size
         print(f"Stability tolerance: {stability_tol}")
@@ -667,25 +670,25 @@ class adi_scheme:
 
         #other loop items
         t = 0                                   #total iteration counter 
-        t_part = 0                              #iteration counter for each Delta_t 
-        t_elapsed = 0                           #total amount of time elapsed during solution (t_part*Delta_t for each Delta_t)       
-        max_t = np.int64((np.log(self.Delta_t/self.smallest_Delta_t)/np.log(1/self.Delta_t_reduction)+6)*self.max_t_part)#1e4    
+        t_part = 0                              #iteration counter for each delta_t 
+        t_elapsed = 0                           #total amount of time elapsed during solution (t_part*delta_t for each delta_t)       
+        max_t = np.int64((np.log(self.delta_t/self.smallest_delta_t)/np.log(1/self.delta_t_reduction)+6)*self.max_t_part)#1e4    
         #maximum total number of iterations (fallback if convergence not reached - roughly 300 iterations per second) 
-        max_t_part = self.max_t_part            #maximum number of iterations for each value of Delta_t 
+        max_t_part = self.max_t_part            #maximum number of iterations for each value of delta_t 
         
         I = self.r_bins
         J = self.E_bins
 
         #create list of snapshots for animation
         if self.animation_flag is True:
-            snapshot = (psi.copy()[:-1],self.Delta_t)
+            snapshot = (psi.copy()[:-1],self.delta_t)
             self.snapshots = [snapshot]
 
         """ Main ADI loop """
         print("Beginning ADI solution...")
         while not(convergence_check) and (t < max_t):            
             """ 
-            Convergence, stability and Delta_t switching
+            Convergence, stability and delta_t switching
             
             The iterative solution is only stopped if a set of conditions are 
             satisfied, as described below. 
@@ -695,9 +698,9 @@ class adi_scheme:
                    loss and/or diffusion time_scales (ts_check).
             
             Stability conditions for each timestep value:            
-            (s1) - if const_Delta_t is True, the relative difference between 
+            (s1) - if const_delta_t is True, the relative difference between 
                    distribution snapshots is less than set tolerance 
-            (s2) - if const_Delta_t is False, then the number of iterations 
+            (s2) - if const_delta_t is False, then the number of iterations 
                    between timestep values (t_part) should be limited by some 
                    predetermined value (t_part_max).
             
@@ -708,10 +711,10 @@ class adi_scheme:
                    by the minimum time_scale of all the effects. 
     
             'Accelerated' method:
-            (a1) - Convergence should only be reached after Delta_t reaches its 
-                   smallest value (Delta_t < smallest_Delta_t).
-                   If const_Delta_t is False, Delta_t is sequentially reduced 
-                   by some predetermined factor (Delta_t_reduction). 
+            (a1) - Convergence should only be reached after delta_t reaches its 
+                   smallest value (delta_t < smallest_delta_t).
+                   If const_delta_t is False, delta_t is sequentially reduced 
+                   by some predetermined factor (delta_t_reduction). 
             (a2) - If rel_diff is satisfied together with (a1), ie. at the
                    smallest timestep, override (c1) and allow convergence
             """
@@ -719,19 +722,19 @@ class adi_scheme:
                 with np.errstate(divide="ignore",invalid="ignore"):
                     rel_diff = np.abs(psi[:-1]/psi_prev[:-1]-1.0)
                     rel_diff = np.where(np.isnan(rel_diff),0.0,rel_diff)
-                    if self.Delta_t <= self.smallest_Delta_t:
+                    if self.delta_t <= self.smallest_delta_t:
                         rel_diff_check = bool(np.all(rel_diff < final_stability_tol)) 
                     else:
                         rel_diff_check = bool(np.all(rel_diff < stability_tol))    #[:-1] slice to ignore boundary condition, type conversion because np.bool != bool, get unexpected results sometimes 
 
                 #stability conditions - s1,s2
-                if self.const_Delta_t:
+                if self.const_delta_t:
                     stability_check = rel_diff_check 
                 else:
                     stability_check = t_part > max_t_part
                 
                 #time_scale for psi distribution changes - c1
-                dpsidt = (psi[:-1]-psi_prev[:-1])/self.Delta_t
+                dpsidt = (psi[:-1]-psi_prev[:-1])/self.delta_t
                 with np.errstate(divide="ignore",invalid="ignore"): #gets rid of divide by 0 warnings (when psi converges this time_scale should tend to inf)
                     psi_ts = np.abs(psi[:-1]/dpsidt)    
                 
@@ -759,30 +762,30 @@ class adi_scheme:
                         break
                 else:
                     #non-benchmark cases
-                    if self.const_Delta_t:
+                    if self.const_delta_t:
                         #constant time step (c1)
                         if ts_check: 
                             convergence_check = True
                             break
                     else:
                         #accelerated method 
-                        if self.Delta_t > self.smallest_Delta_t:
-                            #reduce Delta_t and start again
-                            self.Delta_t *= Delta_t_reduction
-                            #print(f"Time_scale switching activated, Delta t changing to: {(self.Delta_t*units.Unit('s')).to('yr').value:.2g} yr")
+                        if self.delta_t > self.smallest_delta_t:
+                            #reduce delta_t and start again
+                            self.delta_t *= delta_t_reduction
+                            #print(f"Time_scale switching activated, Delta t changing to: {(self.delta_t*units.Unit('s')).to('yr').value:.2g} yr")
                             #print(f"Numer of iterations since previous Delta t: {t_part}\n")
                             t_part = 0
                             
-                            #reconstruct A, B matrices with new Delta_t
+                            #reconstruct A, B matrices with new delta_t
                             if self.effect in {"loss","all"}:
                                 (loss_A,loss_B) = self.spmatrices_loss()
                             if self.effect in {"diffusion","all"}:
                                 (diff_A,diff_B) = self.spmatrices_diff()  
                         
-                        elif self.Delta_t < self.smallest_Delta_t:
+                        elif self.delta_t < self.smallest_delta_t:
                             if ts_check or rel_diff_check:  
                                 #psi has satisfied (a1 + c1) or (a1 + a2) with the lowest timestep - end iterations
-                                # print(f"Delta t at lowest value: {(self.Delta_t*units.Unit('s')).to('yr').value:.2g} yr")
+                                # print(f"Delta t at lowest value: {(self.delta_t*units.Unit('s')).to('yr').value:.2g} yr")
                                 # print(f"Numer of iterations since previous Delta t: {t_part}\n")
                                 convergence_check = True
                                 break
@@ -796,25 +799,25 @@ class adi_scheme:
             or 'F' ('fortran' or column-major) styles
             """
             if self.effect in {"loss","all"}: 
-                rhs = loss_B.dot(psi.flatten('C')) + (Q.flatten('C')*self.Delta_t)
+                rhs = loss_B.dot(psi.flatten('C')) + (Q.flatten('C')*self.delta_t)
                 psi = sparse.linalg.spsolve(loss_A, rhs)   
                 psi = np.reshape(psi, (I,J), order='C')
                 
             if self.effect in {"diffusion","all"}: 
-                rhs = diff_B.dot(psi.flatten('F')) + (Q.flatten('F')*self.Delta_t)
+                rhs = diff_B.dot(psi.flatten('F')) + (Q.flatten('F')*self.delta_t)
                 psi = sparse.linalg.spsolve(diff_A, rhs)                   
                 psi = np.reshape(psi, (I,J), order='F')
                 
             """ Implement boundary condition and update counters """             
             psi[-1,:] = 0       
-            t_elapsed += self.Delta_t
+            t_elapsed += self.delta_t
             t += 1
             t_part += 1
             """ progress feedback during loop """ 
             progress(t,max_t,prefix="ADI Progess:")
             """ Store solution for animation """
             if self.animation_flag is True:
-                snapshot = (psi.copy()[:-1],self.Delta_t)
+                snapshot = (psi.copy()[:-1],self.delta_t)
                 self.snapshots.append(snapshot)
 
             """ Debugging breakpoints """

@@ -1,3 +1,6 @@
+"""
+DarkMatters module for handling input
+"""
 import numpy as np
 import yaml,json
 from astropy import units

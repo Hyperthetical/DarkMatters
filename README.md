@@ -5,13 +5,13 @@ A code to calculate multi-frequency and multi-messenger emissions from WIMP anni
 This software requires python3 with the numpy, scipy, sympy, matplotlib, pyyaml, jupyter, tqdm, joblib, and astropy packages installed. A requirements.txt file is provided for use with pip.
 
 ### Green's function solutions
-On unix systems you can use these in their faster C++ implementation, this requires a C++ compiler (g++ recommended) and the Gnu Scientific Libray (GSL), particularly the libgsl-dev package.
+**These do not currently work as they are being reimplemented** On unix systems you can use these in their faster C++ implementation, this requires a C++ compiler (g++ recommended) and the Gnu Scientific Libray (GSL), particularly the libgsl-dev package.
 
 ## Installation:
 Clone the repo to your local machine. 
 
 ### Green's function solutions
-If you want to make use of the C++ Green's function solution method you need to compile an executable.
+**These do not currently work as they are being reimplemented** If you want to make use of the C++ Green's function solution method you need to compile an executable.
 
 On Linux, run "make" in the emissions sub-folder and you're done, yay Linux!
 
@@ -25,4 +25,8 @@ If you use the generic WIMP channels please cite
 
 M.Cirelli, G.Corcella, A.Hektor, G.Hütsi, M.Kadastik, P.Panci, M.Raidal, F.Sala, A.Strumia, "PPPC 4 DM ID: A Poor Particle Physicist Cookbook for Dark Matter Indirect Detection", arXiv 1012.4515, JCAP 1103 (2011) 051. 
 
-P. Ciafaloni, D. Comelli, A. Riotto, F. Sala, A. Strumia, A. Urbano, "Weak corrections are relevant for dark matter indirect detection",arXiv 1009.0224, JCAP 1103 (2011) 019,
+P. Ciafaloni, D. Comelli, A. Riotto, F. Sala, A. Strumia, A. Urbano, "Weak corrections are relevant for dark matter indirect detection",arXiv 1009.0224, JCAP 1103 (2011) 019.
+
+If you use the 2HDM+S channel please cite
+
+G. Beck, R. Temo, E. Malwa, M. Kumar, B. Mellado, "Connecting multi-lepton anomalies at the LHC and in Astrophysics with MeerKAT/SKA", arxiv:2102.10596, Astroparticle Physics, 148 (2023), 102821.

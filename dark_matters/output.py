@@ -1,3 +1,6 @@
+"""
+DarkMatters module for handling output
+"""
 import numpy as np
 import sys
 import yaml,json
@@ -355,8 +358,8 @@ def calc_write(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,target=
 
         def write(self,string):
             self.text += string
-    gasParams = yaml.load(open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/gas_density_profiles.yaml"),"r"),Loader=yaml.SafeLoader)
-    magParams = yaml.load(open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/mag_field_profiles.yaml"),"r"),Loader=yaml.SafeLoader)
+    gas_params = yaml.load(open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/gas_density_profiles.yaml"),"r"),Loader=yaml.SafeLoader)
+    mag_params = yaml.load(open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/mag_field_profiles.yaml"),"r"),Loader=yaml.SafeLoader)
     unit_dict = {"distance":"Mpc","magnetic":"micro-Gauss","num_density":"cm^-3"}
     end = "\n"
     string_out = False
@@ -416,8 +419,8 @@ def calc_write(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,target=
         out_stream.write(f"{prefix}Gas Parameters: {end}")
         out_stream.write(f"{prefix}{'='*spacer_length}{end}")
         out_stream.write(f"{prefix}Gas density profile: {gas_data['gas_profile']}{end}")
-        paramSet = gasParams[gas_data['gas_profile']]
-        for p in paramSet:
+        param_set = gas_params[gas_data['gas_profile']]
+        for p in param_set:
             unit_type = check_quant(p)
             if not unit_type is None:
                 out_stream.write(f"{prefix}{p}: {gas_data[p]} {unit_dict[unit_type]} {end}")
@@ -427,8 +430,8 @@ def calc_write(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,target=
         out_stream.write(f"{prefix}Magnetic Field Parameters: {end}")
         out_stream.write(f"{prefix}{'='*spacer_length}{end}")
         out_stream.write(f"{prefix}Magnetic field profile: {mag_data['mag_profile']}{end}")
-        paramSet = magParams[mag_data['mag_profile']]
-        for p in paramSet:
+        param_set = mag_params[mag_data['mag_profile']]
+        for p in param_set:
             unit_type = check_quant(p)
             if not unit_type is None:
                 out_stream.write(f"{prefix}{p}: {mag_data[p]} {unit_dict[unit_type]} {end}")
@@ -484,9 +487,9 @@ def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,sig
     """
     target_freqs = np.atleast_1d(target_freqs)
     if not calc_data['calc_mode'] == "sb":
-        fatal_error("output.fitsMap() can only be run with surface brightness data")
+        fatal_error("output.fits_map() can only be run with surface brightness data")
     if np.any(calc_data['results']['final_data'] is None):
-        fatal_error("output.fitsMap() cannot be invoked without a full set of calculated results, some masses have not had calculations run")
+        fatal_error("output.fits_map() cannot be invoked without a full set of calculated results, some masses have not had calculations run")
     if np.any(target_freqs < calc_data['f_sample_limits'][0]) or np.any(target_freqs > calc_data['f_sample_limits'][-1]):
         fatal_error(f"Requested frequencies lie outside the calculation range {calc_data['f_sample_limits'][0]} - {calc_data['f_sample_limits'][-1]} MHz")
     #we use more pixels than we want to discard outer ones with worse resolution distortion from ogrid
@@ -495,16 +498,16 @@ def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,sig
         try:
             int(display_slice)
         except:
-            fatal_error("output.fitsMap() parameter display_slice must be an integer that addresses an element of target_freqs")
+            fatal_error("output.fits_map() parameter display_slice must be an integer that addresses an element of target_freqs")
         if display_slice >= len(target_freqs) or display_slice < 0 or display_slice != int(display_slice):
-            fatal_error("output.fitsMap() parameter display_slice must be an integer that addresses an element of target_freqs")
+            fatal_error("output.fits_map() parameter display_slice must be an integer that addresses an element of target_freqs")
     if diff_data['diff_rmax'] == "2*Rvir":
         r_limit = 2*halo_data['halo_rvir']
     else:
         r_limit = diff_data['diff_rmax']
     if not r_max is None:
         if r_max > r_limit:
-            fatal_error(f"output.fitsMap() argument r_max cannot be greater than largest sampled r value {r_limit} Mpc")
+            fatal_error(f"output.fits_map() argument r_max cannot be greater than largest sampled r value {r_limit} Mpc")
     else:
         r_max = r_limit
     half_pix = int(np.arctan(r_limit/halo_data['halo_distance'])/np.pi*180*60/target_resolution)

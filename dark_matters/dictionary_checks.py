@@ -1,3 +1,6 @@
+"""
+DarkMatters module for checking input dictionaries are usuable 
+"""
 import os,yaml
 import numpy as np
 from astropy import constants
@@ -22,7 +25,7 @@ def check_cosmology(cosmo_dict):
         Cosmology information in compliance with DarkMatters requirements, code will exit if this cannot be achieved
     """
     if not type(cosmo_dict) is dict:
-        fatal_error("control.checkCosmology() must be passed a dictionary as its argument")
+        fatal_error("dictionary_checks.check_cosmology() must be passed a dictionary as its argument")
     if not 'omega_m' in cosmo_dict.keys() and not 'omega_l' in cosmo_dict.keys():
         cosmo_dict['omega_m'] = 0.3089
         cosmo_dict['omega_l'] = 1 - cosmo_dict['omega_m']
@@ -54,7 +57,7 @@ def check_magnetic(mag_dict):
         Magnetic Field information in compliance with DarkMatters requirements, code will exit if this cannot be achieved
     """
     if not type(mag_dict) is dict:
-        fatal_error("control.checkMagnetic() must be passed a dictionary as its argument")
+        fatal_error("dictionary_checks.check_magnetic() must be passed a dictionary as its argument")
     in_file = open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/mag_field_profiles.yaml"),"r")
     profile_dict = yaml.load(in_file,Loader=yaml.SafeLoader)
     in_file.close()
@@ -94,7 +97,7 @@ def check_halo(halo_dict,cosmo_dict,minimal=False):
         Halo information in compliance with DarkMatters requirements, code will exit if this cannot be achieved
     """
     if not type(halo_dict) is dict:
-        fatal_error("control.checkHalo() must be passed a dictionary as its argument")
+        fatal_error("dictionary_checks.check_halo() must be passed a dictionary as its argument")
     if ((not 'halo_z' in halo_dict.keys()) or halo_dict['halo_z'] == 0.0) and not 'halo_distance' in halo_dict.keys():
         fatal_error("Either halo_distance must be specified or halo_z must be non-zero")
     elif not 'halo_z' in halo_dict.keys():
@@ -136,11 +139,11 @@ def check_halo(halo_dict,cosmo_dict,minimal=False):
         if halo_dict["halo_profile"] == "burkert":
             #rescale to reflect where dlnrho/dlnr = -2 (required as cvir = rvir/r_{-2})
             #isothermal, nfw, einasto all have rs = r_{-2}
-            scaleMod = 1.5214
+            scale_mod = 1.5214
         elif halo_dict["halo_profile"] == "gnfw":
-            scaleMod = 2.0 - halo_dict['halo_index']
+            scale_mod = 2.0 - halo_dict['halo_index']
         else:
-            scaleMod = 1.0
+            scale_mod = 1.0
         rs_info = "halo_scale" in halo_dict.keys() 
         rho_info = "halo_norm" in halo_dict.keys() or "halo_norm_relative" in halo_dict.keys()
         rvir_info = "halo_rvir" in halo_dict.keys() or "halo_mvir" in halo_dict.keys()
@@ -152,40 +155,40 @@ def check_halo(halo_dict,cosmo_dict,minimal=False):
             if (not "halo_mvir" in halo_dict.keys()) and ("halo_rvir" in halo_dict.keys()):
                 halo_dict['halo_mvir'] = halo_dict['halo_norm']*astrophysics.rho_volume_int(halo_dict)
             elif ("halo_mvir" in halo_dict.keys()) and (not "halo_rvir" in halo_dict.keys()):
-                halo_dict['halo_rvir'] = cosmology.rvirFromMvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
+                halo_dict['halo_rvir'] = cosmology.rvir_from_mvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
             elif (not "halo_mvir" in halo_dict.keys()) and (not "halo_rvir" in halo_dict.keys()):
-                halo_dict['halo_rvir']= astrophysics.rvirFromRho(halo_dict,cosmo_dict)
-                halo_dict['halo_mvir'] = cosmology.mvirFromRvir(halo_dict['halo_rvir'],halo_dict['halo_z'],cosmo_dict)
+                halo_dict['halo_rvir']= astrophysics.rvir_from_rho(halo_dict,cosmo_dict)
+                halo_dict['halo_mvir'] = cosmology.mvir_from_rvir(halo_dict['halo_rvir'],halo_dict['halo_z'],cosmo_dict)
             if not "halo_cvir" in halo_dict.keys():
-                halo_dict['halo_cvir'] = halo_dict['halo_rvir']/halo_dict['halo_scale']/scaleMod
+                halo_dict['halo_cvir'] = halo_dict['halo_rvir']/halo_dict['halo_scale']/scale_mod
         elif rvir_info and rs_info:
             if not 'halo_rvir' in halo_dict.keys():
-                halo_dict['halo_rvir'] = cosmology.rvirFromMvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
+                halo_dict['halo_rvir'] = cosmology.rvir_from_mvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
             if not 'halo_cvir' in halo_dict.keys():
-                halo_dict['halo_cvir'] = halo_dict['halo_rvir']/halo_dict['halo_scale']/scaleMod
+                halo_dict['halo_cvir'] = halo_dict['halo_rvir']/halo_dict['halo_scale']/scale_mod
             if not 'halo_mvir' in halo_dict.keys():
-                halo_dict['halo_mvir'] = cosmology.mvirFromRvir(halo_dict['halo_rvir'],halo_dict['halo_z'],cosmo_dict)
+                halo_dict['halo_mvir'] = cosmology.mvir_from_rvir(halo_dict['halo_rvir'],halo_dict['halo_z'],cosmo_dict)
             else:
                 if not 'halo_rvir' in halo_dict.keys():
-                    halo_dict['halo_rvir'] = cosmology.rvirFromMvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
+                    halo_dict['halo_rvir'] = cosmology.rvir_from_mvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
                 if not 'halo_cvir' in halo_dict.keys():
-                    halo_dict['halo_cvir'] = halo_dict['halo_rvir']/halo_dict['halo_scale']/scaleMod
+                    halo_dict['halo_cvir'] = halo_dict['halo_rvir']/halo_dict['halo_scale']/scale_mod
             halo_dict = rho_norm(halo_dict,cosmo_dict)
         elif rvir_info and 'halo_cvir' in halo_dict.keys():
             if not 'halo_mvir' in halo_dict.keys():
-                halo_dict['halo_mvir'] = cosmology.mvirFromRvir(halo_dict['halo_rvir'],halo_dict['halo_z'],cosmo_dict)
+                halo_dict['halo_mvir'] = cosmology.mvir_from_rvir(halo_dict['halo_rvir'],halo_dict['halo_z'],cosmo_dict)
             if not 'halo_rvir' in halo_dict.keys():
-                halo_dict['halo_rvir'] = cosmology.rvirFromMvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
+                halo_dict['halo_rvir'] = cosmology.rvir_from_mvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
             if not 'halo_scale' in halo_dict.keys():
-                halo_dict['halo_scale'] = halo_dict['halo_rvir']/halo_dict['halo_cvir']/scaleMod
+                halo_dict['halo_scale'] = halo_dict['halo_rvir']/halo_dict['halo_cvir']/scale_mod
             halo_dict = rho_norm(halo_dict,cosmo_dict)
         elif rvir_info:
             if not 'halo_mvir' in halo_dict.keys():
-                halo_dict['halo_mvir'] = cosmology.mvirFromRvir(halo_dict['halo_rvir'],halo_dict['halo_z'],cosmo_dict)
+                halo_dict['halo_mvir'] = cosmology.mvir_from_rvir(halo_dict['halo_rvir'],halo_dict['halo_z'],cosmo_dict)
             if not 'halo_rvir' in halo_dict.keys():
-                halo_dict['halo_rvir'] = cosmology.rvirFromMvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
+                halo_dict['halo_rvir'] = cosmology.rvir_from_mvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
             halo_dict['halo_cvir'] = cosmology.cvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
-            halo_dict['halo_scale'] = halo_dict['halo_rvir']/halo_dict['halo_cvir']/scaleMod
+            halo_dict['halo_scale'] = halo_dict['halo_rvir']/halo_dict['halo_cvir']/scale_mod
             halo_dict = rho_norm(halo_dict,cosmo_dict)
         else:
             fatal_error(f"halo_data is underspecified by {halo_dict}")
@@ -211,7 +214,7 @@ def check_gas(gas_dict):
         Gas information in compliance with DarkMatters requirements, code will exit if this cannot be achieved
     """
     if not type(gas_dict) is dict:
-        fatal_error("control.checkGas() must be passed a dictionary as its argument")
+        fatal_error("dictionary_checks.check_gas() must be passed a dictionary as its argument")
     in_file = open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/gas_density_profiles.yaml"),"r")
     gas_params = yaml.load(in_file,Loader=yaml.SafeLoader)
     in_file.close()
@@ -243,7 +246,7 @@ def check_calculation(calc_dict):
         Calculation information in compliance with DarkMatters requirements, code will exit if this cannot be achieved
     """
     if not type(calc_dict) is dict:
-        fatal_error("control.checkCalculation() must be passed a dictionary as its argument")
+        fatal_error("dictionary_checks.check_calculation() must be passed a dictionary as its argument")
     calc_params = {'all_electron_modes':["adi-python","green-python","green-c"],'all_modes':["jflux","flux","sb"],"all_freqs":["radio","all","gamma","pgamma","sgamma","neutrinos_e","neutrinos_mu","neutrinos_tau"]}
     if not 'm_wimp' in calc_dict.keys():
         fatal_error("calc_dict requires the variable m_wimp be set")
@@ -361,7 +364,7 @@ def check_particles(part_dict,calc_dict):
         Particle physics in compliance with DarkMatters requirements, code will exit if this cannot be achieved
     """
     if not type(calc_dict) is dict or not type(part_dict) is dict:
-        fatal_error("control.checkParticles() must be passed a dictionaries as its argument")
+        fatal_error("dictionary_checks.check_particles() must be passed a dictionaries as its argument")
     if not 'part_model' in part_dict.keys():
         fatal_error("part_dict requires a part_model value")
     if not 'em_model' in part_dict.keys():
@@ -375,14 +378,14 @@ def check_particles(part_dict,calc_dict):
     if not isdir(part_dict['spectrum_directory']):
         warning(f"part_data['spectrum_directory'] = {part_dict['spectrum_directory']} is not a valid folder, using default instead")
         part_dict['spectrum_directory'] = os.path.join(os.path.dirname(os.path.realpath(__file__)),"particle_physics")
-    specSet = []
+    spec_set = []
     if "neutrinos" in calc_dict['freq_mode']:
-        specSet.append(calc_dict['freq_mode'])
+        spec_set.append(calc_dict['freq_mode'])
     if calc_dict['freq_mode'] in ["gamma","pgamma","sgamma","all"]:
-        specSet.append("gammas")
+        spec_set.append("gammas")
     if calc_dict['freq_mode'] in ['sgamma',"radio","all","gamma"]:
-        specSet.append("positrons")
-    part_dict['d_ndx_interp'] = get_spectral_data(part_dict['spectrum_directory'],part_dict['part_model'],specSet,mode=part_dict["em_model"])
+        spec_set.append("positrons")
+    part_dict['d_ndx_interp'] = get_spectral_data(part_dict['spectrum_directory'],part_dict['part_model'],spec_set,mode=part_dict["em_model"])
     if 'cross_section' in part_dict.keys() and 'decay_rate' in part_dict.keys():
         fatal_error("You cannot have both a cross_section and decay_rate set for the particle physics")
     elif not 'cross_section' in part_dict.keys() and not 'decay_rate' in part_dict.keys():
@@ -407,7 +410,7 @@ def check_diffusion(diff_dict):
         Diffusion information in compliance with DarkMatters requirements, code will exit if this cannot be achieved
     """
     if not type(diff_dict) is dict:
-        fatal_error("control.checkDiffusion() must be passed a dictionary as its argument")
+        fatal_error("dictionary_checks.check_diffusion() must be passed a dictionary as its argument")
     if not 'loss_only' in diff_dict.keys():
         diff_dict['loss_only'] = False
     if not 'photon_density' in diff_dict.keys():

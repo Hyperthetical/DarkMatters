@@ -18,7 +18,7 @@ calc_data:
     - 10
     - 100
     - 1000
-  r_sample_number: 50
+  r_sample_num: 50
 diff_data:
   diff_constant:
     unit: cm^2/s

@@ -1,3 +1,6 @@
+"""
+DarkMatters.emissions module for calculating flux and surface brightness
+"""
 import numpy as np 
 from scipy.integrate import simpson as integrate
 from scipy.interpolate import interp1d,interp2d
@@ -36,12 +39,12 @@ def surface_brightness_loop(nu_sb,f_sample,r_sample,emm,delta_omega=4*np.pi,ergs
     
     for j in range(0,n-1):
         rprime = r_sample[j]
-        lSet = np.logspace(np.log10(r_sample[0]),np.log10(np.sqrt(r_sample[-1]**2-rprime**2)),num=200)
-        rSet = np.sqrt(lSet**2+rprime**2)
+        l_set = np.logspace(np.log10(r_sample[0]),np.log10(np.sqrt(r_sample[-1]**2-rprime**2)),num=200)
+        r_set = np.sqrt(l_set**2+rprime**2)
         if len(f_sample) == 1:
-            sb[j] = 2.0*integrate(emm(rSet),lSet)
+            sb[j] = 2.0*integrate(emm(r_set),l_set)
         else:
-            sb[j] = 2.0*integrate(emm(rSet,nu_sb),lSet)
+            sb[j] = 2.0*integrate(emm(r_set,nu_sb),l_set)
     delta_omega *= (1*units.Unit("sr")).to("arcmin^2").value #convert sr to arcminute^2
     if not ergs:
         unit_factor = (1*units.Unit("Mpc")).to("cm").value

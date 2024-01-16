@@ -90,7 +90,7 @@ def physical_averages(rmax,mode_exp,calc_data,halo_data,mag_data,gas_data):
     return weighted_vol_avg(mag_data['mag_field_func'](r_set),r_set,w=weights),weighted_vol_avg(gas_data['gas_density_func'](r_set),r_set,w=weights)
 
 
-def calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,overWrite=True):
+def calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,over_write=True):
     """
     Computes equilibrium electron distributions from given dictionaries
 
@@ -110,7 +110,7 @@ def calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,
         Das distribution
     diff_data : dictionary
         Diffusion properties
-    overWrite : boolean
+    over_write : boolean
         If True will replace any existing values in calc_data['results']
 
     Returns
@@ -119,9 +119,9 @@ def calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,
         Calculation information with electron distribution in calc_data['results']['electron_data']
     """
     m_index = get_index(calc_data['m_wimp'],mx)
-    if (not calc_data['results']['electron_data'][m_index] is None) and (not overWrite):
+    if (not calc_data['results']['electron_data'][m_index] is None) and (not over_write):
         print("="*spacer_length)
-        print(f"Electron Equilibrium distribution exists for WIMP mass {mx} GeV and overWrite=False, skipping")
+        print(f"Electron Equilibrium distribution exists for WIMP mass {mx} GeV and over_write=False, skipping")
         print("="*spacer_length)
         print("Process Complete")
         return calc_data
@@ -185,7 +185,7 @@ def calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,
         print(f'Magnetic Field Average Strength: {b_av:.2e} micro Gauss')
         print(f'Gas Average Density: {ne_av:.2e} cm^-3')
         print(f'Averaging scale: {halo_data["green_averaging_scale"]:.2e} Mpc')
-        calc_data['results']['electron_data'][m_index] = green_electron.equilibriumElectronsGridPartial(calc_data['e_green_sample_num'],E_set,Q_set,calc_data['r_green_sample_num'],r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,halo_data['halo_z'],delta,diff,d0,diff_data["photon_density"],calc_data['thread_number'],calc_data['image_number'])*sigv
+        calc_data['results']['electron_data'][m_index] = green_electron.equilibrium_electrons_grid_partial(calc_data['e_green_sample_num'],E_set,Q_set,calc_data['r_green_sample_num'],r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,halo_data['halo_z'],delta,diff,d0,diff_data["photon_density"],calc_data['thread_number'],calc_data['image_number'])*sigv
     elif calc_data['electron_mode'] == "green-c":
         print("Solution via: Green's function (c++ implementation)")
         print(f'Magnetic Field Average Strength: {b_av:.2e} micro Gauss')
@@ -205,8 +205,8 @@ def calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,
         dBdr_sample = lambdify(r,sympy.diff(mag_data['mag_field_func'](r),r))(r_sample)
         if np.isscalar(dBdr_sample):
             dBdr_sample = dBdr_sample*np.ones_like(r_sample)
-        adi_solver = adi_electron.adi_scheme(benchmark_flag=calc_data['adi_bench_mark_mode'],const_Delta_t=calc_data['adi_delta_t_constant'])
-        calc_data['results']['electron_data'][m_index] = adi_solver.solve_electrons(mx,halo_data['halo_z'],E_set,r_sample,rho_dm_sample,Q_set,b_sample,dBdr_sample,ne_sample,halo_data['halo_scale'],1.0,diff_data['diff_index'],uPh=diff_data['photon_density'],diff0=diff_data['diff_constant'],Delta_t_min=calc_data['adi_delta_t_min'],loss_only=diff_data['loss_only'],mode_exp=mode_exp,Delta_ti=calc_data['adi_delta_ti'],max_t_part=calc_data['adi_max_steps'],Delta_t_reduction=calc_data['adi_delta_t_reduction'])*(constants.m_e*constants.c**2).to("GeV").value
+        adi_solver = adi_electron.adi_scheme(benchmark_flag=calc_data['adi_bench_mark_mode'],const_delta_t=calc_data['adi_delta_t_constant'])
+        calc_data['results']['electron_data'][m_index] = adi_solver.solve_electrons(mx,halo_data['halo_z'],E_set,r_sample,rho_dm_sample,Q_set,b_sample,dBdr_sample,ne_sample,halo_data['halo_scale'],1.0,diff_data['diff_index'],u_ph=diff_data['photon_density'],diff0=diff_data['diff_constant'],delta_t_min=calc_data['adi_delta_t_min'],loss_only=diff_data['loss_only'],mode_exp=mode_exp,delta_ti=calc_data['adi_delta_ti'],max_t_part=calc_data['adi_max_steps'],delta_t_reduction=calc_data['adi_delta_t_reduction'])*(constants.m_e*constants.c**2).to("GeV").value
     print("Process Complete")
     return calc_data
 
@@ -539,6 +539,30 @@ def calc_j_flux(mx,calc_data,halo_data,part_data):
     return calc_data
 
 def run_checks(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,cosmo_data,clear):
+    """
+    Processes dictionaries to prepare for calculations, will crash if this is not possible
+    Arguments
+    ---------------------------
+    calc_data : dictionary
+        Calculation properties
+    halo_data : dictionary
+        Halo properties
+    part_data : dictionary
+        Particle physics
+    mag_data : dictionary
+        Magnetic field
+    gas_data : dictionary
+        Das distribution
+    diff_data : dictionary
+        Diffusion properties
+    cosmo_data : dictionary
+        Cosmology properties
+    clear : string (optional)
+        What results to clear, can be 'all', 'observables' or 'final' (defaults to 'all')
+    Returns
+    ---------------------------
+    All given dictionaries checked and ready for calculations
+    """
     cosmo_data = check_cosmology(cosmo_data)
     if not calc_data['calc_mode'] == "jflux":
         if (not calc_data['freq_mode'] == "pgamma") and (not "neutrinos" in calc_data['freq_mode']):
@@ -562,11 +586,11 @@ def run_checks(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,cosmo_d
         if 'results' in calc_data.keys():
             if 'electron_data' in calc_data['results'].keys():
                 if np.any(calc_data['results']['electron_data'] is None):
-                    fatal_error("calculations.runChecks(): You cannot run with clear=observables if your calc_data dictionary has incomplete electron_data")
+                    fatal_error("calculations.run_checks(): You cannot run with clear=observables if your calc_data dictionary has incomplete electron_data")
             else:
-                fatal_error("calculations.runChecks(): You cannot run with clear=observables if your calc_data dictionary has no existing electron_data")
+                fatal_error("calculations.run_checks(): You cannot run with clear=observables if your calc_data dictionary has no existing electron_data")
         else:
-            fatal_error("calculations.runChecks(): You cannot run with clear=observables if your calc_data dictionary has no existing results")
+            fatal_error("calculations.run_checks(): You cannot run with clear=observables if your calc_data dictionary has no existing results")
         calc_data['results']['radio_em_data'] = []
         calc_data['results']['primary_em_data'] = []
         calc_data['results']['final_data'] = []
@@ -582,11 +606,11 @@ def run_checks(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,cosmo_d
         if 'results' in calc_data.keys():
             if 'electron_data' in calc_data['results'].keys():
                 if np.any(calc_data['results']['electron_data'] is None):
-                    fatal_error("calculations.runChecks(): You cannot run with clear=final if your calc_data dictionary has incomplete electron_data")
+                    fatal_error("calculations.run_checks(): You cannot run with clear=final if your calc_data dictionary has incomplete electron_data")
             else:
-                fatal_error("calculations.runChecks(): You cannot run with clear=final if your calc_data dictionary has no existing electron_data")
+                fatal_error("calculations.run_checks(): You cannot run with clear=final if your calc_data dictionary has no existing electron_data")
         else:
-            fatal_error("calculations.runChecks(): You cannot run with clear=observables if your calc_data dictionary has no existing results")
+            fatal_error("calculations.run_checks(): You cannot run with clear=observables if your calc_data dictionary has no existing results")
         calc_data['results']['final_data'] = []
         for i in range(len(calc_data['m_wimp'])):
             calc_data['results']['final_data'].append(None)
@@ -629,7 +653,7 @@ def run_calculation(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,co
     cosmo_data : dictionary
         Cosmology properties
     over_write_electrons : boolean
-        if False will not overWrite existing electron_data values
+        if False will not overwrite existing electron_data values
     clear : string
         What results to clear, can be 'all', 'observables' or 'final'
 
@@ -650,7 +674,7 @@ def run_calculation(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,co
         m_index = get_index(calc_data['m_wimp'],mx)
         if not calc_data['calc_mode'] == "jflux":
             if (not calc_data['freq_mode'] == "pgamma") and (not "neutrinos" in calc_data['freq_mode']):
-                calc_data = calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,overWrite=over_write_electrons)
+                calc_data = calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,over_write=over_write_electrons)
             if calc_data['freq_mode'] in ["all","radio"]:
                 calc_data = calc_radio_em(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data)
             if calc_data['freq_mode'] in ["all","gamma","pgamma"]:
