@@ -716,5 +716,3 @@ def run_calculation(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,co
     if isfile(join(wd,c_file)):
         os.remove(join(wd,c_file))
     return {'calc_data':calc_data,'halo_data':halo_data,'part_data':part_data,'mag_data':mag_data,'gas_data':gas_data,'diff_data':diff_data,'cosmo_data':cosmo_data}
-
-

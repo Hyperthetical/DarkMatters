@@ -1,4 +1,3 @@
-
 """
 DarkMatters.emissions module for calculating multi-frequency emissivities
 """

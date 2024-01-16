@@ -170,4 +170,3 @@ def read_dm_output(f_name,in_mode="yaml"):
         fatal_error(f"The argument in_mode = {in_mode} given to input.readinput_file() does not match any valid input modes")
     stream.close()
     return in_data
-
