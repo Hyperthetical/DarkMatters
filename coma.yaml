@@ -26,35 +26,35 @@ diff_data:
   diff_index: 0.33333
   loss_only: false
 gas_data:
-  gas_index: -0.654
+  index: -0.654
   gas_norm:
     unit: 1/cm^3
     value: 0.00349
-  gas_profile: beta
-  gas_scale:
+  profile: beta
+  scale:
     unit: kpc
     value: 253
 halo_data:
-  halo_cvir: 9.4
-  halo_mvir:
+  cvir: 9.4
+  mvir:
     unit: solMass
     value: 1200000000000000.0
-  halo_name: coma
-  halo_profile: nfw
-  halo_rvir:
+  name: coma
+  profile: nfw
+  rvir:
     unit: Mpc
     value: 2.7
-  halo_scale:
+  scale:
     unit: Mpc
     value: 0.287
-  halo_z: 0.0231
+  z: 0.0231
 mag_data:
-  mag_index: -0.327
+  index: -0.327
   mag_norm:
     unit: gauss
     value: 4.7e-06
-  mag_profile: beta
-  mag_scale:
+  profile: beta
+  scale:
     unit: Mpc
     value: 0.253
 part_data:

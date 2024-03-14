@@ -1,20 +1,18 @@
 angle:
-- calc_angmax_integrate
+- angmax_integrate
 density:
-- halo_norm
+- rho_norm
 distance:
-- halo_distance
-- halo_scale
-- halo_rvir
-- mag_scale
-- mag_scale2
-- gas_scale
-- gas_scale2
-- calc_rmax_integrate
+- distance
+- scale
+- rvir
+- scale2
+- rmax_integrate
 - diff_rmax
 - coherence_scale
-- halo_core_scale
+- core_scale
 - green_averaging_scale
+- truncation_scale
 time:
 - adi_delta_ti
 - adi_delta_t_min
@@ -25,15 +23,15 @@ frequency:
 - f_sample_limits
 - f_sample_values
 j_factor:
-- halo_j_factor
+- j_factor
 d_factor:
-- halo_d_factor
+- d_factor
 magnetic:
 - mag_norm
 - mag_norm2
 - mag_field_average
 mass:
-- halo_mvir
+- mvir
 num_density:
 - gas_norm
 - gas_norm2

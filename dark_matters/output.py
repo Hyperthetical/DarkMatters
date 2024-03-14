@@ -95,9 +95,9 @@ def get_calc_id(calc_data,halo_data,part_data,diff_data,tag=None):
     file_id : string
         File name for calculations
     """
-    dm_str = halo_data['halo_profile']
-    if 'halo_index' in halo_data.keys():
-        dm_str += f"-{halo_data['halo_index']:.2f}"
+    dm_str = halo_data['profile']
+    if 'index' in halo_data.keys():
+        dm_str += f"-{halo_data['index']:.2f}"
     dm_str += "_"
 
     if not calc_data['calc_mode'] == "jflux":
@@ -108,18 +108,18 @@ def get_calc_id(calc_data,halo_data,part_data,diff_data,tag=None):
         else:
             w_str = "weights-rho_"
 
-        if halo_data['halo_distance'] < 0.1 or halo_data['halo_distance'] > 1e3:
-            dist_str = f"dl-{halo_data['halo_distance']:.2e}Mpc_"
-        elif  halo_data['halo_distance'] == "0":
+        if halo_data['distance'] < 0.1 or halo_data['distance'] > 1e3:
+            dist_str = f"dl-{halo_data['distance']:.2e}Mpc_"
+        elif  halo_data['distance'] == "0":
             dist_str = ""
         else:
-            dist_str = f"dl-{halo_data['halo_distance']:.1f}Mpc_"
+            dist_str = f"dl-{halo_data['distance']:.1f}Mpc_"
     else:
         w_str = ""
         if part_data['em_model'] == "annihilation":
-            dist_str = f"jfactor-{halo_data['halo_jfactor']:.1e}_"
+            dist_str = f"jfactor-{halo_data['j_factor']:.1e}_"
         else:
-            dist_str = f"dfactor-{halo_data['halo_dfactor']:.1e}_"
+            dist_str = f"dfactor-{halo_data['d_factor']:.1e}_"
 
     if calc_data['freq_mode'] in ['gamma','sgamma','radio','all']:
         fm_str = calc_data['electron_mode']+"_"
@@ -152,7 +152,7 @@ def get_calc_id(calc_data,halo_data,part_data,diff_data,tag=None):
         tag_str = tag+"_"
     else:
         tag_str = ""
-    return halo_data['halo_name']+"_"+model_str+mx_str+wimp_str+dm_str+fm_str+w_str+dist_str+diff_str+tag_str
+    return halo_data['name']+"_"+model_str+mx_str+wimp_str+dm_str+fm_str+w_str+dist_str+diff_str+tag_str
 
 def flux_label(calc_data):
     """
@@ -389,37 +389,46 @@ def calc_write(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,target=
         if calc_data['freq_mode'] in ['all','radio','sgamma'] and "green" in calc_data['electron_mode']:
             out_stream.write(f"{prefix}Green's Function Grid Intervals: {calc_data['r_green_sample_num']}{end}")
         if diff_data['diff_rmax'] == "2*Rvir":
-            r_limit = 2*halo_data['halo_rvir']
+            r_limit = 2*halo_data['rvir']
         else:
             r_limit = diff_data['diff_rmax']
-        out_stream.write(f"{prefix}Minimum Sampled Radius: {halo_data['halo_scale']*10**calc_data['log10_r_sample_min_factor']:.3e} Mpc{end}")
+        out_stream.write(f"{prefix}Minimum Sampled Radius: {halo_data['scale']*10**calc_data['log10_r_sample_min_factor']:.3e} Mpc{end}")
         out_stream.write((f"{prefix}Maximum Sampled Radius: {r_limit:.3e} Mpc{end}"))
     out_stream.write(f"{prefix}{'='*spacer_length}{end}")
     out_stream.write(f"{prefix}Halo Parameters: {end}")
     out_stream.write(f"{prefix}{'='*spacer_length}{end}")
-    out_stream.write(f"{prefix}Halo Name: {halo_data['halo_name']}{end}")
-    if not calc_data['calc_mode'] == "jflux":
+    out_stream.write(f"{prefix}Halo Name: {halo_data['name']}{end}")
+    if 'halo_z' in halo_data.keys():
         out_stream.write(f"{prefix}Redshift z: {halo_data['halo_z']:.2e}{end}")
-        out_stream.write(f"{prefix}Luminosity Distance: {halo_data['halo_distance']:.3f} Mpc{end}")
-        out_stream.write(f"{prefix}Halo profile: {halo_data['halo_profile']}{end}")
-        if halo_data['halo_profile'] in ["einasto","gnfw","cgnfw"]:
-            out_stream.write(f"{prefix}Halo index parameter: {halo_data['halo_index']}{end}")
-        out_stream.write(f"{prefix}Virial Mass: {halo_data['halo_mvir']:.3e} Solar Masses{end}")
-        out_stream.write(f"{prefix}Virial Radius: {halo_data['halo_rvir']:.3e} Mpc{end}")
-        out_stream.write(f"{prefix}Halo scale radius: {halo_data['halo_scale']:.3e} Mpc{end}")
+    if 'distance' in halo_data.keys():
+        out_stream.write(f"{prefix}Luminosity Distance: {halo_data['distance']:.3f} Mpc{end}")
+    if 'profile' in halo_data.keys():
+        out_stream.write(f"{prefix}Halo profile: {halo_data['profile']}{end}")
+        if halo_data['profile'] in ["einasto","gnfw","cgnfw"]:
+            out_stream.write(f"{prefix}Halo index parameter: {halo_data['index']}{end}")
+    if 'mvir' in halo_data.keys():
+        out_stream.write(f"{prefix}Virial Mass: {halo_data['mvir']:.3e} Solar Masses{end}")
+    if 'rvir' in halo_data.keys():
+        out_stream.write(f"{prefix}Virial Radius: {halo_data['rvir']:.3e} Mpc{end}")
+    if 'scale' in halo_data.keys():
+        out_stream.write(f"{prefix}Halo scale radius: {halo_data['scale']:.3e} Mpc{end}")
+    if 'halo_norm_relative' in halo_data.keys():
         out_stream.write(f"{prefix}Rho_s/Rho_crit: {halo_data['halo_norm_relative']:.3e}{end}")
+    if 'halo_cvir' in halo_data.keys():
         out_stream.write(f"{prefix}Virial Concentration: {halo_data['halo_cvir']:.2f}{end}")
-    elif part_data['em_model'] == "decay":
-        out_stream.write(f"{prefix}Dfactor: {halo_data['halo_jfactor']:.2e} GeV cm^-2{end}")
-    else:
-        out_stream.write(f"{prefix}Jfactor: {halo_data['halo_jfactor']:.2e} GeV^2 cm^-5{end}")
+    if calc_data['calc_mode'] == "jflux" and 'truncation_scale' in halo_data.keys():
+        out_stream.write(f"{prefix}Truncation/tidal radius: {halo_data['truncation_scale']:.2e} Mpc{end}")
+    if part_data['em_model'] == "decay" and calc_data['calc_mode'] == "jflux":
+        out_stream.write(f"{prefix}Dfactor: {halo_data['j_factor']:.2e} GeV cm^-2{end}")
+    elif part_data['em_model'] == "annihilation" and calc_data['calc_mode'] == "jflux":
+        out_stream.write(f"{prefix}Jfactor: {halo_data['j_factor']:.2e} GeV^2 cm^-5{end}")
 
     if calc_data['freq_mode'] in ["all","sgamma","radio"]:
         out_stream.write(f"{prefix}{'='*spacer_length}{end}")
         out_stream.write(f"{prefix}Gas Parameters: {end}")
         out_stream.write(f"{prefix}{'='*spacer_length}{end}")
-        out_stream.write(f"{prefix}Gas density profile: {gas_data['gas_profile']}{end}")
-        param_set = gas_params[gas_data['gas_profile']]
+        out_stream.write(f"{prefix}Gas density profile: {gas_data['profile']}{end}")
+        param_set = gas_params[gas_data['profile']]
         for p in param_set:
             unit_type = check_quant(p)
             if not unit_type is None:
@@ -429,8 +438,8 @@ def calc_write(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,target=
         out_stream.write(f"{prefix}{'='*spacer_length}{end}")
         out_stream.write(f"{prefix}Magnetic Field Parameters: {end}")
         out_stream.write(f"{prefix}{'='*spacer_length}{end}")
-        out_stream.write(f"{prefix}Magnetic field profile: {mag_data['mag_profile']}{end}")
-        param_set = mag_params[mag_data['mag_profile']]
+        out_stream.write(f"{prefix}Magnetic field profile: {mag_data['profile']}{end}")
+        param_set = mag_params[mag_data['profile']]
         for p in param_set:
             unit_type = check_quant(p)
             if not unit_type is None:
@@ -502,7 +511,7 @@ def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,sig
         if display_slice >= len(target_freqs) or display_slice < 0 or display_slice != int(display_slice):
             fatal_error("output.fits_map() parameter display_slice must be an integer that addresses an element of target_freqs")
     if diff_data['diff_rmax'] == "2*Rvir":
-        r_limit = 2*halo_data['halo_rvir']
+        r_limit = 2*halo_data['rvir']
     else:
         r_limit = diff_data['diff_rmax']
     if not r_max is None:
@@ -510,16 +519,16 @@ def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,sig
             fatal_error(f"output.fits_map() argument r_max cannot be greater than largest sampled r value {r_limit} Mpc")
     else:
         r_max = r_limit
-    half_pix = int(np.arctan(r_limit/halo_data['halo_distance'])/np.pi*180*60/target_resolution)
+    half_pix = int(np.arctan(r_limit/halo_data['distance'])/np.pi*180*60/target_resolution)
     if half_pix > max_pix/2:
         half_pix = int(max_pix/2)
     use_half_pix = int(half_pix*r_max/r_limit)
     use_start_pix = half_pix-use_half_pix
     use_end_pix = use_start_pix + 2*use_half_pix
-    r_set = np.logspace(np.log10(halo_data['halo_scale']*10**calc_data['log10_r_sample_min_factor']),np.log10(r_limit),num=calc_data['r_sample_num'])
-    r_set = np.arctan(r_set/halo_data['halo_distance'])/np.pi*180*60 #must be arcmins for the algorithm below
+    r_set = np.logspace(np.log10(halo_data['scale']*10**calc_data['log10_r_sample_min_factor']),np.log10(r_limit),num=calc_data['r_sample_num'])
+    r_set = np.arctan(r_set/halo_data['distance'])/np.pi*180*60 #must be arcmins for the algorithm below
     f_set = calc_data['f_sample_values']
-    r_max = np.arctan(r_max/halo_data['halo_distance'])/np.pi*180*60
+    r_max = np.arctan(r_max/halo_data['distance'])/np.pi*180*60
     hdu_list = []
     for mx in calc_data['m_wimp']:
         fits_out_set = []
@@ -591,7 +600,7 @@ def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,sig
         hdr['BTYPE'] = 'INTENSITY'
         hdr['ORIGIN'] = 'DARKMATTERS'
         hdr['OBSERVER'] = 'DARKMATTERS'
-        hdr['OBJECT'] = halo_data['halo_name'].upper()
+        hdr['OBJECT'] = halo_data['name'].upper()
         hdr['CTYPE3'] = 'FREQ'
         hdr['CRPIX3'] = 1
         hdr['CRVAL3'] = target_freqs[0]*1e6

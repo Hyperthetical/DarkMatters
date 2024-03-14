@@ -1,20 +1,20 @@
 beta:
-- gas_scale
-- gas_index
+- scale
+- index
 - gas_norm
 doublebeta:
-- gas_scale
-- gas_index
+- scale
+- index
 - gas_norm
-- gas_scale2
-- gas_index2
+- scale2
+- index2
 - gas_norm2
 exp:
-- gas_scale
+- scale
 - gas_norm
 powerlaw:
-- gas_scale
-- gas_index
+- scale
+- index
 - gas_norm
 flat:
 - gas_norm

@@ -6,6 +6,16 @@ from scipy.integrate import simpson as integrate
 from scipy.interpolate import interp1d,interp2d
 from astropy import units,constants
 
+def get_j_factor(theta_max,theta_min,dL,halo_func,mode_exp,rt):
+    theta = np.logspace(np.log10(theta_min),np.log10(theta_max),num=51,axis=-1)
+    zMax = dL*np.cos(theta) + np.sqrt(rt**2-dL**2*np.sin(theta)**2)
+    zMin = dL*np.cos(theta) - np.sqrt(rt**2-dL**2*np.sin(theta)**2)
+    zSet = np.logspace(np.log10(zMin),np.log10(zMax),num=51,axis=-1)
+    rSet = np.sqrt(zSet**2+dL**2-2*zSet*dL*np.cos(np.tensordot(theta,np.ones(51),axes=0)))
+    log10JFac = np.log10(integrate(integrate(halo_func(rSet)**mode_exp,zSet)*2*np.pi*np.sin(theta),theta))
+    log10JFac = np.where(np.isnan(log10JFac),0.0,log10JFac)
+    return log10JFac
+
 def surface_brightness_loop(nu_sb,f_sample,r_sample,emm,delta_omega=4*np.pi,ergs=False):
     """
     Surface brightness from emmissivity 

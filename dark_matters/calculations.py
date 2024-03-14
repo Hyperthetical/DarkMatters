@@ -3,7 +3,7 @@ import numpy as np
 from os.path import join
 import os
 from scipy.integrate import simpson
-from astropy import constants
+from astropy import constants,units
 import sympy
 from sympy.utilities.lambdify import lambdify
 
@@ -82,7 +82,7 @@ def physical_averages(rmax,mode_exp,calc_data,halo_data,mag_data,gas_data):
         if w is None:
             w = np.ones_like(r)
         return simpson(y*w*r**2,r)/simpson(w*r**2,r)
-    r_set = take_samples(halo_data['halo_scale']*10**calc_data['log10_r_sample_min_factor'],rmax,100)
+    r_set = take_samples(halo_data['scale']*10**calc_data['log10_r_sample_min_factor'],rmax,100)
     if halo_data['halo_weights'] == "rho":
         weights = halo_data['halo_density_func'](r_set)**mode_exp #the average is weighted
     else:
@@ -142,7 +142,7 @@ def calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,
         delta = diff_data['diff_index']
         d0 = diff_data['diff_constant']
     if diff_data['diff_rmax'] == "2*Rvir":
-        r_limit = 2*halo_data['halo_rvir']
+        r_limit = 2*halo_data['rvir']
     else:
         r_limit = diff_data['diff_rmax']
 
@@ -160,7 +160,7 @@ def calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,
     else:
         sigv = part_data['decay_rate']
 
-    r_sample = take_samples(halo_data['halo_scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])
+    r_sample = take_samples(halo_data['scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])
     rho_dm_sample = halo_data['halo_density_func'](r_sample)
     b_sample = mag_data['mag_field_func'](r_sample)
     ne_sample = gas_data['gas_density_func'](r_sample)
@@ -185,7 +185,7 @@ def calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,
         print(f'Magnetic Field Average Strength: {b_av:.2e} micro Gauss')
         print(f'Gas Average Density: {ne_av:.2e} cm^-3')
         print(f'Averaging scale: {halo_data["green_averaging_scale"]:.2e} Mpc')
-        calc_data['results']['electron_data'][m_index] = green_electron.equilibrium_electrons_grid_partial(calc_data['e_green_sample_num'],E_set,Q_set,calc_data['r_green_sample_num'],r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,halo_data['halo_z'],delta,diff,d0,diff_data["photon_density"],calc_data['thread_number'],calc_data['image_number'])*sigv
+        calc_data['results']['electron_data'][m_index] = green_electron.equilibrium_electrons_grid_partial(calc_data['e_green_sample_num'],E_set,Q_set,calc_data['r_green_sample_num'],r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,halo_data['z'],delta,diff,d0,diff_data["photon_density"],calc_data['thread_number'],calc_data['image_number'])*sigv
     elif calc_data['electron_mode'] == "green-c":
         print("Solution via: Green's function (c++ implementation)")
         print(f'Magnetic Field Average Strength: {b_av:.2e} micro Gauss')
@@ -194,7 +194,7 @@ def calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,
         py_file = "temp_electrons_py.out"
         c_file = "temp_electrons_c.in"
         wd = os.getcwd()
-        calc_data['results']['electron_data'][m_index] = green_electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calc_data['electron_exec_file'],calc_data['e_green_sample_num'],E_set,Q_set,calc_data['r_green_sample_num'],r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,halo_data['halo_z'],delta,diff,d0,diff_data['photon_density'],num_threads=calc_data['thread_number'],num_images=calc_data['image_number'])
+        calc_data['results']['electron_data'][m_index] = green_electron.electrons_from_c(join(wd,py_file),join(wd,c_file),calc_data['electron_exec_file'],calc_data['e_green_sample_num'],E_set,Q_set,calc_data['r_green_sample_num'],r_sample,rho_dm_sample,b_sample,ne_sample,mx,mode_exp,b_av,ne_av,halo_data['z'],delta,diff,d0,diff_data['photon_density'],num_threads=calc_data['thread_number'],num_images=calc_data['image_number'])
         if calc_data['results']['electron_data'][m_index] is None:
             fatal_error(f"The electron executable {calc_data['electron_exec_file']} is not compiled or location not specified correctly")
         else:
@@ -206,7 +206,7 @@ def calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,
         if np.isscalar(dBdr_sample):
             dBdr_sample = dBdr_sample*np.ones_like(r_sample)
         adi_solver = adi_electron.adi_scheme(benchmark_flag=calc_data['adi_bench_mark_mode'],const_delta_t=calc_data['adi_delta_t_constant'])
-        calc_data['results']['electron_data'][m_index] = adi_solver.solve_electrons(mx,halo_data['halo_z'],E_set,r_sample,rho_dm_sample,Q_set,b_sample,dBdr_sample,ne_sample,halo_data['halo_scale'],1.0,diff_data['diff_index'],u_ph=diff_data['photon_density'],diff0=diff_data['diff_constant'],delta_t_min=calc_data['adi_delta_t_min'],loss_only=diff_data['loss_only'],mode_exp=mode_exp,delta_ti=calc_data['adi_delta_ti'],max_t_part=calc_data['adi_max_steps'],delta_t_reduction=calc_data['adi_delta_t_reduction'])*(constants.m_e*constants.c**2).to("GeV").value
+        calc_data['results']['electron_data'][m_index] = adi_solver.solve_electrons(mx,halo_data['z'],E_set,r_sample,rho_dm_sample,Q_set,b_sample,dBdr_sample,ne_sample,halo_data['scale'],1.0,diff_data['diff_index'],u_ph=diff_data['photon_density'],diff0=diff_data['diff_constant'],delta_t_min=calc_data['adi_delta_t_min'],loss_only=diff_data['loss_only'],mode_exp=mode_exp,delta_ti=calc_data['adi_delta_ti'],max_t_part=calc_data['adi_max_steps'],delta_t_reduction=calc_data['adi_delta_t_reduction'])*(constants.m_e*constants.c**2).to("GeV").value
     print("Process Complete")
     return calc_data
 
@@ -244,7 +244,7 @@ def calc_radio_em(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data):
     else:
         mode_exp = 1.0
     if diff_data['diff_rmax'] == "2*Rvir":
-        r_limit = 2*halo_data['halo_rvir']
+        r_limit = 2*halo_data['rvir']
     else:
         r_limit = diff_data['diff_rmax']
     if part_data['decay_input']:
@@ -252,7 +252,7 @@ def calc_radio_em(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data):
     else:
         mx_eff = mx*0.5*mode_exp #this takes into account decay when mode_exp = 1, annihilation mode_exp = 2 means mx_eff = mx
     m_index = get_index(calc_data['m_wimp'],mx)
-    r_sample = take_samples(halo_data['halo_scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])
+    r_sample = take_samples(halo_data['scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])
     f_sample = calc_data['f_sample_values']
     x_sample = take_samples(np.log10(calc_data['e_sample_min']/mx_eff),0,calc_data['e_sample_num'],spacing="lin")
     g_sample = 10**x_sample*mx_eff/(constants.m_e*constants.c**2).to("GeV").value
@@ -304,14 +304,14 @@ def calc_primary_em(mx,calc_data,halo_data,part_data,diff_data):
     else:
         mode_exp = 1.0
     if diff_data['diff_rmax'] == "2*Rvir":
-        r_limit = 2*halo_data['halo_rvir']
+        r_limit = 2*halo_data['rvir']
     else:
         r_limit = diff_data['diff_rmax']
     if part_data['decay_input']:
         mx_eff = mx
     else:
         mx_eff = mx*0.5*mode_exp #this takes into account decay when mode_exp = 1, annihilation mode_exp = 2 means mx_eff = mx
-    r_sample = take_samples(halo_data['halo_scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])
+    r_sample = take_samples(halo_data['scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])
     f_sample = calc_data['f_sample_values']
     x_sample = take_samples(np.log10(calc_data['e_sample_min']/mx_eff),0,calc_data['e_sample_num'],spacing="lin")
     if part_data['em_model'] == "annihilation":
@@ -323,7 +323,7 @@ def calc_primary_em(mx,calc_data,halo_data,part_data,diff_data):
     q_sample = part_data['d_ndx_interp'][spec_type](mx_eff,x_sample).flatten()/np.log(1e1)/10**x_sample/mx_eff*(constants.m_e*constants.c**2).to("GeV").value*sigv
     if np.all(q_sample == 0.0):
         warning("At WIMP mass {mx} GeV dN/dE functions are zero at all considered energies!\nNote that in decay cases we sample mx_eff= 0.5*mx")
-    calc_data['results'][em_type][m_index] = emissivity.primary_em_high_e(mx,rho_sample,halo_data['halo_z'],g_sample,q_sample,f_sample,mode_exp)
+    calc_data['results'][em_type][m_index] = emissivity.primary_em_high_e(mx,rho_sample,halo_data['z'],g_sample,q_sample,f_sample,mode_exp)
     print("Process Complete")
     return calc_data
 
@@ -362,14 +362,14 @@ def calc_secondary_em(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_da
         mode_exp = 1.0
     m_index = get_index(calc_data['m_wimp'],mx)
     if diff_data['diff_rmax'] == "2*Rvir":
-        r_limit = 2*halo_data['halo_rvir']
+        r_limit = 2*halo_data['rvir']
     else:
         r_limit = diff_data['diff_rmax']
     if part_data['decay_input']:
         mx_eff = mx
     else:
         mx_eff = mx*0.5*mode_exp #this takes into account decay when mode_exp = 1, annihilation mode_exp = 2 means mx_eff = mx
-    r_sample = take_samples(halo_data['halo_scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])
+    r_sample = take_samples(halo_data['scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])
     f_sample = calc_data['f_sample_values'] #frequency values
     x_sample = take_samples(np.log10(calc_data['e_sample_min']/mx_eff),0,calc_data['e_sample_num'],spacing="lin")
     g_sample = 10**x_sample*mx_eff/(constants.m_e*constants.c**2).to("GeV").value
@@ -377,7 +377,7 @@ def calc_secondary_em(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_da
     if calc_data['results']['electron_data'][m_index] is None:
         calc_data = calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data)
     electrons = calc_data['results']['electron_data'][m_index]
-    calc_data['results']['secondary_em_data'][m_index] = emissivity.secondary_em_high_e(electrons,halo_data['halo_z'],g_sample,f_sample,ne_sample,diff_data['photon_temp'])
+    calc_data['results']['secondary_em_data'][m_index] = emissivity.secondary_em_high_e(electrons,halo_data['z'],g_sample,f_sample,ne_sample,diff_data['photon_temp'])
     print("Process Complete")
     return calc_data  
 
@@ -404,20 +404,20 @@ def calc_flux(mx,calc_data,halo_data,diff_data):
     print("="*spacer_length)
     print(f"Frequency mode: {calc_data['freq_mode']}")
     if diff_data['diff_rmax'] == "2*Rvir":
-        r_limit = 2*halo_data['halo_rvir']
+        r_limit = 2*halo_data['rvir']
     else:
         r_limit = diff_data['diff_rmax']
-    if 'calc_rmax_integrate' in calc_data.keys():
-        if calc_data['calc_rmax_integrate'] == "Rvir":
-            rmax = halo_data['halo_rvir']
-        elif calc_data['calc_rmax_integrate'] == -1:
+    if 'rmax_integrate' in calc_data.keys():
+        if calc_data['rmax_integrate'] == "Rvir":
+            rmax = halo_data['rvir']
+        elif calc_data['rmax_integrate'] == -1:
             rmax = r_limit
         else:
-            rmax = calc_data['calc_rmax_integrate']
+            rmax = calc_data['rmax_integrate']
         print(f"Integration radius: {rmax} Mpc")
     else:
-        rmax = np.tan(calc_data['calc_angmax_integrate']/180/60*np.pi)*halo_data['halo_distance']/(1+halo_data['halo_z'])**2
-        print(f"Integration radius: {calc_data['calc_angmax_integrate']} arcmins = {rmax} Mpc")
+        rmax = np.tan(calc_data['angmax_integrate']/180/60*np.pi)*halo_data['distance']/(1+halo_data['z'])**2
+        print(f"Integration radius: {calc_data['angmax_integrate']} arcmins = {rmax} Mpc")
     m_index = get_index(calc_data['m_wimp'],mx)
     if calc_data['freq_mode'] == "all":
         emm = calc_data['results']['radio_em_data'][m_index] + calc_data['results']['primary_em_data'][m_index] + calc_data['results']['secondary_em_data'][m_index]
@@ -431,9 +431,9 @@ def calc_flux(mx,calc_data,halo_data,diff_data):
         emm = calc_data['results']['radio_em_data'][m_index] 
     elif "neutrinos" in calc_data['freq_mode']:
         emm = calc_data['results']['neutrino_em_data'][m_index]
-    r_sample = take_samples(halo_data['halo_scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])
+    r_sample = take_samples(halo_data['scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])
     f_sample = calc_data['f_sample_values']
-    calc_data['results']['final_data'][m_index] = fluxes.flux_grid(rmax,halo_data['halo_distance'],f_sample,r_sample,emm,boost_mod=1.0,ergs=calc_data["out_cgs"])
+    calc_data['results']['final_data'][m_index] = fluxes.flux_grid(rmax,halo_data['distance'],f_sample,r_sample,emm,boost_mod=1.0,ergs=calc_data["out_cgs"])
     print("Process Complete")
     return calc_data
 
@@ -474,15 +474,15 @@ def calc_sb(mx,calc_data,halo_data,diff_data):
         emm = calc_data['results']['neutrino_em_data'][m_index]
     nu_SB = []
     if diff_data['diff_rmax'] == "2*Rvir":
-        r_limit = 2*halo_data['halo_rvir']
+        r_limit = 2*halo_data['rvir']
     else:
         r_limit = diff_data['diff_rmax']
-    r_sample = take_samples(halo_data['halo_scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])
+    r_sample = take_samples(halo_data['scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])
     f_sample = calc_data['f_sample_values']
     for nu in f_sample:
         nu_SB.append(fluxes.surface_brightness_loop(nu,f_sample,r_sample,emm,ergs=calc_data["out_cgs"])[1])
     calc_data['results']['final_data'][m_index] = np.array(nu_SB)
-    calc_data['results']['ang_sample_values'] = np.arctan(take_samples(halo_data['halo_scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])/halo_data['halo_distance']*(1+halo_data['halo_z'])**2)/np.pi*180*60
+    calc_data['results']['ang_sample_values'] = np.arctan(take_samples(halo_data['scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])/halo_data['distance']*(1+halo_data['z'])**2)/np.pi*180*60
     print("Process Complete")
     return calc_data  
 
@@ -510,31 +510,29 @@ def calc_j_flux(mx,calc_data,halo_data,part_data):
     print("Calculating Flux From J/D-factor")
     print("="*spacer_length)
     print(f"Frequency mode: {calc_data['freq_mode']}")
-    if (not 'halo_j_factor' in halo_data.keys()) and part_data['em_model'] == "annihilation":
-        fatal_error("halo_data parameter halo_j_factor must be supplied to find a jflux for em_model = annihilation")  
-    elif (not 'halo_d_factor' in halo_data.keys()) and part_data['em_model'] == "decay":
-        fatal_error("halo_data parameter halo_d_factor must be supplied to find a jflux for em_model = decay")  
+
+    if part_data['em_model'] == "annihilation":
+        mode_exp = 2.0
+        j_fac = halo_data['j_factor']
     else:
-        if part_data['em_model'] == "annihilation":
-            j_fac = halo_data['halo_j_factor']
-            mode_exp = 2.0
-        else:
-            j_fac = halo_data['halo_d_factor']
-            mode_exp = 1.0
-        if part_data['decay_input']:
-            mx_eff = mx
-        else:
-            mx_eff = mx*0.5*mode_exp #this takes into account decay when mode_exp = 1, annihilation mode_exp = 2 means mx_eff = mx
-        if calc_data['freq_mode'] == "pgamma":
-            spec_type = "gammas"
-        else:
-            spec_type = calc_data['freq_mode']
-        m_index = get_index(calc_data['m_wimp'],mx)
-        f_sample = calc_data['f_sample_values']
-        x_sample = take_samples(np.log10(calc_data['e_sample_min']/mx_eff),0,calc_data['e_sample_num'],spacing="lin")
-        g_sample = 10**x_sample*mx_eff/(constants.m_e*constants.c**2).to("GeV").value  
-        q_sample_gamma = part_data['d_ndx_interp'][spec_type](mx_eff,x_sample).flatten()/np.log(1e1)/10**x_sample/mx_eff*(constants.m_e*constants.c**2).to("GeV").value*part_data['cross_section']
-        calc_data['results']['final_data'][m_index] = fluxes.flux_from_j_factor(mx,halo_data['halo_z'],j_fac,f_sample,g_sample,q_sample_gamma,mode_exp)
+        mode_exp = 1.0
+        j_fac = halo_data['d_factor']
+    if part_data['decay_input']:
+        mx_eff = mx
+    else:
+        mx_eff = mx*0.5*mode_exp #this takes into account decay when mode_exp = 1, annihilation mode_exp = 2 means mx_eff = mx
+    if not calc_data['freq_mode'] == 'pgamma' or 'neutrinos' in calc_data['freq_mode']:
+        fatal_error(f"jflux cannot be run with freq_mode={calc_data['freq_mode']}")
+    if calc_data['freq_mode'] == "pgamma":
+        spec_type = "gammas"
+    else:
+        spec_type = calc_data['freq_mode']
+    m_index = get_index(calc_data['m_wimp'],mx)
+    f_sample = calc_data['f_sample_values']
+    x_sample = take_samples(np.log10(calc_data['e_sample_min']/mx_eff),0,calc_data['e_sample_num'],spacing="lin")
+    g_sample = 10**x_sample*mx_eff/(constants.m_e*constants.c**2).to("GeV").value  
+    q_sample_gamma = part_data['d_ndx_interp'][spec_type](mx_eff,x_sample).flatten()/np.log(1e1)/10**x_sample/mx_eff*(constants.m_e*constants.c**2).to("GeV").value*part_data['cross_section']
+    calc_data['results']['final_data'][m_index] = fluxes.flux_from_j_factor(mx,halo_data['z'],j_fac,f_sample,g_sample,q_sample_gamma,mode_exp)
     print("Process Complete")
     return calc_data
 
@@ -569,6 +567,10 @@ def run_checks(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,cosmo_d
             mag_data = check_magnetic(mag_data)
             gas_data = check_gas(gas_data)
         diff_data = check_diffusion(diff_data)
+        halo_data = check_halo(halo_data,cosmo_data)
+    elif calc_data['calc_mode'] == "jflux" and (not 'j_factor' in halo_data.keys()) and part_data['em_model'] == "annihilation":
+        halo_data = check_halo(halo_data,cosmo_data)
+    elif calc_data['calc_mode'] == "jflux" and (not 'd_factor' in halo_data.keys()) and (not part_data['em_model'] == "annihilation"):
         halo_data = check_halo(halo_data,cosmo_data)
     else:
         halo_data = check_halo(halo_data,cosmo_data,minimal=True)
@@ -668,7 +670,36 @@ def run_calculation(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,co
     print("="*spacer_length)
     print(f"Frequency mode: {calc_data['freq_mode']}")
     print(f"Calculation type: {calc_data['calc_mode']}")
-    calc_write(calc_data,halo_data,part_data,mag_data,gas_data,diff_data)
+    if calc_data['calc_mode'] == "jflux":
+        calc_j_flag = False
+        if not 'j_factor' in halo_data.keys() and part_data['em_model'] == "annihilation":
+            calc_j_flag = True
+            mode_exp = 2.0
+            unit_fac = (1*units.Unit("Msun^2/Mpc^5")*constants.c**4).to("GeV^2/cm^5").value
+        elif not 'd_factor' in halo_data.keys() and part_data['em_model'] == "decay":
+            calc_j_flag = True
+            mode_exp = 1.0
+            unit_fac = (1*units.Unit("Msun/Mpc^2")*constants.c**2).to("GeV/cm^2").value
+        if calc_j_flag:
+            theta_min = np.arctan(halo_data['scale']*1e-3/halo_data['distance'])
+            if 'angmax_integrate' in calc_data.keys():
+                theta_max = calc_data['angmax_integrate']
+            else:
+                theta_max = np.arctan(calc_data['rmax_integrate']/halo_data['distance'])
+            if not 'truncation_scale' in halo_data.keys():
+                rt = halo_data['rvir']
+            else:
+                rt = halo_data['truncation_scale']
+            rt_check = np.arctan(rt/halo_data['distance']) < theta_max
+            if rt_check:
+                fatal_error("'angmax_integrate' or 'rmax_integrate' is larger than the 'truncation_scale' (defaults to virial radius)")
+            j_fac = 10**fluxes.get_j_factor(theta_max,theta_min,halo_data['distance'],halo_data['halo_density_func'],mode_exp,rt)*unit_fac
+            print(j_fac)
+            if part_data['em_model'] == "annihilation":
+                halo_data['j_factor'] = j_fac
+            else:
+                halo_data['d_factor'] = j_fac
+        calc_write(calc_data,halo_data,part_data,mag_data,gas_data,diff_data)
     for mx in calc_data['m_wimp']:
         wimp_write(mx,part_data)
         m_index = get_index(calc_data['m_wimp'],mx)
@@ -688,10 +719,10 @@ def run_calculation(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,co
             elif calc_data['calc_mode'] == "sb":
                 calc_data = calc_sb(mx,calc_data,halo_data,diff_data)
             if diff_data['diff_rmax'] == "2*Rvir":
-                r_limit = 2*halo_data['halo_rvir']
+                r_limit = 2*halo_data['rvir']
             else:
                 r_limit = diff_data['diff_rmax']
-            calc_data['results']['r_sample_values'] = take_samples(halo_data['halo_scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])
+            calc_data['results']['r_sample_values'] = take_samples(halo_data['scale']*10**calc_data['log10_r_sample_min_factor'],r_limit,calc_data['r_sample_num'])
             calc_data['results']['units']['r_sample_values'] = "Mpc"
             if part_data['em_model'] == "annihilation":
                 mode_exp = 2.0
