@@ -1,15 +1,15 @@
 burkert:
 - none
 einasto:
-- halo_index
+- index
 flat:
 - none
 gnfw:
-- halo_index
+- index
 isothermal:
 - none
 nfw:
 - none
 cgnfw:
-- halo_index
-- halo_core_scale
+- index
+- core_scale

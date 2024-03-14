@@ -62,22 +62,22 @@ def check_magnetic(mag_dict):
     profile_dict = yaml.load(in_file,Loader=yaml.SafeLoader)
     in_file.close()
     if 'mag_field_func' in mag_dict.keys() and mag_dict['mag_func_lock']: #No functionality implemented yet
-        mag_dict['mag_profile'] = "custom"
+        mag_dict['profile'] = "custom"
         return mag_dict
-    if not 'mag_profile' in mag_dict.keys():
-        mag_dict['mag_profile'] = "flat"
-    if not mag_dict['mag_profile'] in profile_dict.keys():
-        fatal_error(f"mag_data variable mag_profile is required to be one of {profile_dict.keys()}")
-    need_vars = profile_dict[mag_dict['mag_profile']]
+    if not 'profile' in mag_dict.keys():
+        mag_dict['profile'] = "flat"
+    if not mag_dict['profile'] in profile_dict.keys():
+        fatal_error(f"mag_data variable profile is required to be one of {profile_dict.keys()}")
+    need_vars = profile_dict[mag_dict['profile']]
     for var in need_vars:
         if not var in mag_dict.keys():
-            fatal_error(f"mag_data variable {var} required for magnetic field profile {mag_dict['mag_profile']}")
+            fatal_error(f"mag_data variable {var} required for magnetic field profile {mag_dict['profile']}")
         if not np.isscalar(mag_dict[var]):
             fatal_error(f"mag_data property {var} must be a scalar")
     if not mag_dict['mag_func_lock']:
         mag_dict['mag_field_func'] = astrophysics.magnetic_field_builder(mag_dict)
     if mag_dict['mag_field_func'] is None:
-        fatal_error(f"No mag_field_func recipe for profile {mag_dict['mag_profile']} found in astrophysics.magnetic_field_builder()")
+        fatal_error(f"No mag_field_func recipe for profile {mag_dict['profile']} found in astrophysics.magnetic_field_builder()")
     return mag_dict
 
 def check_halo(halo_dict,cosmo_dict,minimal=False):
@@ -98,105 +98,105 @@ def check_halo(halo_dict,cosmo_dict,minimal=False):
     """
     if not type(halo_dict) is dict:
         fatal_error("dictionary_checks.check_halo() must be passed a dictionary as its argument")
-    if ((not 'halo_z' in halo_dict.keys()) or halo_dict['halo_z'] == 0.0) and not 'halo_distance' in halo_dict.keys():
-        fatal_error("Either halo_distance must be specified or halo_z must be non-zero")
-    elif not 'halo_z' in halo_dict.keys():
-        halo_dict['halo_z'] = 0.0
-    elif not 'halo_distance' in halo_dict.keys():
-        halo_dict['halo_distance'] = cosmology.dist_luminosity(halo_dict['halo_z'],cosmo_dict)
+    if ((not 'z' in halo_dict.keys()) or halo_dict['z'] == 0.0) and not 'distance' in halo_dict.keys():
+        fatal_error("In halo_data, either 'distance' must be specified or 'z' must be non-zero")
+    elif not 'z' in halo_dict.keys():
+        halo_dict['z'] = 0.0
+    elif not 'distance' in halo_dict.keys():
+        halo_dict['distance'] = cosmology.dist_luminosity(halo_dict['z'],cosmo_dict)
     if minimal:
         return halo_dict
     in_file = open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/halo_density_profiles.yaml"),"r")
     halo_params = yaml.load(in_file,Loader=yaml.SafeLoader)
     in_file.close()
     def rho_norm(halo_dict,cosmo_dict):
-        if (not "halo_norm" in halo_dict.keys()) and ("halo_norm_relative" in halo_dict.keys()):
-            halo_dict['halo_norm'] = halo_dict['halo_norm_relative']*cosmology.rho_crit(halo_dict['halo_z'],cosmo_dict)
-        elif ("halo_norm" in halo_dict.keys()) and (not "halo_norm_relative" in halo_dict.keys()):
-            halo_dict['halo_norm_relative'] = halo_dict['halo_norm']/cosmology.rho_crit(halo_dict['halo_z'],cosmo_dict)
+        if (not "rho_norm" in halo_dict.keys()) and ("rho_norm_relative" in halo_dict.keys()):
+            halo_dict['rho_norm'] = halo_dict['rho_norm_relative']*cosmology.rho_crit(halo_dict['z'],cosmo_dict)
+        elif ("rho_norm" in halo_dict.keys()) and (not "rho_norm_relative" in halo_dict.keys()):
+            halo_dict['rho_norm_relative'] = halo_dict['rho_norm']/cosmology.rho_crit(halo_dict['z'],cosmo_dict)
         else:
-            halo_dict['halo_norm'] = halo_dict['halo_mvir']/astrophysics.rho_virial_int(halo_dict)
-            halo_dict['halo_norm_relative'] = halo_dict['halo_norm']/cosmology.rho_crit(halo_dict['halo_z'],cosmo_dict)
+            halo_dict['rho_norm'] = halo_dict['mvir']/astrophysics.rho_virial_int(halo_dict)
+            halo_dict['rho_norm_relative'] = halo_dict['rho_norm']/cosmology.rho_crit(halo_dict['z'],cosmo_dict)
         return halo_dict
 
     if not 'halo_weights' in halo_dict.keys():
         halo_dict['halo_weights'] = "rho"
-    if not 'halo_profile' in halo_dict.keys():
-        fatal_error("halo variable halo_profile is required for non J/D-factor calculations")
+    if not 'profile' in halo_dict.keys():
+        fatal_error("halo variable profile is required for non J/D-factor calculations")
     
-    var_set1 = ["halo_norm","halo_mvir","halo_rvir","halo_norm_relative"]
-    var_set2 = ["halo_cvir","halo_scale"]
-    if ((not len(set(var_set1).intersection(halo_dict.keys())) > 0) or (not len(set(var_set2).intersection(halo_dict.keys())) > 0)) and not ("halo_rvir" in halo_dict.keys() or "halo_mvir" in halo_dict.keys()):
+    var_set1 = ["rho_norm","mvir","rvir","rho_norm_relative"]
+    var_set2 = ["cvir","scale"]
+    if ((not len(set(var_set1).intersection(halo_dict.keys())) > 0) or (not len(set(var_set2).intersection(halo_dict.keys())) > 0)) and not ("rvir" in halo_dict.keys() or "mvir" in halo_dict.keys()):
         fatal_error(f"Halo specification requires 1 halo variable from {var_set1} and 1 from {var_set2}")
     else:
-        if halo_dict['halo_profile'] not in halo_params.keys():
-            fatal_error(f"Halo specification requires halo_profile from: {halo_params.keys()}")
+        if halo_dict['profile'] not in halo_params.keys():
+            fatal_error(f"Halo specification requires profile from: {halo_params.keys()}")
         else:
-            for x in halo_params[halo_dict['halo_profile']]:
+            for x in halo_params[halo_dict['profile']]:
                 if not x == "none":
                     if not x in halo_dict.keys():
-                        fatal_error(f"halo_profile {halo_dict['halo_profile']} requires property {x} be set")
-        if halo_dict["halo_profile"] == "burkert":
+                        fatal_error(f"profile {halo_dict['profile']} requires property {x} be set")
+        if halo_dict["profile"] == "burkert":
             #rescale to reflect where dlnrho/dlnr = -2 (required as cvir = rvir/r_{-2})
             #isothermal, nfw, einasto all have rs = r_{-2}
             scale_mod = 1.5214
-        elif halo_dict["halo_profile"] == "gnfw":
-            scale_mod = 2.0 - halo_dict['halo_index']
+        elif halo_dict["profile"] == "gnfw":
+            scale_mod = 2.0 - halo_dict['index']
         else:
             scale_mod = 1.0
-        rs_info = "halo_scale" in halo_dict.keys() 
-        rho_info = "halo_norm" in halo_dict.keys() or "halo_norm_relative" in halo_dict.keys()
-        rvir_info = "halo_rvir" in halo_dict.keys() or "halo_mvir" in halo_dict.keys()
+        rs_info = "scale" in halo_dict.keys() 
+        rho_info = "rho_norm" in halo_dict.keys() or "rho_norm_relative" in halo_dict.keys()
+        rvir_info = "rvir" in halo_dict.keys() or "mvir" in halo_dict.keys()
         if  rs_info and rho_info:
-            if not "halo_norm_relative" in halo_dict.keys():
-                halo_dict['halo_norm_relative'] = halo_dict['halo_norm']/cosmology.rho_crit(halo_dict['halo_z'],cosmo_dict)
-            elif not "halo_norm" in halo_dict.keys():
-                halo_dict['halo_norm'] = halo_dict['halo_norm_relative']*cosmology.rho_crit(halo_dict['halo_z'],cosmo_dict)
-            if (not "halo_mvir" in halo_dict.keys()) and ("halo_rvir" in halo_dict.keys()):
-                halo_dict['halo_mvir'] = halo_dict['halo_norm']*astrophysics.rho_volume_int(halo_dict)
-            elif ("halo_mvir" in halo_dict.keys()) and (not "halo_rvir" in halo_dict.keys()):
-                halo_dict['halo_rvir'] = cosmology.rvir_from_mvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
-            elif (not "halo_mvir" in halo_dict.keys()) and (not "halo_rvir" in halo_dict.keys()):
-                halo_dict['halo_rvir']= astrophysics.rvir_from_rho(halo_dict,cosmo_dict)
-                halo_dict['halo_mvir'] = cosmology.mvir_from_rvir(halo_dict['halo_rvir'],halo_dict['halo_z'],cosmo_dict)
-            if not "halo_cvir" in halo_dict.keys():
-                halo_dict['halo_cvir'] = halo_dict['halo_rvir']/halo_dict['halo_scale']/scale_mod
+            if not "rho_norm_relative" in halo_dict.keys():
+                halo_dict['rho_norm_relative'] = halo_dict['rho_norm']/cosmology.rho_crit(halo_dict['z'],cosmo_dict)
+            elif not "rho_norm" in halo_dict.keys():
+                halo_dict['rho_norm'] = halo_dict['rho_norm_relative']*cosmology.rho_crit(halo_dict['z'],cosmo_dict)
+            if (not "mvir" in halo_dict.keys()) and ("rvir" in halo_dict.keys()):
+                halo_dict['mvir'] = halo_dict['rho_norm']*astrophysics.rho_volume_int(halo_dict)
+            elif ("mvir" in halo_dict.keys()) and (not "rvir" in halo_dict.keys()):
+                halo_dict['rvir'] = cosmology.rvir_from_mvir(halo_dict['mvir'],halo_dict['z'],cosmo_dict)
+            elif (not "mvir" in halo_dict.keys()) and (not "rvir" in halo_dict.keys()):
+                halo_dict['rvir']= astrophysics.rvir_from_rho(halo_dict,cosmo_dict)
+                halo_dict['mvir'] = cosmology.mvir_from_rvir(halo_dict['rvir'],halo_dict['z'],cosmo_dict)
+            if not "cvir" in halo_dict.keys():
+                halo_dict['cvir'] = halo_dict['rvir']/halo_dict['scale']/scale_mod
         elif rvir_info and rs_info:
-            if not 'halo_rvir' in halo_dict.keys():
-                halo_dict['halo_rvir'] = cosmology.rvir_from_mvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
-            if not 'halo_cvir' in halo_dict.keys():
-                halo_dict['halo_cvir'] = halo_dict['halo_rvir']/halo_dict['halo_scale']/scale_mod
-            if not 'halo_mvir' in halo_dict.keys():
-                halo_dict['halo_mvir'] = cosmology.mvir_from_rvir(halo_dict['halo_rvir'],halo_dict['halo_z'],cosmo_dict)
+            if not 'rvir' in halo_dict.keys():
+                halo_dict['rvir'] = cosmology.rvir_from_mvir(halo_dict['mvir'],halo_dict['z'],cosmo_dict)
+            if not 'cvir' in halo_dict.keys():
+                halo_dict['cvir'] = halo_dict['rvir']/halo_dict['scale']/scale_mod
+            if not 'mvir' in halo_dict.keys():
+                halo_dict['mvir'] = cosmology.mvir_from_rvir(halo_dict['rvir'],halo_dict['z'],cosmo_dict)
             else:
-                if not 'halo_rvir' in halo_dict.keys():
-                    halo_dict['halo_rvir'] = cosmology.rvir_from_mvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
-                if not 'halo_cvir' in halo_dict.keys():
-                    halo_dict['halo_cvir'] = halo_dict['halo_rvir']/halo_dict['halo_scale']/scale_mod
+                if not 'rvir' in halo_dict.keys():
+                    halo_dict['rvir'] = cosmology.rvir_from_mvir(halo_dict['mvir'],halo_dict['z'],cosmo_dict)
+                if not 'cvir' in halo_dict.keys():
+                    halo_dict['cvir'] = halo_dict['rvir']/halo_dict['scale']/scale_mod
             halo_dict = rho_norm(halo_dict,cosmo_dict)
-        elif rvir_info and 'halo_cvir' in halo_dict.keys():
-            if not 'halo_mvir' in halo_dict.keys():
-                halo_dict['halo_mvir'] = cosmology.mvir_from_rvir(halo_dict['halo_rvir'],halo_dict['halo_z'],cosmo_dict)
-            if not 'halo_rvir' in halo_dict.keys():
-                halo_dict['halo_rvir'] = cosmology.rvir_from_mvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
-            if not 'halo_scale' in halo_dict.keys():
-                halo_dict['halo_scale'] = halo_dict['halo_rvir']/halo_dict['halo_cvir']/scale_mod
+        elif rvir_info and 'cvir' in halo_dict.keys():
+            if not 'mvir' in halo_dict.keys():
+                halo_dict['mvir'] = cosmology.mvir_from_rvir(halo_dict['rvir'],halo_dict['z'],cosmo_dict)
+            if not 'rvir' in halo_dict.keys():
+                halo_dict['rvir'] = cosmology.rvir_from_mvir(halo_dict['mvir'],halo_dict['z'],cosmo_dict)
+            if not 'scale' in halo_dict.keys():
+                halo_dict['scale'] = halo_dict['rvir']/halo_dict['cvir']/scale_mod
             halo_dict = rho_norm(halo_dict,cosmo_dict)
         elif rvir_info:
-            if not 'halo_mvir' in halo_dict.keys():
-                halo_dict['halo_mvir'] = cosmology.mvir_from_rvir(halo_dict['halo_rvir'],halo_dict['halo_z'],cosmo_dict)
-            if not 'halo_rvir' in halo_dict.keys():
-                halo_dict['halo_rvir'] = cosmology.rvir_from_mvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
-            halo_dict['halo_cvir'] = cosmology.cvir(halo_dict['halo_mvir'],halo_dict['halo_z'],cosmo_dict)
-            halo_dict['halo_scale'] = halo_dict['halo_rvir']/halo_dict['halo_cvir']/scale_mod
+            if not 'mvir' in halo_dict.keys():
+                halo_dict['mvir'] = cosmology.mvir_from_rvir(halo_dict['rvir'],halo_dict['z'],cosmo_dict)
+            if not 'rvir' in halo_dict.keys():
+                halo_dict['rvir'] = cosmology.rvir_from_mvir(halo_dict['mvir'],halo_dict['z'],cosmo_dict)
+            halo_dict['cvir'] = cosmology.cvir(halo_dict['mvir'],halo_dict['z'],cosmo_dict)
+            halo_dict['scale'] = halo_dict['rvir']/halo_dict['cvir']/scale_mod
             halo_dict = rho_norm(halo_dict,cosmo_dict)
         else:
             fatal_error(f"halo_data is underspecified by {halo_dict}")
     halo_dict['halo_density_func'] = astrophysics.halo_density_builder(halo_dict)
     if not "green_averaging_scale" in halo_dict.keys():
-        halo_dict["green_averaging_scale"] = halo_dict['halo_scale']
+        halo_dict["green_averaging_scale"] = halo_dict['scale']
     if halo_dict['halo_density_func'] is None:
-        fatal_error(f"No halo_density_func recipe for profile {halo_dict['halo_profile']} found in astrophysics.halo_density_builder()")
+        fatal_error(f"No halo_density_func recipe for profile {halo_dict['profile']} found in astrophysics.halo_density_builder()")
     return halo_dict
 
 def check_gas(gas_dict):
@@ -218,17 +218,17 @@ def check_gas(gas_dict):
     in_file = open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/gas_density_profiles.yaml"),"r")
     gas_params = yaml.load(in_file,Loader=yaml.SafeLoader)
     in_file.close()
-    if not 'gas_profile' in gas_dict.keys():
-        gas_dict['gas_profile'] = "flat"
+    if not 'profile' in gas_dict.keys():
+        gas_dict['profile'] = "flat"
     else:
-        need_vars = gas_params[gas_dict['gas_profile']]
+        need_vars = gas_params[gas_dict['profile']]
         for var in need_vars:
             if not var in gas_dict.keys():
-                print(f"gas_data variable {var} is required for magnetic field profile {gas_dict['gas_profile']}")
+                print(f"gas_data variable {var} is required for magnetic field profile {gas_dict['profile']}")
                 fatal_error("gas_data underspecified")
     gas_dict['gas_density_func'] = astrophysics.gas_density_builder(gas_dict)
     if gas_dict['gas_density_func'] is None:
-        fatal_error(f"No gas_density_func recipe for profile {gas_dict['gas_profile']} found in astrophysics.gas_density_builder()")
+        fatal_error(f"No gas_density_func recipe for profile {gas_dict['profile']} found in astrophysics.gas_density_builder()")
     return gas_dict   
 
 def check_calculation(calc_dict):
@@ -291,11 +291,11 @@ def check_calculation(calc_dict):
     if not 'e_sample_min' in calc_dict.keys():
         calc_dict['e_sample_min'] = (constants.m_e*constants.c**2).to("GeV").value #GeV
 
-    if calc_dict['calc_mode'] in ["flux"]:
-        if (not 'calc_rmax_integrate' in calc_dict.keys()) and (not 'calc_angmax_integrate' in calc_dict.keys()):
-            fatal_error(f"calc_dict requires one of the variables calc_rmax_integrate or calc_angmax_integrate for the selected mode: {calc_dict['calc_mode']}")
-        elif ('calc_rmax_integrate' in calc_dict.keys()) and ('calc_angmax_integrate' in calc_dict.keys()):
-            fatal_error(f"calc_dict requires ONLY one of the variables calc_rmax_integrate or calc_angmax_integrate for the selected mode: {calc_dict['calc_mode']}")
+    if calc_dict['calc_mode'] in ["flux","jflux"]:
+        if (not 'rmax_integrate' in calc_dict.keys()) and (not 'angmax_integrate' in calc_dict.keys()):
+            fatal_error(f"calc_dict requires one of the variables rmax_integrate or angmax_integrate for the selected mode: {calc_dict['calc_mode']}")
+        elif ('rmax_integrate' in calc_dict.keys()) and ('angmax_integrate' in calc_dict.keys()):
+            fatal_error(f"calc_dict requires ONLY one of the variables rmax_integrate or angmax_integrate for the selected mode: {calc_dict['calc_mode']}")
 
     if not calc_dict['calc_mode'] == "jflux":
         if "green" in calc_dict['electron_mode']: 
