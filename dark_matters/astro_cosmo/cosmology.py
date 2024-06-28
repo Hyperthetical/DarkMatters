@@ -119,7 +119,7 @@ def halo_scale(M,z,cosmo):
     rs : float
         Scale radius [Mpc]
     """
-    return rvir_from_mvir(M,z,cosmo)/cvir_munoz(M,z,cosmo)
+    return rvir_from_mvir(M,z,cosmo)/cvir(M,z,cosmo)
 
 def rho_nfw_norm_relative(cv,z,cosmo):
     """
@@ -248,7 +248,7 @@ def cvir(Mvir,z,cosmo):
     """
     if cosmo['cvir_mode'] == "p12":
         cvir_func = cvir_p12
-    elif cosmo['cvir_mode'] == "munoz_2010":
+    elif cosmo['cvir_mode'] == "munoz_2011":
         cvir_func = cvir_munoz
     elif cosmo['cvir_mode'] == "bullock_2001":
         cvir_func = cvir_bullock2001

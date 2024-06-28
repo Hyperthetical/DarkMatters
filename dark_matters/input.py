@@ -3,7 +3,7 @@ DarkMatters module for handling input
 """
 import numpy as np
 import yaml,json
-from astropy import units
+from astropy import units,constants
 from scipy.interpolate import interp2d
 import os
 from .output import fatal_error,check_quant,warning
@@ -32,7 +32,7 @@ def get_spectral_data(spec_dir,part_model,spec_set,mode="annihilation"):
     """
     spec_dict = {}
     for f in spec_set:
-        if part_model in ["bb","qq","ww","ee","hh","tautau","mumu","tt","zz"]:
+        if part_model in ["bb","qq","ww","ee","hh","tautau","mumu","tt","zz","e_l","e_r","mu_l","mu_r","tau_l","tau_r","cc","z_l","z_r","w_l","w_r","gg","nu_e","nu_mu","nu_tau","ve","vmu","vtau"]:
             spec_dict[f] = read_spectrum(os.path.join(spec_dir,f"AtProduction_{f}.dat"),part_model,mode=mode,pppc4dmid=True)
         else:
             spec_dict[f] = read_spectrum(os.path.join(spec_dir,f"{part_model}_AtProduction_{f}.dat"),part_model,mode=mode,pppc4dmid=False)
@@ -65,7 +65,7 @@ def read_spectrum(spec_file,part_model,mode="annihilation",pppc4dmid=True):
     column 0: WIMP mass in GeV, column 1: log10(energy/mx) , column 2: dN/dlog10(energy/mx)
     """
     #mDM      Log[10,x]   eL         eR         e          \[Mu]L     \[Mu]R     \[Mu]      \[Tau]L    \[Tau]R    \[Tau]     q            c            b            t            WL          WT          W           ZL          ZT          Z           g            \[Gamma]    h           \[Nu]e     \[Nu]\[Mu]   \[Nu]\[Tau]   V->e       V->\[Mu]   V->\[Tau]
-    ch_cols = {"ee":4,"mumu":7,"tautau":10,"qq":11,"bb":13,"tt":14,"ww":17,"zz":20,"gamma":22,'hh':23}
+    ch_cols = {"e_l":2,"e_r":3,"ee":4,"mu_l":5,"mu_r":6,"mumu":7,"tau_l":8,"tau_r":9,"tautau":10,"qq":11,"cc":12,"bb":13,"tt":14,"w_l":15,"w_r":16,"ww":17,"z_l":18,"z_r":19,"zz":20,"gg":21,"gamma":22,'hh':23,"nu_e":24,"nu_mu":25,"nu_tau":26,"ve":27,"vmu":28,"vtau":29}
     if pppc4dmid:
         n_col = ch_cols[part_model]
     else:
@@ -128,13 +128,18 @@ def read_input_file(input_file,in_mode="yaml"):
                 if not quant is None:
                     unit_str = dm_units[quant] #get the unit DM uses internally
                 else:
-                    fatal_error(f"{h} property {x} does not accept a unit argument")
+                    fatal_error(f"{h} property {x} either doesn't exist or does not accept a unit argument")
                 try:
                     data_sets[h][x] = ((input_data[h][x]['value']*units.Unit(input_data[h][x]['unit'])).to(unit_str)).value #convert the units to internal system
                 except AttributeError:
-                    data_sets[h][x] = (input_data[h][x]['value']*units.Unit(input_data[h][x]['unit'])).to(unit_str)
+                    data_sets[h][x] = (input_data[h][x]['value']*units.Unit(input_data[h][x]['unit'])).to(unit_str) #Necessary for some reason
+                except ValueError:
+                    try:
+                        data_sets[h][x] = ((input_data[h][x]['value']*units.Unit(input_data[h][x]['unit'])/constants.h).to(unit_str)).value #This lets frequency be put in as energy units (dirty trick?)
+                    except:
+                        fatal_error(f"Processing failed on {h} property {x} with given unit {input_data[h][x]['unit']}")
                 except:
-                    fatal_error(f"Processing failed on {h} property {x} ")
+                    fatal_error(f"Processing failed on {h} property {x} with given unit {input_data[h][x]['unit']}")
     if len(data_sets['mag_data']) > 0:
         data_sets['mag_data']['mag_func_lock'] = False
     return data_sets
@@ -162,11 +167,11 @@ def read_dm_output(f_name,in_mode="yaml"):
         except:
             stream.close()
             stream = open(f_name, 'r')
-            warning(f"Loading {f_name} with unsafeLoader (probably due to numpy objects)")
+            warning(f"Loading {f_name} with yaml.UnsafeLoader (probably due to numpy objects)")
             in_data = yaml.load(stream,Loader=yaml.UnsafeLoader)
     elif in_mode == "json":
         in_data = json.load(stream)
     else:
-        fatal_error(f"The argument in_mode = {in_mode} given to input.readinput_file() does not match any valid input modes")
+        fatal_error(f"The argument in_mode = {in_mode} given to input.read_dm_output() does not match any valid input modes")
     stream.close()
     return in_data

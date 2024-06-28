@@ -9,9 +9,9 @@ from .progress_bar import progress
 from ..output import warning,spacer_length
 
 
-class adi_scheme:
+class os_scheme:
     """
-    ADI scheme class
+    Operator splitting solution class
 
     Arguments
     ---------------------------
@@ -85,7 +85,7 @@ class adi_scheme:
     electrons : array-like float (n,m)
         Output electron equilibrium distribution [GeV cm^-3]
     solve_electrons : function
-        Sets up grids and calls ADI solver
+        Sets up grids and calls OS solver
     set_d : function
         Builds diffusion function
     set_dDdr : function
@@ -112,8 +112,8 @@ class adi_scheme:
         Builds sparse matrices for energy propagator
     spmatrices_diff : function
         Builds sparse matrices for spatial propagator
-    adi2D : function
-        Runs ADI solution
+    os_2d : function
+        Runs OS solution
     """
     def __init__(self,benchmark_flag=False,const_delta_t=False,animation_flag=False):
         self.effect = None      #which effects to include in the solution of the transport equation (in set {"loss","diffusion","all"})
@@ -149,11 +149,13 @@ class adi_scheme:
         self.smallest_delta_t = None    #smallest value of delta_t before final convergence (for accelerated timestep switching method)
         self.max_t_part = None    #maximum number of iterations for each value of delta_t in accelerated method
         self.delta_t_reduction = None    #factor by which to reduce delta_t during timestep-switching in accelerated method
+        self.stability_tol = None
+        self.final_stability_tol = None
         
         self.animation_flag = animation_flag      #flag for whether animations take place or not
         self.snapshots = None   #stores snapshots of psi and delta_t at each iteration for animation
         
-    def solve_electrons(self,mx,z,E_sample,r_sample,rho_sample,q_sample,b_sample,dBdr_sample,ne_sample,r_scale,e_scale,delta,diff0=3.1e28,u_ph=0.0,loss_only=False,mode_exp=2,delta_t_min=1e1,delta_ti=1e9,max_t_part=100,delta_t_reduction=0.5):
+    def solve_electrons(self,mx,z,E_sample,r_sample,rho_sample,q_sample,b_sample,dBdr_sample,ne_sample,r_scale,e_scale,delta,diff0=3.1e28,u_ph=0.0,loss_only=False,mode_exp=2,delta_t_min=1e1,delta_ti=1e9,max_t_part=100,delta_t_reduction=0.5,f_tol=1e-3,i_tol=1e-5):
         """
         Set up and solve for electron distribution
 
@@ -206,10 +208,13 @@ class adi_scheme:
             Equilibrium distribution solution [GeV cm^-3]
         """
         print("="*spacer_length)
-        print("ADI environment details")
+        print("OS environment details")
         print("="*spacer_length)
         
         self.effect = "loss" if loss_only else "all" 
+
+        self.stability_tol = i_tol
+        self.final_stability_tol = f_tol
         
         """ Grid setup and log transforms """
         self.r_bins = len(r_sample)
@@ -293,11 +298,11 @@ class adi_scheme:
         print(f"Initial time step: delta_t = {(self.delta_t*units.Unit('s')).to('yr').value:.2g} yr")
         print(f"Constant time step: {self.const_delta_t}\n")
         
-        """ADI method """
+        """OS method """
         print("="*spacer_length)
-        print("ADI run details")
+        print("OS run details")
         print("="*spacer_length)
-        return self.adi_2_d(self.Q).transpose()       
+        return self.os_2d(self.Q).transpose()       
         
     """ 
     Function definitions 
@@ -615,13 +620,13 @@ class adi_scheme:
 
         return (diff_A,diff_B)
 
-    def adi_2_d(self,Q):
+    def os_2d(self,Q):
         """
-        Solve 2-D diffusion/loss transport equation using the ADI method. 
+        Solve 2-D diffusion/loss transport equation using the OS method. 
         
         The general matrix equation being sovled is A*psi1 = B*psi0 + Q,
         where psi == dn/dE is the electron distribution function,
-        A, B are coefficient matrices determined from the ADI scheme,
+        A, B are coefficient matrices determined from the OS scheme,
         Q is the electron source function from DM annihilations.
         
         The equation is solved iteratively until convergence is reached. 
@@ -637,7 +642,7 @@ class adi_scheme:
         psi - array-like float (n,m)
             Electron equilibrium function [GeV cm^-3]
         """        
-        adi_start = time.perf_counter()
+        os_start = time.perf_counter()
         
         """ Preliminary setup """
         #create A,B matrices for initial timestep        
@@ -659,14 +664,14 @@ class adi_scheme:
         diff_ts_check = False                   #psi_ts > diff_ts check
         ts_check = False                        #combination of ts_losscheck and ts_diffcheck
         benchmark_check = False                 #np.all(dpsidt==0), only for benchmarking runs
-        rel_diff_check = False                  #relative difference between (t-1) and (t) < stability_tol
+        rel_diff_check = False                  #relative difference between (t-1) and (t) < self.stability_tol
         psi_ts = np.empty(psi.shape)            #for calculating psi_ts
         psi_prev = np.empty(psi.shape)          #copy of psi at t-1, for determining stability and convergence checks
         delta_t_reduction = self.delta_t_reduction    #factor by which to reduce delta_t during timestep-switching in accelerated method
-        stability_tol = 1.0e-5                  #relative difference tolerance between iterations (for stability_check)
-        final_stability_tol = 1e-3              #as above but used for convergence at final time-step size
-        print(f"Stability tolerance: {stability_tol}")
-        print(f"Stability tolerance at final time-scale: {final_stability_tol}")
+        # self.stability_tol = 1.0e-5                  #relative difference tolerance between iterations (for stability_check)
+        # self.final_stability_tol = 1e-3              #as above but used for convergence at final time-step size
+        print(f"Stability tolerance: {self.stability_tol}")
+        print(f"Stability tolerance at final time-scale: {self.final_stability_tol}")
 
         #other loop items
         t = 0                                   #total iteration counter 
@@ -684,8 +689,8 @@ class adi_scheme:
             snapshot = (psi.copy()[:-1],self.delta_t)
             self.snapshots = [snapshot]
 
-        """ Main ADI loop """
-        print("Beginning ADI solution...")
+        """ Main OS loop """
+        print("Beginning OS solution...")
         while not(convergence_check) and (t < max_t):            
             """ 
             Convergence, stability and delta_t switching
@@ -723,9 +728,9 @@ class adi_scheme:
                     rel_diff = np.abs(psi[:-1]/psi_prev[:-1]-1.0)
                     rel_diff = np.where(np.isnan(rel_diff),0.0,rel_diff)
                     if self.delta_t <= self.smallest_delta_t:
-                        rel_diff_check = bool(np.all(rel_diff < final_stability_tol)) 
+                        rel_diff_check = bool(np.all(rel_diff < self.final_stability_tol)) 
                     else:
-                        rel_diff_check = bool(np.all(rel_diff < stability_tol))    #[:-1] slice to ignore boundary condition, type conversion because np.bool != bool, get unexpected results sometimes 
+                        rel_diff_check = bool(np.all(rel_diff < self.stability_tol))    #[:-1] slice to ignore boundary condition, type conversion because np.bool != bool, get unexpected results sometimes 
 
                 #stability conditions - s1,s2
                 if self.const_delta_t:
@@ -814,7 +819,7 @@ class adi_scheme:
             t += 1
             t_part += 1
             """ progress feedback during loop """ 
-            progress(t,max_t,prefix="ADI Progess:")
+            progress(t,max_t,prefix="OS Progess:")
             """ Store solution for animation """
             if self.animation_flag is True:
                 snapshot = (psi.copy()[:-1],self.delta_t)
@@ -828,10 +833,10 @@ class adi_scheme:
         print()
         self.electrons = psi.copy()        #final equilibrium solution
 
-        print("ADI loop completed.")
+        print("OS loop completed.")
         print(f"Convergence: {convergence_check}")
         if not convergence_check:
-            warning(f"ADI method did not converge! See diagnostics below as to trustworthiness of the solution\nAverage relative change in psi after last step: {np.sum(rel_diff)/np.size(rel_diff)}\nMaximum relative change in psi after last step: {np.max(rel_diff)}")
+            warning(f"OS method did not converge! See diagnostics below as to trustworthiness of the solution\nAverage relative change in psi after last step: {np.sum(rel_diff)/np.size(rel_diff)}\nMaximum relative change in psi after last step: {np.max(rel_diff)}")
             unit_fac = units.Unit("cm").to("Mpc")
             from matplotlib import pyplot as plt
             plt.imshow(np.log10(rel_diff),extent=[np.log10(self.E_grid[0]),np.log10(self.E_grid[-1]),np.log10(self.r_grid[-1]*unit_fac),np.log10(self.r_grid[0]*unit_fac)],aspect="auto")
@@ -851,7 +856,7 @@ class adi_scheme:
             print("="*spacer_length)
             print(f"Benchmark test - all(dpsi/dt == 0): {benchmark_check}")        
 
-        print("ADI solution complete.")
-        print(f"Total ADI method run time: {time.perf_counter() - adi_start:.4g} s")
+        print("OS solution complete.")
+        print(f"Total OS method run time: {time.perf_counter() - os_start:.4g} s")
                
         return psi  

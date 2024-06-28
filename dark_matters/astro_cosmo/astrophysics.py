@@ -129,8 +129,6 @@ def rvir_from_rho(halo_dict,cosmo):
         rho = halo_density_builder(halo_dict)(r_set)
         return integrate(r_set**2*rho,r_set)/integrate(r_set**2,r_set)-target
     target = cosmology.delta_c(halo_dict['z'],cosmo)*cosmology.rho_crit(halo_dict['z'],cosmo) #density contast we need
-    #print(average_rho(rc,rhos,rc,dmmod))
-    #print(average_rho(rc*30,rhos,rc,dmmod))
     return bisect(average_rho,halo_dict['scale'],halo_dict['scale']*1e6,args=(halo_dict,target))
 
 def rho_virial_int(halo_dict):

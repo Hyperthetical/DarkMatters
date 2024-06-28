@@ -9,7 +9,7 @@ from sympy.utilities.lambdify import lambdify
 
 from .output import fatal_error,warning,calc_write,wimp_write,spacer_length
 from .dictionary_checks import check_cosmology,check_calculation,check_diffusion,check_gas,check_halo,check_magnetic,check_particles
-from .emissions import adi_electron,green_electron,fluxes,emissivity
+from .emissions import green_electron,fluxes,emissivity,os_electron
 
 def get_index(set,val):
     """
@@ -50,9 +50,9 @@ def take_samples(xmin,xmax,nx,spacing="log",axis=-1):
         Values spaced between xmin and max
     """
     if spacing == "log":
-        return np.logspace(np.log10(xmin),np.log10(xmax),num=nx,axis=-1)
+        return np.logspace(np.log10(xmin),np.log10(xmax),num=nx,axis=axis)
     else:
-        return np.linspace(xmin,xmax,num=nx,axis=-1)
+        return np.linspace(xmin,xmax,num=nx,axis=axis)
 
 def physical_averages(rmax,mode_exp,calc_data,halo_data,mag_data,gas_data):
     """
@@ -82,7 +82,7 @@ def physical_averages(rmax,mode_exp,calc_data,halo_data,mag_data,gas_data):
         if w is None:
             w = np.ones_like(r)
         return simpson(y*w*r**2,r)/simpson(w*r**2,r)
-    r_set = take_samples(halo_data['scale']*10**calc_data['log10_r_sample_min_factor'],rmax,100)
+    r_set = take_samples(halo_data['scale']*10**calc_data['log10_r_sample_min_factor'],rmax,101)
     if halo_data['halo_weights'] == "rho":
         weights = halo_data['halo_density_func'](r_set)**mode_exp #the average is weighted
     else:
@@ -199,14 +199,14 @@ def calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,
             fatal_error(f"The electron executable {calc_data['electron_exec_file']} is not compiled or location not specified correctly")
         else:
             calc_data['results']['electron_data'][m_index] *= sigv
-    elif calc_data['electron_mode'] == "adi-python":
-        print("Solution via: ADI method (python implementation)")
+    elif calc_data['electron_mode'] == "os-python":
+        print("Solution via: OS method (python implementation)")
         r = sympy.symbols('r')
         dBdr_sample = lambdify(r,sympy.diff(mag_data['mag_field_func'](r),r))(r_sample)
         if np.isscalar(dBdr_sample):
             dBdr_sample = dBdr_sample*np.ones_like(r_sample)
-        adi_solver = adi_electron.adi_scheme(benchmark_flag=calc_data['adi_bench_mark_mode'],const_delta_t=calc_data['adi_delta_t_constant'])
-        calc_data['results']['electron_data'][m_index] = adi_solver.solve_electrons(mx,halo_data['z'],E_set,r_sample,rho_dm_sample,Q_set,b_sample,dBdr_sample,ne_sample,halo_data['scale'],1.0,diff_data['diff_index'],u_ph=diff_data['photon_density'],diff0=diff_data['diff_constant'],delta_t_min=calc_data['adi_delta_t_min'],loss_only=diff_data['loss_only'],mode_exp=mode_exp,delta_ti=calc_data['adi_delta_ti'],max_t_part=calc_data['adi_max_steps'],delta_t_reduction=calc_data['adi_delta_t_reduction'])*(constants.m_e*constants.c**2).to("GeV").value
+        os_solver = os_electron.os_scheme(benchmark_flag=calc_data['os_bench_mark_mode'],const_delta_t=calc_data['os_delta_t_constant'])
+        calc_data['results']['electron_data'][m_index] = os_solver.solve_electrons(mx,halo_data['z'],E_set,r_sample,rho_dm_sample,Q_set,b_sample,dBdr_sample,ne_sample,halo_data['scale'],1.0,diff_data['diff_index'],u_ph=diff_data['photon_density'],diff0=diff_data['diff_constant'],delta_t_min=calc_data['os_delta_t_min'],loss_only=diff_data['loss_only'],mode_exp=mode_exp,delta_ti=calc_data['os_delta_ti'],max_t_part=calc_data['os_max_steps'],delta_t_reduction=calc_data['os_delta_t_reduction'],f_tol=calc_data['os_final_tolerance'],i_tol=calc_data['os_internal_tolerance'])*(constants.m_e*constants.c**2).to("GeV").value
     print("Process Complete")
     return calc_data
 
@@ -322,7 +322,7 @@ def calc_primary_em(mx,calc_data,halo_data,part_data,diff_data):
     rho_sample = halo_data['halo_density_func'](r_sample)
     q_sample = part_data['d_ndx_interp'][spec_type](mx_eff,x_sample).flatten()/np.log(1e1)/10**x_sample/mx_eff*(constants.m_e*constants.c**2).to("GeV").value*sigv
     if np.all(q_sample == 0.0):
-        warning("At WIMP mass {mx} GeV dN/dE functions are zero at all considered energies!\nNote that in decay cases we sample mx_eff= 0.5*mx")
+        warning(f"At WIMP mass {mx} GeV dN/dE functions are zero at all considered energies!\nNote that in decay cases we sample mx_eff= 0.5*mx")
     calc_data['results'][em_type][m_index] = emissivity.primary_em_high_e(mx,rho_sample,halo_data['z'],g_sample,q_sample,f_sample,mode_exp)
     print("Process Complete")
     return calc_data
@@ -414,10 +414,10 @@ def calc_flux(mx,calc_data,halo_data,diff_data):
             rmax = r_limit
         else:
             rmax = calc_data['rmax_integrate']
-        print(f"Integration radius: {rmax} Mpc")
+        print(f"Integration radius: {rmax:.2e} Mpc")
     else:
         rmax = np.tan(calc_data['angmax_integrate']/180/60*np.pi)*halo_data['distance']/(1+halo_data['z'])**2
-        print(f"Integration radius: {calc_data['angmax_integrate']} arcmins = {rmax} Mpc")
+        print(f"Integration radius: {calc_data['angmax_integrate']:.2e} arcmins = {rmax:.2e} Mpc")
     m_index = get_index(calc_data['m_wimp'],mx)
     if calc_data['freq_mode'] == "all":
         emm = calc_data['results']['radio_em_data'][m_index] + calc_data['results']['primary_em_data'][m_index] + calc_data['results']['secondary_em_data'][m_index]
@@ -562,6 +562,9 @@ def run_checks(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,cosmo_d
     All given dictionaries checked and ready for calculations
     """
     cosmo_data = check_cosmology(cosmo_data)
+    if 'electron_mode' in calc_data.keys():
+        if 'green' in calc_data['electron_mode']:
+            fatal_error("Green's functions are currently disabled! Use 'os-python' as the value of 'electron_mode' instead")
     if not calc_data['calc_mode'] == "jflux":
         if (not calc_data['freq_mode'] == "pgamma") and (not "neutrinos" in calc_data['freq_mode']):
             mag_data = check_magnetic(mag_data)
@@ -694,12 +697,11 @@ def run_calculation(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,co
             if rt_check:
                 fatal_error("'angmax_integrate' or 'rmax_integrate' is larger than the 'truncation_scale' (defaults to virial radius)")
             j_fac = 10**fluxes.get_j_factor(theta_max,theta_min,halo_data['distance'],halo_data['halo_density_func'],mode_exp,rt)*unit_fac
-            print(j_fac)
             if part_data['em_model'] == "annihilation":
                 halo_data['j_factor'] = j_fac
             else:
                 halo_data['d_factor'] = j_fac
-        calc_write(calc_data,halo_data,part_data,mag_data,gas_data,diff_data)
+    calc_write(calc_data,halo_data,part_data,mag_data,gas_data,diff_data)
     for mx in calc_data['m_wimp']:
         wimp_write(mx,part_data)
         m_index = get_index(calc_data['m_wimp'],mx)
