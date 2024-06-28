@@ -1,8 +1,8 @@
 calc_data:
-  adi_max_steps: 20
+  os_max_steps: 20
   calc_mode: sb
   e_sample_number: 50
-  electron_mode: adi-python
+  electron_mode: os-python
   f_sample_limits:
     unit: MHz
     value:

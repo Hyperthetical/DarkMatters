@@ -2,14 +2,12 @@
 DarkMatters module for handling output
 """
 import numpy as np
-import sys
-import yaml,json
-import os
+import sys,yaml,json,os
 from scipy.interpolate import interp2d,interp1d
-from astropy import wcs
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
 from astropy.io import fits
+from astropy import units,constants,wcs
 
 spacer_length = 55
 
@@ -382,8 +380,8 @@ def calc_write(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,target=
         out_stream.write(f"{prefix}Output directory: {calc_data['calc_output_directory']}{end}")
     #out_stream.write(f"{prefix}Field File Code: b'+str(int(phys.b0))+"q"+str(phys.qb)+end)
     out_stream.write((f"{prefix}Frequency Samples: {calc_data['f_sample_num']}{end}"))
-    out_stream.write(f"{prefix}Minimum Frequency Sampled: {calc_data['f_sample_limits'][0]:.2e} MHz {end}")
-    out_stream.write(f"{prefix}Maximum Frequency Sampled: {calc_data['f_sample_limits'][1]:.2e} MHz{end}")
+    out_stream.write(f"{prefix}Minimum Frequency Sampled: {calc_data['f_sample_limits'][0]:.2e} MHz ({(calc_data['f_sample_limits'][0]*units.Unit('MHz')*constants.h).to('GeV').value:.2e} GeV) {end}")
+    out_stream.write(f"{prefix}Maximum Frequency Sampled: {calc_data['f_sample_limits'][1]:.2e} MHz ({(calc_data['f_sample_limits'][1]*units.Unit('MHz')*constants.h).to('GeV').value:.2e} GeV){end}")
     if not calc_data['calc_mode'] == "jflux":
         out_stream.write(f"{prefix}Radial Grid Intervals: {calc_data['r_sample_num']}{end}")
         if calc_data['freq_mode'] in ['all','radio','sgamma'] and "green" in calc_data['electron_mode']:
@@ -392,30 +390,30 @@ def calc_write(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,target=
             r_limit = 2*halo_data['rvir']
         else:
             r_limit = diff_data['diff_rmax']
-        out_stream.write(f"{prefix}Minimum Sampled Radius: {halo_data['scale']*10**calc_data['log10_r_sample_min_factor']:.3e} Mpc{end}")
-        out_stream.write((f"{prefix}Maximum Sampled Radius: {r_limit:.3e} Mpc{end}"))
+        out_stream.write(f"{prefix}Minimum Sampled Radius: {halo_data['scale']*10**calc_data['log10_r_sample_min_factor']:.2e} Mpc{end}")
+        out_stream.write((f"{prefix}Maximum Sampled Radius: {r_limit:.2e} Mpc{end}"))
     out_stream.write(f"{prefix}{'='*spacer_length}{end}")
     out_stream.write(f"{prefix}Halo Parameters: {end}")
     out_stream.write(f"{prefix}{'='*spacer_length}{end}")
     out_stream.write(f"{prefix}Halo Name: {halo_data['name']}{end}")
-    if 'halo_z' in halo_data.keys():
-        out_stream.write(f"{prefix}Redshift z: {halo_data['halo_z']:.2e}{end}")
+    if 'z' in halo_data.keys():
+        out_stream.write(f"{prefix}Redshift z: {halo_data['z']:.2e}{end}")
     if 'distance' in halo_data.keys():
-        out_stream.write(f"{prefix}Luminosity Distance: {halo_data['distance']:.3f} Mpc{end}")
+        out_stream.write(f"{prefix}Luminosity Distance: {halo_data['distance']:.2e} Mpc{end}")
     if 'profile' in halo_data.keys():
         out_stream.write(f"{prefix}Halo profile: {halo_data['profile']}{end}")
         if halo_data['profile'] in ["einasto","gnfw","cgnfw"]:
             out_stream.write(f"{prefix}Halo index parameter: {halo_data['index']}{end}")
     if 'mvir' in halo_data.keys():
-        out_stream.write(f"{prefix}Virial Mass: {halo_data['mvir']:.3e} Solar Masses{end}")
+        out_stream.write(f"{prefix}Virial Mass: {halo_data['mvir']:.2e} Solar Masses{end}")
     if 'rvir' in halo_data.keys():
-        out_stream.write(f"{prefix}Virial Radius: {halo_data['rvir']:.3e} Mpc{end}")
+        out_stream.write(f"{prefix}Virial Radius: {halo_data['rvir']:.2e} Mpc{end}")
     if 'scale' in halo_data.keys():
-        out_stream.write(f"{prefix}Halo scale radius: {halo_data['scale']:.3e} Mpc{end}")
-    if 'halo_norm_relative' in halo_data.keys():
-        out_stream.write(f"{prefix}Rho_s/Rho_crit: {halo_data['halo_norm_relative']:.3e}{end}")
-    if 'halo_cvir' in halo_data.keys():
-        out_stream.write(f"{prefix}Virial Concentration: {halo_data['halo_cvir']:.2f}{end}")
+        out_stream.write(f"{prefix}Halo scale radius: {halo_data['scale']:.2e} Mpc{end}")
+    if 'rho_norm_relative' in halo_data.keys():
+        out_stream.write(f"{prefix}Rho_s/Rho_crit: {halo_data['rho_norm_relative']:.2e}{end}")
+    if 'cvir' in halo_data.keys():
+        out_stream.write(f"{prefix}Virial Concentration: {halo_data['cvir']:.2f}{end}")
     if calc_data['calc_mode'] == "jflux" and 'truncation_scale' in halo_data.keys():
         out_stream.write(f"{prefix}Truncation/tidal radius: {halo_data['truncation_scale']:.2e} Mpc{end}")
     if part_data['em_model'] == "decay" and calc_data['calc_mode'] == "jflux":

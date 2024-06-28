@@ -1,7 +1,6 @@
 """
 DarkMatters.emissions module for calculating multi-frequency emissivities
 """
-from matplotlib import units
 import numpy as np
 from scipy.integrate import simpson as integrate
 from astropy import constants,units
@@ -57,9 +56,9 @@ def radio_em_grid(electrons,f_sample,r_sample,g_sample,b_sample,ne_sample):
     r0 = 2.82e-13  #classical electron radius (cm)
     me = (constants.m_e*constants.c**2).to("GeV").value  #electron mass (GeV)
     c = constants.c.to("cm/s").value     #speed of light (cm s^-1)
-    if k < 200:
+    if k < 101:
         intp_elec = sp.interp2d(r_sample,g_sample,electrons)
-        g_sample = np.logspace(np.log10(g_sample[0]),np.log10(g_sample[-1]),num=201)
+        g_sample = np.logspace(np.log10(g_sample[0]),np.log10(g_sample[-1]),num=101)
         k = len(g_sample) #number of E bins
         electrons_new = intp_elec(r_sample,g_sample)
     else:
@@ -121,7 +120,6 @@ def primary_em_high_e(mx,rho_sample,z,g_sample,q_sample,f_sample,mode_exp):
     e_grid = np.tensordot(h*f_sample*1e6*(1+z)/me,np.ones_like(rhodm),axes=0)
     rho_grid = np.tensordot(np.ones_like(f_sample),rhodm,axes=0)
     em = Q_func(e_grid)*e_grid*rho_grid
-    print(Q_func(e_grid))
     em = np.where(np.logical_or(e_grid<g_sample[0],e_grid>g_sample[-1]),0.0,em)
     # for i in range(0,num):
     #     E_g = h*f_sample[i]*1e6*(1+z)/me
@@ -260,7 +258,7 @@ def secondary_em_high_e(electrons,z,g_sample,f_sample,ne_sample,photon_temp):
     n = len(ne_sample) #number of r shells
     k = len(g_sample) #number of E bins
     num = len(f_sample)  #number of frequency sampling points
-    ntheta = 100   #angular integration points
+    ntheta = 101   #angular integration points
 
     em = np.zeros((num,n),dtype=float)   #emisivity
     P_IC = np.zeros((num,k),dtype=float)

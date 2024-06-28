@@ -35,7 +35,7 @@ def check_cosmology(cosmo_dict):
         cosmo_dict['omega_l'] = 1 - cosmo_dict['omega_m']
     if not 'cvir_mode' in cosmo_dict.keys():
         cosmo_dict['cvir_mode'] = 'p12'
-    cvir_modes = ['p12','munoz_2010','bullock_2001','cpu_2006']
+    cvir_modes = ['p12','munoz_2011','bullock_2001','cpu_2006']
     if not cosmo_dict['cvir_mode'] in cvir_modes:
         fatal_error(f"cosmo_data['cvir_mode'] = {cosmo_dict['cvir_mode']} is not valid, use one of {cvir_modes}")
     if not 'h' in cosmo_dict.keys():
@@ -90,6 +90,8 @@ def check_halo(halo_dict,cosmo_dict,minimal=False):
         Halo properties
     cosmo_dict : dictionary
         Cosmology information, must have been checked via check_cosmology
+    minimal : boolean
+        Flag to skip more detailed checks (used for jflux with a specified j_factor/d_factor)
 
     Returns
     ---------------------------
@@ -247,7 +249,7 @@ def check_calculation(calc_dict):
     """
     if not type(calc_dict) is dict:
         fatal_error("dictionary_checks.check_calculation() must be passed a dictionary as its argument")
-    calc_params = {'all_electron_modes':["adi-python","green-python","green-c"],'all_modes':["jflux","flux","sb"],"all_freqs":["radio","all","gamma","pgamma","sgamma","neutrinos_e","neutrinos_mu","neutrinos_tau"]}
+    calc_params = {'all_electron_modes':["os-python","green-python","green-c"],'all_modes':["jflux","flux","sb"],"all_freqs":["radio","all","gamma","pgamma","sgamma","neutrinos_e","neutrinos_mu","neutrinos_tau"]}
     if not 'm_wimp' in calc_dict.keys():
         fatal_error("calc_dict requires the variable m_wimp be set")
     if not 'calc_mode' in calc_dict.keys() or (not calc_dict['calc_mode'] in calc_params['all_modes']):
@@ -255,9 +257,9 @@ def check_calculation(calc_dict):
     if not 'freq_mode' in calc_dict.keys() or (not calc_dict['freq_mode'] in calc_params['all_freqs']):
         fatal_error(f"calc_dict requires the variable freq_mode with options: {calc_params['all_freqs']}")
     if not 'electron_mode' in calc_dict.keys():
-        calc_dict['electron_mode'] = "adi-python"  
+        calc_dict['electron_mode'] = "os-python"  
     elif calc_dict['electron_mode'] not in calc_params['all_electron_modes']:
-        fatal_error(f"electron_mode can only take the values: green-python, green-c, or adi-python. Your value of {calc_dict['electron_mode']} is invalid")
+        fatal_error(f"electron_mode can only take the values: green-python, green-c, or os-python. Your value of {calc_dict['electron_mode']} is invalid")
     if not 'out_cgs' in calc_dict.keys():
         calc_dict['out_cgs'] = False
     if not 'f_sample_values' in calc_dict.keys(): 
@@ -319,26 +321,30 @@ def check_calculation(calc_dict):
                 fatal_error(f"r_green_sample_num - 1 must be divisible by 4, you provided {calc_dict['r_green_sample_num']}")
             if (calc_dict['e_green_sample_num']-1)%4 != 0:
                 fatal_error(f"e_green_sample_num - 1 must be divisible by 4, you provided {calc_dict['e_green_sample_num']}")
-        elif calc_dict['electron_mode'] == "adi-python":
-            if not "adi_delta_ti" in calc_dict.keys():
-                calc_dict['adi_delta_ti'] = 1e9 
-            if not "adi_delta_t_reduction" in calc_dict.keys():
-                calc_dict['adi_delta_t_reduction'] = 0.5 
-            if not "adi_max_steps" in calc_dict.keys():
-                calc_dict['adi_max_steps'] = 100
-            if not "adi_delta_t_constant" in calc_dict.keys():
-                calc_dict['adi_delta_t_constant'] = False 
-            if not "adi_bench_mark_mode" in calc_dict.keys():
-                calc_dict['adi_bench_mark_mode'] = False  
-            if not 'adi_delta_t_min' in calc_dict.keys():
-                calc_dict['adi_delta_t_min'] = 1e1  
+        elif calc_dict['electron_mode'] == "os-python":
+            if not "os_final_tolerance" in calc_dict.keys():
+                calc_dict['os_final_tolerance'] = 1e-3 
+            if not "os_internal_tolerance" in calc_dict.keys():
+                calc_dict['os_internal_tolerance'] = 1e-5 
+            if not "os_delta_ti" in calc_dict.keys():
+                calc_dict['os_delta_ti'] = 1e9 
+            if not "os_delta_t_reduction" in calc_dict.keys():
+                calc_dict['os_delta_t_reduction'] = 0.5 
+            if not "os_max_steps" in calc_dict.keys():
+                calc_dict['os_max_steps'] = 100
+            if not "os_delta_t_constant" in calc_dict.keys():
+                calc_dict['os_delta_t_constant'] = False 
+            if not "os_bench_mark_mode" in calc_dict.keys():
+                calc_dict['os_bench_mark_mode'] = False  
+            if not 'os_delta_t_min' in calc_dict.keys():
+                calc_dict['os_delta_t_min'] = 1e1  
     else:
         if not calc_dict['freq_mode'] in ["pgamma","neutrinos_mu","neutrinos_e","neutrinos_tau"]:
             fatal_error("calc_data freq_mode parameter can only be pgamma, or neutrinos_x (x= e, mu, or tau) for calc_mode jflux")
     green_only_params = ["r_green_sample_num","e_green_sample_num","thread_number","image_number"]
-    adi_only_params = ["adi_delta_t_reduction","adi_delta_ti","adi_max_steps","adi_delta_t_constant","adi_bench_mark_mode","adi_delta_t_min"]
+    os_only_params = ["os_delta_t_reduction","os_delta_ti","os_max_steps","os_delta_t_constant","os_bench_mark_mode","os_delta_t_min","os_final_tolerance","os_internal_tolerance"]
     if "green" in calc_dict['electron_mode']:
-        for p in adi_only_params:
+        for p in os_only_params:
             if p in calc_dict.keys():
                 calc_dict.pop(p)
     else:

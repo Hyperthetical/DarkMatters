@@ -49,7 +49,7 @@ def surface_brightness_loop(nu_sb,f_sample,r_sample,emm,delta_omega=4*np.pi,ergs
     
     for j in range(0,n-1):
         rprime = r_sample[j]
-        l_set = np.logspace(np.log10(r_sample[0]),np.log10(np.sqrt(r_sample[-1]**2-rprime**2)),num=200)
+        l_set = np.logspace(np.log10(r_sample[0]),np.log10(np.sqrt(r_sample[-1]**2-rprime**2)),num=101)
         r_set = np.sqrt(l_set**2+rprime**2)
         if len(f_sample) == 1:
             sb[j] = 2.0*integrate(emm(r_set),l_set)
@@ -62,8 +62,7 @@ def surface_brightness_loop(nu_sb,f_sample,r_sample,emm,delta_omega=4*np.pi,ergs
     else:
         unit_factor = (1*units.Unit("Mpc")).to("cm").value
         unit_factor *= (1*units.Unit("GeV")).to("erg").value
-        unit_factor *= f_sample*(1*units.Unit("MHz")).to("Hz").value
-
+        unit_factor *= nu_sb*(1*units.Unit("MHz")).to("Hz").value
     return r_sample,sb*unit_factor/delta_omega #unit conversions and adjustment to angles 
 
 
@@ -97,8 +96,8 @@ def flux_grid(rf,dl,f_sample,r_sample,emm,boost_mod=1.0,ergs=False):
         em_int = interp1d(r_sample,emm[0],bounds_error=False,fill_value=0.0)
     else:
         em_int = interp2d(r_sample,f_sample,emm)
-    if len(r_sample) < 200:
-        newr_sample = np.logspace(np.log10(r_sample[0]),np.log10(rf),num=200)
+    if len(r_sample) < 101:
+        newr_sample = np.logspace(np.log10(r_sample[0]),np.log10(rf),num=101)
     else:
         newr_sample = r_sample
     if len(f_sample) == 1:
@@ -156,7 +155,6 @@ def flux_from_j_factor(mx,z,j_factor,f_sample,g_sample,q_sample,mode_exp,ergs=Fa
             emm[i] = 0.0
         else:
             emm[i] = Q_func(E_g)*j_factor*nwimp0*E_g #units of cm^-2 s^-1
-            #print halo.J,Q_func(E_g)*nwimp0*E_g/(1+halo.z),1+halo.z
     if not ergs:
         unit_factor = constants.h.to("J/Hz").value/1e-26*1e4 #Jy (cm^-2 -> m^-2 (1e4), Jy = 1e-26 W/m^2/Hz)
     else:
