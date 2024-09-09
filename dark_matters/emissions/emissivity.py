@@ -3,6 +3,7 @@ DarkMatters.emissions module for calculating multi-frequency emissivities
 """
 import numpy as np
 from scipy.integrate import simpson as integrate
+from scipy.special import gamma as gamma_spec
 from astropy import constants,units
 from .progress_bar import progress
 import sys,warnings
@@ -34,7 +35,7 @@ def radio_em_grid(electrons,f_sample,r_sample,g_sample,b_sample,ne_sample):
     """
     def int_bessel(t):
         """
-        Bessel integral approximation
+        Bessel integral approximation, taken from 1301.6908
 
         Arguments
         ---------------------------
@@ -46,7 +47,13 @@ def radio_em_grid(electrons,f_sample,r_sample,g_sample,b_sample,ne_sample):
         bessel : float, array-like (len(t))
             Value of Bessel function at t
         """
-        return 1.25*t**(1.0/3.0)*np.exp(-t)*(648.0+t**2)**(1.0/12.0)
+        ak_1 = np.array([-0.97947838884478688,-0.83333239129525072,0.15541796026816246])
+        ak_2 = np.array([-4.69247165562628882e-2,-0.70055018056462881,1.03876297841949544e-2])
+        H1 = ak_1[0]*t + ak_1[1]*np.sqrt(t) + ak_1[2]*t**(1.0/3)
+        H2 = ak_2[0]*t + ak_2[1]*np.sqrt(t) + ak_2[2]*t**(1.0/3)
+        A1 = np.pi*2**(5.0/3)/np.sqrt(3.0)/gamma_spec(1.0/3)*t**(1.0/3)
+        A2 = np.sqrt(0.5*np.pi*t)*np.exp(-t)
+        return A1*np.exp(H1) + A2*(1-np.exp(H2))
 
     k = len(g_sample) #number of E bins
     num = len(f_sample)  #number of frequency sampling points
