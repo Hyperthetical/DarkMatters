@@ -3,7 +3,7 @@ DarkMatters.astro_cosmo module for calculating cosmology dependent functions
 """
 from scipy.integrate import quad
 from scipy.optimize import newton
-from scipy.integrate import simps as integrate
+from scipy.integrate import simpson as integrate
 import numpy as np
 
 def rho_crit(z,cosmo):
@@ -538,7 +538,7 @@ def sigma_l(r,l,rc,rmin,z,cosmo):
     kint = np.zeros(n,dtype=float)
     kset = np.logspace(np.log10(kmin),np.log10(kmax),num=n)
     kint = 0.5*kset**(2*(1+l))*pspec(kset,z,cosmo)*window(kset*r)**2*np.exp(-kset/kcut)/np.pi**2
-    return integrate(kint,kset)
+    return integrate(y=kint,x=kset)
 
 def glinear(z,cosmo):
     """

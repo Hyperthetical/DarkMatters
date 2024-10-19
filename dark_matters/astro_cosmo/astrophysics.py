@@ -3,7 +3,7 @@ DarkMatters.astro_cosmo module for calculating halo densities, magnetic fields, 
 """
 import numpy as np
 from . import cosmology
-from scipy.integrate import simps as integrate
+from scipy.integrate import simpson as integrate
 from scipy.optimize import bisect
 
 
@@ -57,7 +57,7 @@ def magnetic_field_builder(mag_dict):
     elif mag_dict['profile'] == "doublebeta":
         return lambda x: mag_dict['mag_norm']*(1 +(x/mag_dict['scale'])**2)**(3*mag_dict['index']/2) + mag_dict['mag_norm2']*(1 +(x/mag_dict['scale2'])**2)**(3*mag_dict['index2']/2)
     elif mag_dict['profile'] == "exp":
-        return lambda x: mag_dict['mag_norm']*np.exp(1.0)**(-x/mag_dict['scale'])
+        return lambda x: mag_dict['mag_norm']*np.exp(-x/mag_dict['scale'])
     elif mag_dict['profile'] == "m31":
         return lambda x: (mag_dict['mag_norm']*mag_dict['scale'] + 64e-3)/(mag_dict['scale'] + x)
     elif mag_dict['profile'] == "flat":
@@ -127,7 +127,7 @@ def rvir_from_rho(halo_dict,cosmo):
         """
         r_set = np.logspace(np.log10(halo_dict['scale']*1e-7),np.log10(rmax),num=100)
         rho = halo_density_builder(halo_dict)(r_set)
-        return integrate(r_set**2*rho,r_set)/integrate(r_set**2,r_set)-target
+        return integrate(y=r_set**2*rho,x=r_set)/integrate(y=r_set**2,x=r_set)-target
     target = cosmology.delta_c(halo_dict['z'],cosmo)*cosmology.rho_crit(halo_dict['z'],cosmo) #density contast we need
     return bisect(average_rho,halo_dict['scale'],halo_dict['scale']*1e6,args=(halo_dict,target))
 
@@ -149,4 +149,4 @@ def rho_virial_int(halo_dict):
     if not 'rho_norm' in halo_dict.keys():
         halo_dict['rho_norm'] = 1.0
     rho = halo_density_builder(halo_dict)(r_set)
-    return 4*np.pi*integrate(r_set**2*rho,r_set)
+    return 4*np.pi*integrate(y=r_set**2*rho,x=r_set)

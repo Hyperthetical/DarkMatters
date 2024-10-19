@@ -3,7 +3,7 @@ DarkMatters.emissions module for calculating flux and surface brightness
 """
 import numpy as np 
 from scipy.integrate import simpson as integrate
-from scipy.interpolate import interp1d,interp2d
+from scipy.interpolate import interp1d,interpn,RegularGridInterpolator
 from astropy import units,constants
 
 def get_j_factor(theta_max,theta_min,dL,halo_func,mode_exp,rt):
@@ -12,7 +12,7 @@ def get_j_factor(theta_max,theta_min,dL,halo_func,mode_exp,rt):
     zMin = dL*np.cos(theta) - np.sqrt(rt**2-dL**2*np.sin(theta)**2)
     zSet = np.logspace(np.log10(zMin),np.log10(zMax),num=51,axis=-1)
     rSet = np.sqrt(zSet**2+dL**2-2*zSet*dL*np.cos(np.tensordot(theta,np.ones(51),axes=0)))
-    log10JFac = np.log10(integrate(integrate(halo_func(rSet)**mode_exp,zSet)*2*np.pi*np.sin(theta),theta))
+    log10JFac = np.log10(integrate(y=integrate(y=halo_func(rSet)**mode_exp,x=zSet)*2*np.pi*np.sin(theta),x=theta))
     log10JFac = np.where(np.isnan(log10JFac),0.0,log10JFac)
     return log10JFac
 
@@ -42,19 +42,17 @@ def surface_brightness_loop(nu_sb,f_sample,r_sample,emm,delta_omega=4*np.pi,ergs
     """
     n = len(r_sample)
     sb = np.zeros(n,dtype=float) #surface brightness (nu,r)
-    if len(f_sample) == 1:
-        emm = interp1d(r_sample,emm[0],bounds_error=False,fill_value=0.0)
-    else:
-        emm = interp2d(r_sample,f_sample,emm)
+
+    emm_int = RegularGridInterpolator((f_sample,r_sample),emm,fill_value=0.0,bounds_error=False)
     
     for j in range(0,n-1):
         rprime = r_sample[j]
         l_set = np.logspace(np.log10(r_sample[0]),np.log10(np.sqrt(r_sample[-1]**2-rprime**2)),num=101)
         r_set = np.sqrt(l_set**2+rprime**2)
         if len(f_sample) == 1:
-            sb[j] = 2.0*integrate(emm(r_set),l_set)
+            sb[j] = 2.0*integrate(y=emm_int((nu_sb*np.ones_like(r_set),r_set)),x=l_set)
         else:
-            sb[j] = 2.0*integrate(emm(r_set,nu_sb),l_set)
+            sb[j] = 2.0*integrate(y=emm_int((nu_sb*np.ones_like(r_set),r_set)),x=l_set)
     delta_omega *= (1*units.Unit("sr")).to("arcmin^2").value #convert sr to arcminute^2
     if not ergs:
         unit_factor = (1*units.Unit("Mpc")).to("cm").value
@@ -92,20 +90,18 @@ def flux_grid(rf,dl,f_sample,r_sample,emm,boost_mod=1.0,ergs=False):
     flux : array-like float (n)
         Output fluxes [Jy]
     """
-    if len(f_sample) == 1:
-        em_int = interp1d(r_sample,emm[0],bounds_error=False,fill_value=0.0)
-    else:
-        em_int = interp2d(r_sample,f_sample,emm)
     if len(r_sample) < 101:
         newr_sample = np.logspace(np.log10(r_sample[0]),np.log10(rf),num=101)
     else:
         newr_sample = r_sample
     if len(f_sample) == 1:
+        em_int = interp1d(r_sample,emm[0],bounds_error=False,fill_value=0.0)
         r_grid = newr_sample
         flux_grid = r_grid**2*em_int(newr_sample)/(dl**2 + r_grid**2)
     else:
         f_grid,r_grid = np.meshgrid(f_sample,newr_sample,indexing="ij")
-        flux_grid = r_grid**2*em_int(newr_sample,f_sample)/(dl**2 + r_grid**2)
+        em_int = interpn((f_sample,r_sample),emm,(f_grid,r_grid),bounds_error=False,fill_value=0.0)#interp2d(r_sample,f_sample,emm)
+        flux_grid = r_grid**2*em_int/(dl**2 + r_grid**2)
     if not ergs:
         unit_factor = (1*units.Unit("Mpc")).to("cm").value
         unit_factor *= (1*units.Unit("GeV/cm^2")).to("Jy").value
@@ -113,7 +109,7 @@ def flux_grid(rf,dl,f_sample,r_sample,emm,boost_mod=1.0,ergs=False):
         unit_factor = (1*units.Unit("Mpc")).to("cm").value
         unit_factor *= (1*units.Unit("GeV")).to("erg").value
         unit_factor *= f_sample*(1*units.Unit("MHz")).to("Hz").value
-    return integrate(flux_grid,r_grid)*unit_factor*boost_mod
+    return integrate(y=flux_grid,x=r_grid)*unit_factor*boost_mod
 
 def flux_from_j_factor(mx,z,j_factor,f_sample,g_sample,q_sample,mode_exp,ergs=False):
     """

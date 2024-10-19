@@ -1,0 +1,16 @@
+angle: arcmin
+cross_section: cm^3/s
+d_factor: GeV/cm^2
+decay_rate: 1/s
+density: Msun/Mpc^3
+diff_constant: cm^2/s
+distance: Mpc
+energy: GeV
+energy_density: eV/cm^3
+frequency: MHz
+j_factor: GeV^2/cm^5
+magnetic: microGauss
+mass: solMass
+num_density: 1/cm^3
+temperature: K
+time: yr

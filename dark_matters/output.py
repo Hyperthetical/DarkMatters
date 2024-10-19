@@ -3,7 +3,7 @@ DarkMatters module for handling output
 """
 import numpy as np
 import sys,yaml,json,os
-from scipy.interpolate import interp2d,interp1d
+from scipy.interpolate import interp1d,RegularGridInterpolator
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
 from astropy.io import fits
@@ -534,12 +534,12 @@ def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,sig
         if len(calc_data['f_sample_values']) == 1:
             full_data_intp = interp1d(r_set,calc_data['results']['final_data'][mass_index][0],bounds_error=False,fill_value=0.0)
         else:
-            full_data_intp = interp2d(r_set,f_set,calc_data['results']['final_data'][mass_index],bounds_error=False,fill_value=0.0)
+            full_data_intp = RegularGridInterpolator((f_set,r_set),calc_data['results']['final_data'][mass_index],bounds_error=False,fill_value=0.0)#interp2d(r_set,f_set,calc_data['results']['final_data'][mass_index],bounds_error=False,fill_value=0.0)
         for i in range(len(target_freqs)):
             if len(calc_data['f_sample_values']) == 1:
                 intp = full_data_intp
             else:
-                r_data = full_data_intp(r_set,target_freqs[i])
+                r_data = full_data_intp((target_freqs[i]*np.ones_like(r_set),r_set))
                 intp = interp1d(r_set,r_data)
             circle = np.ogrid[-half_pix:half_pix,-half_pix:half_pix]
             r_plot = np.sqrt(circle[0]**2  + circle[1]**2)

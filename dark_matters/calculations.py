@@ -81,7 +81,7 @@ def physical_averages(rmax,mode_exp,calc_data,halo_data,mag_data,gas_data):
     def weighted_vol_avg(y,r,w=None):
         if w is None:
             w = np.ones_like(r)
-        return simpson(y*w*r**2,r)/simpson(w*r**2,r)
+        return simpson(y=y*w*r**2,x=r)/simpson(y=w*r**2,x=r)
     r_set = take_samples(halo_data['scale']*10**calc_data['log10_r_sample_min_factor'],rmax,101)
     if halo_data['halo_weights'] == "rho":
         weights = halo_data['halo_density_func'](r_set)**mode_exp #the average is weighted
@@ -168,11 +168,11 @@ def calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,
     if "green" in calc_data['electron_mode']:
         #Note sigv is left out here to simplify numerical convergence, it is restored below
         E_set = take_samples(np.log10(calc_data['e_sample_min']/mx_eff),0,calc_data['e_sample_num'],spacing="lin")
-        Q_set = part_data['d_ndx_interp']['positrons'](mx_eff,E_set).flatten()/np.log(1e1)/10**E_set/mx_eff*(constants.m_e*constants.c**2).to("GeV").value
+        Q_set = part_data['d_ndx_interp']['positrons']((np.ones_like(E_set)*mx_eff,np.log10(E_set/mx_eff))).flatten()/np.log(1e1)/10**E_set/mx_eff*(constants.m_e*constants.c**2).to("GeV").value
         E_set = 10**E_set*mx_eff/(constants.m_e*constants.c**2).to("GeV").value
     else:
         E_set = 10**take_samples(np.log10(calc_data['e_sample_min']/mx_eff),0,calc_data['e_sample_num'],spacing="lin")*mx_eff
-        Q_set = part_data['d_ndx_interp']['positrons'](mx_eff,np.log10(E_set/mx_eff)).flatten()/np.log(1e1)/E_set*sigv
+        Q_set = part_data['d_ndx_interp']['positrons']((np.ones_like(E_set)*mx_eff,np.log10(E_set/mx_eff))).flatten()/np.log(1e1)/E_set*sigv
 
     if np.all(Q_set == 0.0):
         warning("At WIMP mass {mx} GeV dN/dE functions are zero at all considered energies!\nNote that in decay cases we sample mx_eff= 0.5*mx")
