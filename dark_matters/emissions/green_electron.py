@@ -264,7 +264,7 @@ def v_func(mx,gamma,B,ne,delta,z,u_ph):
     """
     me = (constants.m_e*constants.c**2).to("GeV").value
     gamma_prime = np.logspace(np.log10(gamma),np.log10(mx/me*np.ones_like(gamma)),num=101,axis=-1) 
-    return integrate(diff_func_normed(gamma_prime,delta)/eloss_vector(gamma_prime,B,ne,z,u_ph),gamma_prime)
+    return integrate(y=diff_func_normed(gamma_prime,delta)/eloss_vector(gamma_prime,B,ne,z,u_ph),x=gamma_prime)
 
 def booles_rule_lin(y, x, axis=-1):
     """
@@ -478,7 +478,7 @@ def equilibrium_electrons_grid_partial(k_prime,e_set,q_set,n_prime,r_sample,rho_
                 G *= rho_prime_dm_grid/rhodm[j]
                 G = np.where(np.isnan(G),0.0,G)
                 with np.errstate(invalid="ignore",divide="ignore",over="ignore"): #ignore cases where r_prime is constant (should integrate to zero anyway)
-                    G = integrate(G,r_prime_grid,axis=-1)
+                    G = integrate(y=G,x=r_prime_grid,axis=-1)
                 G = np.sum(G,axis=-1) #now e_prime by eGrid in shape
                 G[0] = 1.0
                 #G = np.where(delta_v==0.0,1.0,G)

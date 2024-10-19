@@ -4,7 +4,7 @@ DarkMatters module for handling input
 import numpy as np
 import yaml,json
 from astropy import units,constants
-from scipy.interpolate import interp2d
+from scipy.interpolate import RegularGridInterpolator
 import os
 from .output import fatal_error,check_quant,warning
 
@@ -79,11 +79,11 @@ def read_spectrum(spec_file,part_model,mode="annihilation",pppc4dmid=True):
     mx = np.unique(spec_data[m_col])
     x_log = np.unique(spec_data[x_col])
     dn_data = spec_data[n_col]
-    #dn_data.reshape((len(mx),len(x_log)))
+    dn_data = dn_data.reshape((len(mx),len(x_log)))
     if mode == "annihilation":
-        intp = interp2d(mx,x_log,dn_data,fill_value=0.0)
+        intp = RegularGridInterpolator((mx,x_log),dn_data,fill_value=0.0)#interp2d(mx,x_log,dn_data,fill_value=0.0)
     else:
-        intp = interp2d(mx,x_log,dn_data,fill_value=0.0)
+        intp = RegularGridInterpolator((mx,x_log),dn_data,fill_value=0.0)#interp2d(mx,x_log,dn_data,fill_value=0.0)
     return intp    
 
 def read_input_file(input_file,in_mode="yaml"):
@@ -113,7 +113,8 @@ def read_input_file(input_file,in_mode="yaml"):
         fatal_error(f"The argument in_mode = {in_mode} given to input.readinput_file() does not match any valid input modes")
     stream.close()
     valid_keys = ["halo_data","mag_data","gas_data","diff_data","part_data","calc_data","cosmo_data"]
-    dm_units = {"temperature":"K","energy_density":"eV/cm^3","decay_rate":"1/s","cross_section":"cm^3/s","time":"yr","distance":"Mpc","mass":"solMass","density":"Msun/Mpc^3","num_density":"1/cm^3","magnetic":"microGauss","energy":"GeV","frequency":"MHz","angle":"arcmin","j_factor":"GeV^2/cm^5","d_factor":"GeV/cm^2","diff_constant":"cm^2/s"}
+    unit_file =open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"config/unit_system.yaml"),"r")
+    dm_units = yaml.load(unit_file,Loader=yaml.SafeLoader)
     data_sets = {}
     for key in valid_keys:
         data_sets[key] = {}

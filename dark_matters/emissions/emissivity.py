@@ -64,10 +64,11 @@ def radio_em_grid(electrons,f_sample,r_sample,g_sample,b_sample,ne_sample):
     me = (constants.m_e*constants.c**2).to("GeV").value  #electron mass (GeV)
     c = constants.c.to("cm/s").value     #speed of light (cm s^-1)
     if k < 101:
-        intp_elec = sp.interp2d(r_sample,g_sample,electrons)
+        intp_elec = sp.RegularGridInterpolator((g_sample,r_sample),electrons)
         g_sample = np.logspace(np.log10(g_sample[0]),np.log10(g_sample[-1]),num=101)
         k = len(g_sample) #number of E bins
-        electrons_new = intp_elec(r_sample,g_sample)
+        g_grid,r_grid = np.meshgrid(g_sample,r_sample,indexing="ij")
+        electrons_new = intp_elec((g_grid,r_grid))
     else:
         electrons_new = electrons
 
@@ -85,7 +86,7 @@ def radio_em_grid(electrons,f_sample,r_sample,g_sample,b_sample,ne_sample):
     with np.errstate(invalid="ignore",over="ignore"):
         p_grid_full = a*electron_grid*0.5*np.sin(t_grid)*int_bessel(x/np.sin(t_grid))
     e_grid_s = np.tensordot(np.ones((num,len(r_sample))),g_sample,axes=0) #for integration once theta is integrated out
-    em_grid = integrate(integrate(p_grid_full,t_grid),e_grid_s)
+    em_grid = integrate(y=integrate(y=p_grid_full,x=t_grid),x=e_grid_s)
     return 2*np.where(np.isnan(em_grid),0.0,em_grid) #GeV cm^-3
 
 def primary_em_high_e(mx,rho_sample,z,g_sample,q_sample,f_sample,mode_exp):
@@ -292,14 +293,14 @@ def secondary_em_high_e(electrons,z,g_sample,f_sample,ne_sample,photon_temp):
                 e_set = np.logspace(np.log10(emin),np.log10(emax),num=ntheta)
                 with np.errstate(invalid="ignore",over="ignore"):
                     e_int = black_body(e_set,photon_temp)*klein_nishina(E_g,e_set,g)
-                P_IC[i][l] = c*E_g*integrate(e_int,e_set)
+                P_IC[i][l] = c*E_g*integrate(y=e_int,x=e_set)
                 P_B[i][l] = c*E_g*sigma_brem(E_g,g)
         progress(i+1,num*2)
     for i in range(0,num):
         for j in range(0,n):    
             int_1 = 2*electrons[:,j]*(P_IC[i,:] + P_B[i,:]*ne_sample[j])
             #integrate over energies to get emisivity
-            em[i][j] = integrate(int_1,g_sample)
+            em[i][j] = integrate(y=int_1,x=g_sample)
         progress(i+num+1,num*2)
     sys.stdout.write("\n")
     return em*h #h converts to GeV cm^-3
