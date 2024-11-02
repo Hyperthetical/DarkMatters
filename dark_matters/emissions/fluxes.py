@@ -53,7 +53,6 @@ def surface_brightness_loop(nu_sb,f_sample,r_sample,emm,delta_omega=4*np.pi,ergs
             sb[j] = 2.0*integrate(y=emm_int((nu_sb*np.ones_like(r_set),r_set)),x=l_set)
         else:
             sb[j] = 2.0*integrate(y=emm_int((nu_sb*np.ones_like(r_set),r_set)),x=l_set)
-    delta_omega *= (1*units.Unit("sr")).to("arcmin^2").value #convert sr to arcminute^2
     if not ergs:
         unit_factor = (1*units.Unit("Mpc")).to("cm").value
         unit_factor *= (1*units.Unit("GeV/cm^2")).to("Jy").value
@@ -61,7 +60,8 @@ def surface_brightness_loop(nu_sb,f_sample,r_sample,emm,delta_omega=4*np.pi,ergs
         unit_factor = (1*units.Unit("Mpc")).to("cm").value
         unit_factor *= (1*units.Unit("GeV")).to("erg").value
         unit_factor *= nu_sb*(1*units.Unit("MHz")).to("Hz").value
-    return r_sample,sb*unit_factor/delta_omega #unit conversions and adjustment to angles 
+    unit_factor *= 1.0/(1*units.Unit("sr")).to("arcmin^2").value #convert 1/sr to 1/arcminute^2
+    return r_sample,sb/delta_omega*unit_factor#unit conversions applied
 
 
 def flux_grid(rf,dl,f_sample,r_sample,emm,boost_mod=1.0,ergs=False):
