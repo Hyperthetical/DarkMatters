@@ -236,7 +236,7 @@ class os_scheme:
         self.logE_grid = log_e(self.E_grid)           #[/]
         
         """ Diffusion/energy loss functions """
-        self.loss_constants = {'IC1eVcm-3': 0.76e-16, 'ICCMB': 0.25e-16*(1+z)**4, 'sync':0.0254e-16, 'coul':6.13e-16, 'brem':4.7e-16}
+        self.loss_constants = {'IC1eVcm-3': 1.02e-16, 'ICCMB': 0.265e-16*(1+z)**4, 'sync':0.0254e-16, 'coul':7.6e-18, 'brem':1.39e-16}
 
         rho_sample = (rho_sample*units.Unit("Msun/Mpc^3")*constants.c**2).to("GeV/cm^3").value
         dBdr_sample = (dBdr_sample*units.Unit("1/Mpc")).to("1/cm").value
@@ -387,11 +387,11 @@ class os_scheme:
         #i.e. they are integrated over gamma not E, solution to diffusion equation is prop to 1/b fixing the emissivity dimensions
         b = self.loss_constants
         me = (constants.m_e*constants.c**2).to("GeV").value      #[me] = GeV/c^2 
-        eloss = b['IC1eVcm-3']*u_ph*E**2 + b['ICCMB']*E**2 + b['sync']*E**2*B**2 + b['brem']*ne*E
+        eloss = b['IC1eVcm-3']*u_ph*E**2 + b['ICCMB']*E**2 + b['sync']*E**2*B**2 + b['brem']*ne*E*(np.log(E/me)+0.36)
         with np.errstate(divide="ignore",invalid="ignore"):
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', r'overflow')
-                coulomb = b['coul']*ne*(1+np.log(E/me/ne)/75.0)
+                coulomb = b['coul']*ne*(73.0+np.log(E/me/ne))
         coulomb = np.where(np.logical_or(np.isnan(coulomb),np.isinf(coulomb)),0.0,coulomb)
         eloss += coulomb
         self.b = eloss
