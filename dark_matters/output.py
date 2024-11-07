@@ -324,6 +324,10 @@ def wimp_write(mx,part_data,target=None):
     out_stream.write(f"{prefix}WIMP mass: {mx} GeV{end}")
     out_stream.write(f"{prefix}Particle physics: {part_data['part_model']}{end}")
     out_stream.write(f"{prefix}Emission type: {part_data['em_model']}{end}")
+    if part_data["em_model"] == "annihilation" and "cross_section" in part_data.keys():
+        out_stream.write(f"{prefix}Cross-section: {part_data['cross_section']} m^3 s^-1{end}")
+    elif part_data["em_model"] == "decay" and "decay_rate" in part_data.keys():
+        out_stream.write(f"{prefix}Decay rate: {part_data['decay_rate']} s^-1{end}")
 
 def calc_write(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,target=None):
     """
