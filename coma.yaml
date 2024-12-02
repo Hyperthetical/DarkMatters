@@ -1,13 +1,13 @@
 calc_data:
   os_max_steps: 20
   calc_mode: sb
-  e_sample_number: 50
+  e_sample_number: 51
   electron_mode: os-python
   f_sample_limits:
     unit: MHz
     value:
-    - 10.0
-    - 100000.0
+    - 50.0
+    - 10000.0
   f_sample_num: 40
   f_sample_spacing: log
   freq_mode: radio

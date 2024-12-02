@@ -4,6 +4,7 @@ DarkMatters module for handling output
 import numpy as np
 import sys,yaml,json,os
 from scipy.interpolate import interp1d,RegularGridInterpolator
+from scipy.integrate import simpson
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
 from astropy.io import fits
@@ -325,7 +326,7 @@ def wimp_write(mx,part_data,target=None):
     out_stream.write(f"{prefix}Particle physics: {part_data['part_model']}{end}")
     out_stream.write(f"{prefix}Emission type: {part_data['em_model']}{end}")
     if part_data["em_model"] == "annihilation" and "cross_section" in part_data.keys():
-        out_stream.write(f"{prefix}Cross-section: {part_data['cross_section']} m^3 s^-1{end}")
+        out_stream.write(f"{prefix}Cross-section: {part_data['cross_section']} cm^3 s^-1{end}")
     elif part_data["em_model"] == "decay" and "decay_rate" in part_data.keys():
         out_stream.write(f"{prefix}Decay rate: {part_data['decay_rate']} s^-1{end}")
 
@@ -459,7 +460,7 @@ def calc_write(calc_data,halo_data,part_data,mag_data,gas_data,diff_data,target=
     elif not target is None:
         out_stream.close()
 
-def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,sigv=1e-26,max_pix=6000,display_slice=None,r_max=None,target_resolution=5.0/60):
+def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,band_avg=False,sigv=1e-26,max_pix=6000,display_slice=None,r_max=None,target_resolution=5.0/60,tag=None):
     """
     Output a fits file with radio maps
     
@@ -481,6 +482,8 @@ def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,sig
         Gas density properties
     diff_data : dictionary
         Diffusion properties
+    band_avg : boolean, optional
+        If True, the surface brightness is averaged over the range in target_freqs
     sigv : float, optional
         Cross-section or decay rate [cm^3 s^-1 or s^-1]
     max_pix : int, optional
@@ -491,27 +494,48 @@ def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,sig
         Index of frequency to display in a plot
     r_max : float, optional
         Radial extent of fits map to be saved [Mpc]
+    tag : string, optional
+        Add this string to the end of the output file name
 
     Returns
     ---------------------------
     None
     """
-    target_freqs = np.atleast_1d(target_freqs)
+    target_freqs = (np.atleast_1d(target_freqs)).flatten()
+    if np.any(target_freqs < calc_data['f_sample_limits'][0]) or np.any(target_freqs > calc_data['f_sample_limits'][-1]):
+        fatal_error(f"Requested frequencies lie outside the calculation range {calc_data['f_sample_limits'][0]} - {calc_data['f_sample_limits'][-1]} MHz")
+    if band_avg:
+        band_tag = "_band-avg"
+        if len(target_freqs) != 2:
+            fatal_error("Variable target_freqs must be a list of only the minimum and maximum frequency when band_avg=True")
+        elif target_freqs[-1] < target_freqs[0]:
+            target_freqs = np.sort(target_freqs)
+        elif target_freqs[0] == target_freqs[-1]:
+            fatal_error("Variable target_freqs must be a list of only the minimum and maximum frequency when band_avg=True. These frequencies must be different.")
+        if target_freqs[-1] >= 1e2*target_freqs[0]:
+            f_band = np.logspace(np.log10(target_freqs[0]),np.log10(target_freqs[-1]),num=51)
+        else:
+            f_band = np.linspace(target_freqs[0],target_freqs[-1],num=51)
+        target_freqs = [np.mean(target_freqs)]
+        display_slice = 0
+    else:
+        band_avg = False
+        band_tag = ""
+        if not display_slice is None:
+            try:
+                int(display_slice)
+            except:
+                fatal_error("output.fits_map() parameter display_slice must be an integer that addresses an element of target_freqs")
+            if display_slice >= len(target_freqs) or display_slice < 0 or display_slice != int(display_slice):
+                fatal_error("output.fits_map() parameter display_slice must be an integer that addresses an element of target_freqs")
     if not calc_data['calc_mode'] == "sb":
         fatal_error("output.fits_map() can only be run with surface brightness data")
     if np.any(calc_data['results']['final_data'] is None):
         fatal_error("output.fits_map() cannot be invoked without a full set of calculated results, some masses have not had calculations run")
-    if np.any(target_freqs < calc_data['f_sample_limits'][0]) or np.any(target_freqs > calc_data['f_sample_limits'][-1]):
-        fatal_error(f"Requested frequencies lie outside the calculation range {calc_data['f_sample_limits'][0]} - {calc_data['f_sample_limits'][-1]} MHz")
+    
     #we use more pixels than we want to discard outer ones with worse resolution distortion from ogrid
 
-    if not display_slice is None:
-        try:
-            int(display_slice)
-        except:
-            fatal_error("output.fits_map() parameter display_slice must be an integer that addresses an element of target_freqs")
-        if display_slice >= len(target_freqs) or display_slice < 0 or display_slice != int(display_slice):
-            fatal_error("output.fits_map() parameter display_slice must be an integer that addresses an element of target_freqs")
+    
     if diff_data['diff_rmax'] == "2*Rvir":
         r_limit = 2*halo_data['rvir']
     else:
@@ -535,12 +559,17 @@ def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,sig
     for mx in calc_data['m_wimp']:
         fits_out_set = []
         mass_index = np.where(calc_data['m_wimp']==mx)[0][0]
-        if len(calc_data['f_sample_values']) == 1:
+        if band_avg:
+            intp = RegularGridInterpolator((f_set,r_set),calc_data['results']['final_data'][mass_index],bounds_error=False,fill_value=0.0)
+            X,Y = np.meshgrid(f_band,r_set,indexing='ij')
+            spec_avg = simpson(y=intp((X,Y)),x=f_band,axis=0)/(f_band[-1]-f_band[0])
+            full_data_intp = interp1d(r_set,spec_avg)
+        elif len(calc_data['f_sample_values']) == 1:
             full_data_intp = interp1d(r_set,calc_data['results']['final_data'][mass_index][0],bounds_error=False,fill_value=0.0)
         else:
             full_data_intp = RegularGridInterpolator((f_set,r_set),calc_data['results']['final_data'][mass_index],bounds_error=False,fill_value=0.0)#interp2d(r_set,f_set,calc_data['results']['final_data'][mass_index],bounds_error=False,fill_value=0.0)
         for i in range(len(target_freqs)):
-            if len(calc_data['f_sample_values']) == 1:
+            if len(calc_data['f_sample_values']) == 1 or band_avg:
                 intp = full_data_intp
             else:
                 r_data = full_data_intp((target_freqs[i]*np.ones_like(r_set),r_set))
@@ -621,4 +650,8 @@ def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,sig
         hdu_list.append(hdu)
 
     hdu_list = fits.HDUList(hdu_list)
-    hdu_list.writeto(get_calc_id(calc_data,halo_data,part_data,diff_data)+flux_label(calc_data)+".fits",overwrite=True)
+    if tag is None:
+        fits_name = get_calc_id(calc_data,halo_data,part_data,diff_data)+flux_label(calc_data)+band_tag+".fits"
+    else:
+        fits_name = get_calc_id(calc_data,halo_data,part_data,diff_data)+flux_label(calc_data)+band_tag+"_"+tag+".fits"
+    hdu_list.writeto(fits_name,overwrite=True)
