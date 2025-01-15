@@ -201,8 +201,11 @@ def calc_electrons(mx,calc_data,halo_data,part_data,mag_data,gas_data,diff_data,
             calc_data['results']['electron_data'][m_index] *= sigv
     elif calc_data['electron_mode'] == "os-python":
         print("Solution via: OS method (python implementation)")
-        r = sympy.symbols('r')
-        dBdr_sample = lambdify(r,sympy.diff(mag_data['mag_field_func'](r),r))(r_sample)
+        try:
+            r = sympy.symbols('r')
+            dBdr_sample = lambdify(r,sympy.diff(mag_data['mag_field_func'](r),r))(r_sample)
+        except:
+            dBdr_sample = np.gradient(mag_data['mag_field_func'](r_sample))
         if np.isscalar(dBdr_sample):
             dBdr_sample = dBdr_sample*np.ones_like(r_sample)
         os_solver = os_electron.os_scheme(benchmark_flag=calc_data['os_bench_mark_mode'],const_delta_t=calc_data['os_delta_t_constant'])
