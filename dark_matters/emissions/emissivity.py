@@ -64,10 +64,12 @@ def radio_em_grid(electrons,f_sample,r_sample,g_sample,b_sample,ne_sample):
     me = (constants.m_e*constants.c**2).to("GeV").value  #electron mass (GeV)
     c = constants.c.to("cm/s").value     #speed of light (cm s^-1)
     if k < 101:
-        intp_elec = sp.RegularGridInterpolator((g_sample,r_sample),electrons)
+        print(g_sample[0],g_sample[-1])
+        intp_elec = sp.RegularGridInterpolator((g_sample,r_sample),electrons,bounds_error=False,fill_value=0.0)
         g_sample = np.logspace(np.log10(g_sample[0]),np.log10(g_sample[-1]),num=101)
         k = len(g_sample) #number of E bins
         g_grid,r_grid = np.meshgrid(g_sample,r_sample,indexing="ij")
+        print(np.min(g_grid),np.max(g_grid))
         electrons_new = intp_elec((g_grid,r_grid))
     else:
         electrons_new = electrons

@@ -81,9 +81,9 @@ def read_spectrum(spec_file,part_model,mode="annihilation",pppc4dmid=True):
     dn_data = spec_data[n_col]
     dn_data = dn_data.reshape((len(mx),len(x_log)))
     if mode == "annihilation":
-        intp = RegularGridInterpolator((mx,x_log),dn_data,fill_value=0.0)#interp2d(mx,x_log,dn_data,fill_value=0.0)
+        intp = RegularGridInterpolator((mx,x_log),dn_data,bounds_error=False,fill_value=0.0)#interp2d(mx,x_log,dn_data,fill_value=0.0)
     else:
-        intp = RegularGridInterpolator((mx,x_log),dn_data,fill_value=0.0)#interp2d(mx,x_log,dn_data,fill_value=0.0)
+        intp = RegularGridInterpolator((mx,x_log),dn_data,bounds_error=False,fill_value=0.0)#interp2d(mx,x_log,dn_data,fill_value=0.0)
     return intp    
 
 def read_input_file(input_file,in_mode="yaml"):
