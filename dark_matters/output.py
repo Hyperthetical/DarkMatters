@@ -515,7 +515,7 @@ def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,ban
         if target_freqs[-1] >= 1e2*target_freqs[0]:
             f_band = np.logspace(np.log10(target_freqs[0]),np.log10(target_freqs[-1]),num=51)
         else:
-            f_band = np.linspace(target_freqs[0],target_freqs[-1],num=51)
+            f_band = np.linspace(target_freqs[0],target_freqs[-1],num=63)
         target_freqs = [np.mean(target_freqs)]
         display_slice = 0
     else:
@@ -533,7 +533,7 @@ def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,ban
     if np.any(calc_data['results']['final_data'] is None):
         fatal_error("output.fits_map() cannot be invoked without a full set of calculated results, some masses have not had calculations run")
     
-    #we use more pixels than we want to discard outer ones with worse resolution distortion from ogrid
+    #we use more pixels than we want to discard outer ones with worse resolution distortion from ogrid - not working, so disabled
 
     
     if diff_data['diff_rmax'] == "2*Rvir":
@@ -545,16 +545,16 @@ def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,ban
             fatal_error(f"output.fits_map() argument r_max cannot be greater than largest sampled r value {r_limit} Mpc")
     else:
         r_max = r_limit
-    half_pix = int(np.arctan(r_limit/halo_data['distance'])/np.pi*180*60/target_resolution)
+    half_pix = int(np.arctan(r_max/halo_data['distance'])/np.pi*180*60/target_resolution)
     if half_pix > max_pix/2:
         half_pix = int(max_pix/2)
-    use_half_pix = int(half_pix*r_max/r_limit)
+    use_half_pix = half_pix#int(half_pix*r_max/r_limit) - deprecated because of r_max vs r_limit issues
     use_start_pix = half_pix-use_half_pix
     use_end_pix = use_start_pix + 2*use_half_pix
     r_set = np.logspace(np.log10(halo_data['scale']*10**calc_data['log10_r_sample_min_factor']),np.log10(r_limit),num=calc_data['r_sample_num'])
     r_set = np.arctan(r_set/halo_data['distance'])/np.pi*180*60 #must be arcmins for the algorithm below
     f_set = calc_data['f_sample_values']
-    r_max = np.arctan(r_max/halo_data['distance'])/np.pi*180*60
+    r_max = np.arctan(r_max/halo_data['distance'])/np.pi*180*60 #converting to an angle in arcmin
     hdu_list = []
     for mx in calc_data['m_wimp']:
         fits_out_set = []
@@ -577,10 +577,10 @@ def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,ban
             circle = np.ogrid[-half_pix:half_pix,-half_pix:half_pix]
             r_plot = np.sqrt(circle[0]**2  + circle[1]**2)
             n = circle[0].shape[0]
-            angle_alpha = (r_set[-1]-r_set[0])/(n-1) #for a conversion from array index to angular values
-            angle_beta = r_set[-1] - angle_alpha*(n-1)
+            angle_alpha = (r_max-r_set[0])/(n-1) #for a conversion from array index to angular values
+            angle_beta = r_max - angle_alpha*(n-1)
             r_plot = angle_alpha*r_plot + angle_beta #linear set of angular samples (1 per pixel) - upgrade to binned?
-            arcmin_per_pixel = r_set[-1]*2/n
+            arcmin_per_pixel = r_max*2/n
             s_plot = intp(r_plot*1.00000001)*arcmin_per_pixel**2
             if part_data['em_model'] == "annihilation":
                 s_plot *= sigv/part_data['cross_section']
@@ -602,8 +602,8 @@ def fits_map(sky_coords,target_freqs,calc_data,halo_data,part_data,diff_data,ban
             fits_out_set.append(s_plot[use_start_pix:use_end_pix,use_start_pix:use_end_pix])
         fits_out_set = np.array(fits_out_set)
 
-        angle_alpha = 2*r_set[-1]/(n-1)
-        angle_beta = r_set[-1] - angle_alpha*(n-1)
+        angle_alpha = 2*r_max/(n-1)
+        angle_beta = r_max - angle_alpha*(n-1)
 
         ra_set = np.flipud((np.arange(n)*angle_alpha+angle_beta+ra_val)/60) #ra declines to the right in RA---SIN
         dec_set = (np.arange(n)*angle_alpha+angle_beta+dec_val)/60 
